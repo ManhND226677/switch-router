@@ -1,0 +1,18 @@
+{
+  "name": "switch-router-tests",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Unit tests for the Switch-Router embeddings endpoint",
+  "scripts": {
+    "test": "NODE_PATH=/tmp/node_modules /tmp/node_modules/.bin/vitest run --reporter=verbose",
+    "test:watch": "NODE_PATH=/tmp/node_modules /tmp/node_modules/.bin/vitest --reporter=verbose"
+  },
+  "devDependencies": {
+    "lowdb": "^7.0.1",
+    "vitest": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

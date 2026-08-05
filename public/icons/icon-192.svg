@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" rx="14" fill="url(#switchRouterTile192)"/>
+  <g fill="#ffffff">
+    <rect x="15.4" y="20.6" width="24.3" height="7.4" rx="3.7"/>
+    <path d="M37.4 15.0 L37.4 33.6 L51.2 24.3 Z"/>
+    <rect x="24.3" y="36.0" width="24.3" height="7.4" rx="3.7"/>
+    <path d="M26.6 30.4 L26.6 49.0 L12.8 39.7 Z"/>
+  </g>
+  <defs>
+    <linearGradient id="switchRouterTile192" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4f46e5"/>
+      <stop offset="1" stop-color="#06b6d4"/>
+    </linearGradient>
+  </defs>
+</svg>
