@@ -10,6 +10,36 @@ const OPTIONAL_FIELDS = [
   "consecutiveUseCount", "idToken", "lastRefreshAt",
 ];
 
+// Transient per-model backoff state written by src/sse/services/auth.js as FLAT
+// keys on the connection (`modelLock_${model}`). Model names come from the
+// caller, so the key space is unbounded: without pruning, every model ever
+// routed through an account leaves a permanent key in the `data` JSON.
+// clearAccountError() sets an expired lock to `null` rather than removing it,
+// which is why real DBs accumulate dozens of dead `modelLock_*: null` entries.
+const MODEL_LOCK_PREFIX = "modelLock_";
+
+// Drop model locks that are cleared (null) or whose expiry has passed. Active
+// locks are always preserved — readers treat a future timestamp as "locked".
+function pruneModelLocks(conn) {
+  const now = Date.now();
+  let pruned = 0;
+  for (const key of Object.keys(conn)) {
+    if (!key.startsWith(MODEL_LOCK_PREFIX)) continue;
+    const expiry = conn[key];
+    if (expiry === null || expiry === undefined || expiry === "") {
+      delete conn[key];
+      pruned++;
+      continue;
+    }
+    const ts = new Date(expiry).getTime();
+    if (!Number.isFinite(ts) || ts <= now) {
+      delete conn[key];
+      pruned++;
+    }
+  }
+  return pruned;
+}
+
 function rowToConn(row) {
   if (!row) return null;
   const extra = parseJson(row.data, {});
@@ -29,6 +59,10 @@ function rowToConn(row) {
 
 function connToRow(c) {
   const { id, provider, authType, name, email, priority, isActive, createdAt, updatedAt, ...rest } = c;
+  // Lazy GC on every write: `rest` is a fresh object from the destructure, so
+  // pruning it here cleans the persisted JSON without mutating the caller's
+  // object. This is the single choke point for create/update/cleanup.
+  pruneModelLocks(rest);
   return {
     id,
     provider,
@@ -236,7 +270,7 @@ export async function cleanupProviderConnections() {
     "accessToken", "refreshToken", "expiresAt", "tokenType",
     "scope", "projectId", "apiKey", "testStatus",
     "lastTested", "lastError", "lastErrorAt", "rateLimitedUntil", "expiresIn",
-    "consecutiveUseCount",
+    "errorCode", "consecutiveUseCount",
   ];
   let cleaned = 0;
   db.transaction(() => {

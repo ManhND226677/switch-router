@@ -7,7 +7,7 @@ import { fetchImageAsBase64, parseDataUri } from "./image.js";
 // Targets that require inline base64 images (cannot accept remote URLs).
 const TARGETS_NEED_BASE64 = new Set([
   FORMATS.GEMINI, FORMATS.GEMINI_CLI, FORMATS.VERTEX,
-  FORMATS.ANTIGRAVITY, FORMATS.OLLAMA, FORMATS.KIRO,
+  FORMATS.ANTIGRAVITY, FORMATS.OLLAMA,
 ]);
 
 function isRemoteUrl(url) {
@@ -42,7 +42,6 @@ function collectImageRefs(body, sourceFormat) {
   switch (sourceFormat) {
     case FORMATS.OPENAI:
     case FORMATS.OLLAMA:
-    case FORMATS.KIRO:
     case FORMATS.CURSOR:
     case FORMATS.COMMANDCODE:
       pushOpenAI(body.messages);

@@ -29,12 +29,6 @@ describe("toOpenAIFinish - ollama", () => {
   });
 });
 
-describe("toOpenAIFinish - kiro", () => {
-  it("tool_use -> tool_calls", () => {
-    expect(toOpenAIFinish("tool_use", "kiro")).toBe("tool_calls");
-  });
-});
-
 describe("toOpenAIFinish - claude", () => {
   it.each([
     ["end_turn", "stop"],

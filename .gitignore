@@ -101,3 +101,6 @@ graphify-out/*
 
 # Local audit screenshots (not part of the shipped app)
 .codex-audit/
+
+# Local AI assistant workspace memory (not part of the repo)
+.workbuddy-ai/

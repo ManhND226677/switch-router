@@ -47,12 +47,5 @@ describe("prefetchRemoteImages", () => {
     expect(body.contents[0].parts[0].fileData).toBeUndefined();
   });
 
-  it("claude source -> kiro target: source.url -> base64", async () => {
-    const body = { messages: [{ role: "user", content: [
-      { type: "image", source: { type: "url", url: "https://x/a.png" } },
-    ] }] };
-    const n = await prefetchRemoteImages(body, FORMATS.CLAUDE, FORMATS.KIRO);
-    expect(n).toBe(1);
-    expect(body.messages[0].content[0].source.type).toBe("base64");
-  });
+
 });

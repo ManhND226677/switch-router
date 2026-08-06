@@ -259,7 +259,12 @@ export async function clearAccountError(connectionId, currentConnection, model =
 
   // Only reset error state if no active locks remain
   if (remainingActiveLocks.length === 0) {
-    Object.assign(clearObj, { testStatus: "active", lastError: null, lastErrorAt: null, backoffLevel: 0 });
+    // errorCode must be cleared alongside the rest of the error state. Leaving
+    // it behind strands a stale HTTP code (e.g. 400/429) on a connection whose
+    // testStatus is back to "active" and whose lastError is null, which makes
+    // the dashboard and any errorCode-based diagnostics lie about a healthy
+    // account.
+    Object.assign(clearObj, { testStatus: "active", lastError: null, lastErrorAt: null, errorCode: null, backoffLevel: 0 });
   }
 
   await updateProviderConnection(connectionId, clearObj);

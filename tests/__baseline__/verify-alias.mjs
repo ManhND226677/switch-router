@@ -13,13 +13,13 @@ const ALIAS_TOKENS = [
   "cc","cx","gc","qw","ag","gh","kr","cu","kc","kmc","cl","oc","ocg","qd","qoder",
   "el","openai","vercel","vercel-ai-gateway","anthropic","gemini","openrouter","glm","kimi",
   "minimax","hf","huggingface","ds","deepseek","cmc","commandcode","groq","xai",
-  "mistral","pplx","perplexity","together","fireworks","cerebras","cohere","nvidia","nebius",
+  "mistral","pplx","perplexity","together","fireworks","cohere","nvidia","nebius",
   "siliconflow","hyp","hyperbolic","dg","deepgram","aai","assemblyai","nb","nanobanana","ch",
   "chutes","byteplus","bpm","cursor","vx","vertex","vxp","vertex-partner",
   "gw","grok-web","gcli","gb","grok-build","grok-cli","pw","perplexity-web","mimo","xiaomi-mimo",
   "xmtp","xiaomi-tokenplan","cf",
   "cloudflare-ai","fal","fal-ai","stability","stability-ai","bfl","black-forest-labs","recraft",
-  "topaz","runway","runwayml","jina","jina-ai","polly","aws-polly","bb","blackbox",
+  "topaz","runway","runwayml","jina","jina-ai","polly","aws-polly",
 ];
 
 // Sort idToAlias by key — runtime accesses by key, order is irrelevant (content-based)

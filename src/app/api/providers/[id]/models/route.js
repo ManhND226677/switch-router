@@ -5,7 +5,6 @@ import { GEMINI_CONFIG } from "@/lib/oauth/constants/oauth";
 import { refreshGoogleToken, updateProviderCredentials } from "@/sse/services/tokenRefresh";
 import { resolveOllamaLocalHost } from "open-sse/config/providers.js";
 import { getModelsByProviderId } from "open-sse/config/providerModels.js";
-import { resolveKiroModels } from "open-sse/services/kiroModels.js";
 import { resolveKimchiModels } from "open-sse/services/kimchiModels.js";
 import { resolveQoderModels } from "open-sse/services/qoderModels.js";
 import { resolveGrokCliModels } from "open-sse/services/grokCliModels.js";
@@ -260,7 +259,6 @@ const PROVIDER_MODELS_CONFIG = {
   "perplexity-agent": createOpenAIModelsConfig("https://api.perplexity.ai/v1/models"),
   together: createOpenAIModelsConfig("https://api.together.xyz/v1/models"),
   fireworks: createOpenAIModelsConfig("https://api.fireworks.ai/inference/v1/models"),
-  cerebras: createOpenAIModelsConfig("https://api.cerebras.ai/v1/models"),
   cohere: createOpenAIModelsConfig("https://api.cohere.ai/v1/models"),
   nebius: createOpenAIModelsConfig("https://api.studio.nebius.ai/v1/models"),
   siliconflow: createOpenAIModelsConfig("https://api.siliconflow.com/v1/models"),
@@ -305,50 +303,6 @@ const PROVIDER_MODELS_CONFIG = {
   },
 
   // Custom resolvers (non-OpenAI-shaped APIs / token-refresh flows)
-  kiro: {
-    customResolver: async (connection) => {
-      const credentials = {
-        accessToken: connection.accessToken,
-        refreshToken: connection.refreshToken,
-        providerSpecificData: connection.providerSpecificData || {}
-      };
-      let warning;
-      try {
-        const result = await resolveKiroModels(credentials, {
-          log: console,
-          onCredentialsRefreshed: async (refreshed) => {
-            if (refreshed?.accessToken) {
-              await updateProviderCredentials(connection.id, {
-                accessToken: refreshed.accessToken,
-                refreshToken: refreshed.refreshToken || connection.refreshToken,
-                expiresIn: refreshed.expiresIn,
-              });
-              connection.accessToken = refreshed.accessToken;
-              if (refreshed.refreshToken) connection.refreshToken = refreshed.refreshToken;
-            }
-          }
-        });
-        if (result?.models?.length) {
-          return {
-            models: result.models.map((m) => ({
-              id: m.id,
-              name: m.name,
-              upstreamModelId: m.upstreamModelId,
-              contextLength: m.contextLength,
-              rateMultiplier: m.rateMultiplier,
-              capabilities: m.capabilities,
-              description: m.description
-            }))
-          };
-        }
-        warning = "Kiro returned no models; falling back to static catalog.";
-      } catch (error) {
-        warning = `Failed to fetch Kiro models: ${error.message}`;
-        console.log("Failed to fetch Kiro models dynamically, falling back to static:", error.message);
-      }
-      return { models: [], warning };
-    }
-  },
   qoder: {
     customResolver: async (connection) => {
       const credentials = {

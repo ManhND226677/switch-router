@@ -1,5 +1,5 @@
 // P0 GOLDEN: lock OUTPUT của translateRequest (body) cho các đích đặc biệt.
-// openai → claude/gemini/kiro: thinking, tools, image, system, tool_result.
+// openai → claude/gemini: thinking, tools, image, system, tool_result.
 // Sau refactor chạy lại phải khớp y hệt.
 import { describe, it, expect } from "vitest";
 import "./registerAll.js";
@@ -27,7 +27,7 @@ function baseBody() {
   };
 }
 
-// Khử field động: toolNameMap, kiro conversationId/agentContinuationId (uuid), timestamp trong content.
+// Khử field động: toolNameMap, conversationId/agentContinuationId (uuid), timestamp trong content.
 function clean(body) {
   const s = JSON.stringify(body, (k, v) => {
     if (k === "_toolNameMap" || k === "conversationId" || k === "agentContinuationId") return undefined;
@@ -95,9 +95,4 @@ describe("GOLDEN request: OpenAI → Gemini", () => {
   });
 });
 
-describe("GOLDEN request: OpenAI → Kiro", () => {
-  it("full body (image base64 + tool_result)", () => {
-    const out = translateRequest(FORMATS.OPENAI, FORMATS.KIRO, "claude-sonnet-4.5", baseBody(), true, { accessToken: "t" }, "kiro");
-    expect(clean(out)).toMatchSnapshot();
-  });
-});
+

@@ -77,8 +77,7 @@ export function translateRequest(sourceFormat, targetFormat, model, body, stream
   // If same format, skip translation steps
   if (sourceFormat !== targetFormat) {
     // Direct route: if a translator is registered for this exact source:target
-    // pair, use it instead of pivoting through OpenAI. This is lossless for
-    // pairs like claude:kiro (avoids the claude->openai->kiro double-hop).
+    // pair, use it instead of pivoting through OpenAI.
     const directFn = requestRegistry.get(`${sourceFormat}:${targetFormat}`);
     if (directFn) {
       result = directFn(model, result, stream, credentials);
@@ -104,15 +103,7 @@ export function translateRequest(sourceFormat, targetFormat, model, body, stream
   }
 
   // Normalize thinking to the target provider-native format (config-driven, capability-aware).
-  // Kiro's GenerateAssistantResponse request does not accept the generic top-level
-  // `thinking` field; its translators map thinking intent to KAS-compatible
-  // systemPrompt/additionalModelRequestFields instead.
-  const kiroThinkingMappedByTranslator =
-    targetFormat === FORMATS.KIRO &&
-    (sourceFormat === FORMATS.OPENAI || sourceFormat === FORMATS.CLAUDE);
-  if (!kiroThinkingMappedByTranslator) {
-    applyThinking(targetFormat, model, result, provider, thinkingIntent);
-  }
+  applyThinking(targetFormat, model, result, provider, thinkingIntent);
 
   // Always normalize to clean OpenAI format when target is OpenAI
   // This handles hybrid requests (e.g., OpenAI messages + Claude tools)
@@ -165,9 +156,7 @@ export function translateResponse(targetFormat, sourceFormat, chunk, state) {
   let openaiResults = null; // Store OpenAI intermediate results
 
   // Direct route: if a response translator is registered for this exact
-  // target:source pair, use it instead of pivoting through OpenAI. Mirrors the
-  // request-side direct route (e.g. kiro:claude — KiroExecutor already emits
-  // OpenAI-shaped chunks, so this converts them straight to Claude SSE).
+  // target:source pair, use it instead of pivoting through OpenAI.
   const directFn = responseRegistry.get(`${targetFormat}:${sourceFormat}`);
   if (directFn) {
     const converted = directFn(chunk, state);
@@ -275,18 +264,14 @@ import "./request/openai-to-gemini.js";
 import "./request/openai-to-vertex.js";
 import "./request/antigravity-to-openai.js";
 import "./request/openai-responses.js";
-import "./request/openai-to-kiro.js";
 import "./request/openai-to-cursor.js";
 import "./request/openai-to-ollama.js";
 import "./request/openai-to-commandcode.js";
-import "./request/claude-to-kiro.js";
 import "./response/claude-to-openai.js";
 import "./response/openai-to-claude.js";
 import "./response/gemini-to-openai.js";
 import "./response/openai-to-antigravity.js";
 import "./response/openai-responses.js";
-import "./response/kiro-to-openai.js";
 import "./response/cursor-to-openai.js";
 import "./response/ollama-to-openai.js";
 import "./response/commandcode-to-openai.js";
-import "./response/kiro-to-claude.js";

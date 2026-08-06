@@ -7,6 +7,11 @@ const DEFAULT_FLUSH_INTERVAL_MS = 5000;
 const DEFAULT_MAX_JSON_SIZE = 5 * 1024;
 const CONFIG_CACHE_TTL_MS = 5000;
 
+// Two writers use two different words for the same outcome: usageHistory rows
+// are stored with status "ok", requestDetails rows with "success". Reads accept
+// either so a filter never comes back empty just because of the writer.
+const SUCCESS_STATUS_SYNONYMS = new Set(["ok", "success"]);
+
 let cachedConfig = null;
 let cachedConfigTs = 0;
 
@@ -15,10 +20,22 @@ async function getObservabilityConfig() {
   try {
     const { getSettings } = await import("./settingsRepo.js");
     const settings = await getSettings();
-    const envEnabled = process.env.OBSERVABILITY_ENABLED !== "false";
-    const enabled = typeof settings.enableObservability2 === "boolean"
-      ? settings.enableObservability2
-      : envEnabled;
+
+    // `OBSERVABILITY_ENABLED=false` is a deployment-level hard kill-switch: it
+    // wins over the stored setting so an operator can disable request logging
+    // without touching the DB. Otherwise the dashboard toggle decides.
+    //
+    // NOTE: this used to read `settings.enableObservability2`, a key no writer
+    // ever produced — the dashboard writes `enableObservability`
+    // (src/app/(dashboard)/dashboard/profile/page.js) and DEFAULT_SETTINGS
+    // declares `enableObservability`. The toggle was therefore inert and the env
+    // var silently decided. `enableObservability2` is still honoured as a
+    // fallback so any DB that did acquire the stray key keeps its value.
+    const envKillSwitch = process.env.OBSERVABILITY_ENABLED === "false";
+    const stored = typeof settings.enableObservability === "boolean"
+      ? settings.enableObservability
+      : (typeof settings.enableObservability2 === "boolean" ? settings.enableObservability2 : true);
+    const enabled = envKillSwitch ? false : stored;
     cachedConfig = {
       enabled,
       maxRecords: settings.observabilityMaxRecords || parseInt(process.env.OBSERVABILITY_MAX_RECORDS || String(DEFAULT_MAX_RECORDS), 10),
@@ -150,7 +167,18 @@ export async function getRequestDetails(filter = {}) {
   if (filter.provider) { conds.push("provider = ?"); params.push(filter.provider); }
   if (filter.model) { conds.push("model = ?"); params.push(filter.model); }
   if (filter.connectionId) { conds.push("connectionId = ?"); params.push(filter.connectionId); }
-  if (filter.status) { conds.push("status = ?"); params.push(filter.status); }
+  // Status vocabulary differs by writer: usageHistory stores "ok"
+  // (src/lib/db/repos/usageRepo.js) while requestDetails stores "success"
+  // (open-sse/handlers/chatCore/*Handler.js). A UI filtering for one term would
+  // silently return nothing for rows written under the other, so treat the
+  // success synonyms as one class here rather than rewriting historical rows.
+  if (filter.status) {
+    const synonyms = SUCCESS_STATUS_SYNONYMS.has(String(filter.status).toLowerCase())
+      ? [...SUCCESS_STATUS_SYNONYMS]
+      : [filter.status];
+    conds.push(`status IN (${synonyms.map(() => "?").join(", ")})`);
+    params.push(...synonyms);
+  }
   if (filter.startDate) { conds.push("timestamp >= ?"); params.push(new Date(filter.startDate).toISOString()); }
   if (filter.endDate) { conds.push("timestamp <= ?"); params.push(new Date(filter.endDate).toISOString()); }
 

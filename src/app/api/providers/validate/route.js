@@ -365,7 +365,6 @@ export async function POST(request) {
         case "perplexity":
         case "together":
         case "fireworks":
-        case "cerebras":
         case "cohere":
         case "nebius":
         case "siliconflow":
@@ -456,24 +455,6 @@ export async function POST(request) {
             headers: { "Authorization": `Token ${apiKey}` },
           });
           isValid = res.ok;
-          break;
-        }
-
-        case "blackbox": {
-          const res = await fetch("https://api.blackbox.ai/chat/completions", {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${apiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: "gpt-4o",
-              messages: [{ role: "user", content: "test" }],
-              max_tokens: 10,
-            }),
-          });
-          // Returns 401 for invalid key, 200 for valid, 400 for malformed
-          isValid = res.status === 200 || res.status === 400;
           break;
         }
 

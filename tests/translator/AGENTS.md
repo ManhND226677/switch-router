@@ -11,7 +11,7 @@ Pipeline uses **OpenAI as the intermediate format**:
 
 Components:
 - `index.js` — `translateRequest` / `translateResponse` / `register(from, to, requestFn, responseFn)` / registry.
-- `formats.js` — `FORMATS` enum (openai, claude, gemini, gemini-cli, openai-responses, antigravity, kiro, cursor, commandcode, ollama, vertex).
+- `formats.js` — `FORMATS` enum (openai, claude, gemini, gemini-cli, openai-responses, antigravity, cursor, commandcode, ollama, vertex).
 - `request/<from>-to-<to>.js` — one-way request translation.
 - `response/<from>-to-<to>.js` — one-way SSE response translation.
 - `schema/` — pure data enums (no logic): `roles.js` (ROLE, GEMINI_ROLE), `blocks.js` (OPENAI_BLOCK, CLAUDE_BLOCK, RESPONSES_ITEM, valid-type lists), `finishReasons.js` (OPENAI_FINISH, CLAUDE_STOP, GEMINI_FINISH), `defaults.js` (MODEL_FALLBACK, DEFAULT_IMAGE_MIME). Import via `schema/index.js`.
@@ -66,7 +66,7 @@ Only add a dedicated test when a provider has a special format that does not rou
 
 ## 7. Special formats to watch
 
-- `kiro` (binary AWS EventStream), `cursor` (protobuf ConnectRPC), `commandcode` (NDJSON) → responses do NOT round-trip cleanly through openai; test via their executors, not just the translator.
+- `cursor` (protobuf ConnectRPC), `commandcode` (NDJSON) → responses do NOT round-trip cleanly through openai; test via their executors, not just the translator.
 - Single-provider-two-formats (most fragile): `opencode-go` (minimax models → claude, others openai), `github` (escalates `/chat/completions` → `/responses` at runtime), `xiaomi-tokenplan` (claude alias).
 - `gemini`/`gemini-cli`: only the LAST system message is kept → earlier system messages are lost.
 
@@ -102,13 +102,6 @@ Grouped per CLI/provider test file. Each row is an `it.fails` case.
 |---|---|
 | functionResponse + functionCall in same content → tool calls dropped | `request/antigravity-to-openai.js:177-189` |
 | functionCall without id → random unstable id | `request/antigravity-to-openai.js:167` |
-
-**Kiro (`bugs-kiro.test.js`)**
-| Bug | Source |
-|---|---|
-| `JSON.parse(arguments)` throws on bad JSON (no try/catch) | `request/openai-to-kiro.js:214-216` |
-| `max_tokens` hardcoded to 32000 | `request/openai-to-kiro.js:309` |
-| Remote image → `[Image: url]` text | `request/openai-to-kiro.js:132-134` |
 
 **Gemini / Cursor / CommandCode (`bugs-gemini-cursor-commandcode.test.js`)**
 | Bug | Source |

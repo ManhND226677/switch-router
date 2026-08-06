@@ -11,7 +11,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ─── Mock the executors/index.js to avoid transitive uuid dependency ─────────
-// kiro.js (imported by executors/index.js) requires 'uuid' which isn't
+// Some executor files require 'uuid' which isn't
 // installed in the test environment. We mock the whole executor layer.
 vi.mock("../../open-sse/executors/index.js", () => ({
   getExecutor: vi.fn(() => ({

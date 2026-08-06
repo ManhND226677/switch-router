@@ -9,7 +9,6 @@ export const FORMATS = {
   VERTEX: "vertex",
   CODEX: "codex",
   ANTIGRAVITY: "antigravity",
-  KIRO: "kiro",
   CURSOR: "cursor",
   OLLAMA: "ollama",
   COMMANDCODE: "commandcode"

@@ -10,9 +10,9 @@ export default {
     icon: "psychology",
     color: "#1E40AF",
     textIcon: "KC",
-    website: "https://kimi.moonshot.cn",
+    website: "https://kimi.com",
     notice: {
-      signupUrl: "https://kimi.moonshot.cn",
+      signupUrl: "https://kimi.com",
     },
   },
   category: "oauth",

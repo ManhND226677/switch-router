@@ -92,7 +92,7 @@ export function createStreamController({ onDisconnect, onError, log, provider, m
  *
  * Stall detection lives in pipeWithDisconnect (tied to upstream byte
  * activity), not here — output of the transform stream may be silent
- * for long periods while raw bytes still flow (e.g. Kiro EventStream
+ * for long periods while raw bytes still flow
  * binary frames buffering, Claude reasoning streams).
  */
 export function createDisconnectAwareStream(transformStream, streamController, onAbortTerminal = null) {
@@ -179,7 +179,7 @@ export function createDisconnectAwareStream(transformStream, streamController, o
  * Pipe provider response through transform with disconnect detection.
  *
  * Stall watchdog tracks raw upstream byte activity, not transform output.
- * Reasoning models (Claude thinking via Kiro, etc.) can produce zero SSE
+ * Reasoning models can produce zero SSE
  * output for long stretches while partial EventStream frames keep arriving.
  * Measuring stall on the transform output caused false stalls and the
  * "failed to pipe response" error in Next.

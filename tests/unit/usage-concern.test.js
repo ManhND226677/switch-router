@@ -1,4 +1,4 @@
-// A3: locks toOpenAIUsage per-provider token math (claude/gemini/kiro/ollama/commandcode).
+// A3: locks toOpenAIUsage per-provider token math (claude/gemini/ollama/commandcode).
 import { describe, it, expect } from "vitest";
 import { toOpenAIUsage } from "../../open-sse/translator/concerns/usage.js";
 
@@ -39,13 +39,6 @@ describe("toOpenAIUsage", () => {
     );
     // candidates derived = 150 - 100 - 10 = 40 ; completion = 40 + 10
     expect(u.completion_tokens).toBe(50);
-  });
-
-  it("kiro: input/output straight", () => {
-    const u = toOpenAIUsage({ inputTokens: 12, outputTokens: 3 }, "kiro");
-    expect(u.prompt_tokens).toBe(12);
-    expect(u.completion_tokens).toBe(3);
-    expect(u.total_tokens).toBe(15);
   });
 
   it("ollama: prompt_eval_count/eval_count", () => {

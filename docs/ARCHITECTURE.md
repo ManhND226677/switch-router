@@ -58,7 +58,7 @@ flowchart LR
     end
 
     subgraph Upstreams[Upstream Providers]
-        P1[OAuth Providers\nClaude/Codex/Gemini/Qwen/GitHub/Kiro/Cursor/Antigravity]
+        P1[OAuth Providers\nClaude/Codex/Gemini/Qwen/GitHub/Cursor/Antigravity]
         P2[API Key Providers\nOpenAI/Anthropic/OpenRouter/GLM/Kimi/MiniMax]
         P3[Compatible Nodes\nOpenAI-compatible / Anthropic-compatible]
     end
@@ -413,7 +413,6 @@ Specialized executors:
 - `antigravity`
 - `gemini-cli`
 - `github`
-- `kiro`
 - `codex`
 - `cursor`
 
@@ -435,7 +434,6 @@ Target formats include:
 - OpenAI chat/Responses
 - Claude
 - Gemini/Gemini-CLI/Antigravity envelope
-- Kiro
 - Cursor
 
 Translations are selected dynamically based on source payload shape and provider target format.

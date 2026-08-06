@@ -7,7 +7,6 @@ import {
   refreshGoogleToken,
   refreshQwenToken,
   refreshCodexToken,
-  refreshKiroToken,
   refreshGitHubToken,
   refreshCopilotToken,
   classifyOAuthRefreshError,
@@ -20,7 +19,6 @@ export {
   refreshGoogleToken,
   refreshQwenToken,
   refreshCodexToken,
-  refreshKiroToken,
   refreshGitHubToken,
   refreshCopilotToken,
   classifyOAuthRefreshError,
@@ -122,7 +120,6 @@ const REFRESH_HANDLERS = {
   codex: (c, log) => refreshCodexToken(c.refreshToken, log),
   qwen: (c, log) => refreshQwenToken(c.refreshToken, log),
   github: (c, log) => refreshGitHubToken(c.refreshToken, log),
-  kiro: (c, log) => refreshKiroToken(c.refreshToken, c.providerSpecificData, log),
   xai: (c, log) => refreshXaiToken(c.refreshToken, log),
   // Grok CLI shares xAI OAuth client + token endpoint (device-code tokens refresh the same way)
   "grok-cli": (c, log) => refreshXaiToken(c.refreshToken, log),

@@ -9,7 +9,7 @@ export default {
     icon: "psychology",
     color: "#1E3A8A",
     textIcon: "KM",
-    website: "https://kimi.moonshot.cn",
+    website: "https://kimi.com",
     notice: {
       apiKeyUrl: "https://platform.moonshot.ai/console/api-keys",
     },
@@ -50,7 +50,7 @@ export default {
   serviceKinds: ["llm","webSearch"],
   searchViaChat: {
     defaultModel: "kimi-k2.5",
-    endpoint: "https://api.moonshot.cn/v1/chat/completions",
+    endpoint: "https://api.kimi.com/coding/v1/chat/completions",
     pricingUrl: "https://platform.moonshot.ai/docs/pricing/chat",
   },
 };

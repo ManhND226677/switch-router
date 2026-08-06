@@ -38,7 +38,6 @@ const ALWAYS_PROTECTED = [
   "/api/settings/database",
   "/api/app/shutdown",
   "/api/oauth/cursor/auto-import",
-  "/api/oauth/kiro/auto-import",
 ];
 
 // Routes that spawn child processes or read host secrets — restrict to localhost.
@@ -46,7 +45,6 @@ const LOCAL_ONLY_PATHS = [
   "/api/cli-tools/cowork-settings",
   "/api/mcp/",
   "/api/oauth/cursor/auto-import",
-  "/api/oauth/kiro/auto-import",
   "/api/auth/reset-password",
 ];
 

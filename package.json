@@ -1,6 +1,6 @@
 {
   "name": "switch-router-app",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Switch-Router personal AI gateway dashboard",
   "private": true,
   "scripts": {

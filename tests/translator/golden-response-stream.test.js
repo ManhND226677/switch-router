@@ -13,7 +13,7 @@ function stripVolatile(chunks) {
     if (key === "id" && typeof val === "string") {
       return val
         .replace(/-\d{10,}-(\d+)$/, "-<TS>-$1")   // gemini: name-<ts>-idx
-        .replace(/^chatcmpl-\d{10,}$/, "chatcmpl-<TS>")  // kiro/ollama stream id
+        .replace(/^chatcmpl-\d{10,}$/, "chatcmpl-<TS>")  // ollama stream id
         .replace(/^call_(\d+)_\d{10,}$/, "call_$1_<TS>"); // ollama tool id
     }
     return val;
@@ -69,19 +69,6 @@ describe("GOLDEN response stream: Gemini → OpenAI", () => {
       { candidates: [{ finishReason: "STOP" }] },
     ];
     expect(runStream(FORMATS.GEMINI, FORMATS.OPENAI, events)).toMatchSnapshot();
-  });
-});
-
-describe("GOLDEN response stream: Kiro → OpenAI", () => {
-  it("text + reasoning + toolUse + usage + stop", () => {
-    const events = [
-      { assistantResponseEvent: { content: "Hello" }, _eventType: "assistantResponseEvent" },
-      { reasoningContentEvent: { text: "thinking" }, _eventType: "reasoningContentEvent" },
-      { toolUseEvent: { toolUseId: "tu_1", name: "get_weather", input: { city: "NYC" } }, _eventType: "toolUseEvent" },
-      { usageEvent: { inputTokens: 10, outputTokens: 5 }, _eventType: "usageEvent" },
-      { _eventType: "messageStopEvent" },
-    ];
-    expect(runStream(FORMATS.KIRO, FORMATS.OPENAI, events)).toMatchSnapshot();
   });
 });
 

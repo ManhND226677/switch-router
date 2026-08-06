@@ -1,10 +1,15 @@
 import { EventEmitter } from "events";
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
+import { fingerprintApiKey, isFingerprinted } from "../helpers/apiKeyPrivacy.js";
 import { getMeta, setMeta } from "../helpers/metaStore.js";
 
 function maskApiKey(key) {
   if (!key || typeof key !== "string") return null;
+  // Already fingerprinted (see helpers/apiKeyPrivacy.js) — masking twice would
+  // throw away the trailing entropy and re-collapse distinct keys into one
+  // bucket.
+  if (isFingerprinted(key)) return key;
   if (key.length <= 8) return key.charAt(0) + "***";
   return key.slice(0, 8) + "***";
 }
@@ -298,7 +303,14 @@ async function getUsageReferenceData(adapter) {
     for (const n of nodes) if (n.id && n.name) providerNodeNameMap[n.id] = n.name;
 
     const apiKeyMap = {};
-    for (const k of apiKeys) apiKeyMap[k.key] = { name: k.name, id: k.id, createdAt: k.createdAt };
+    for (const k of apiKeys) {
+      apiKeyMap[k.key] = { name: k.name, id: k.id, createdAt: k.createdAt };
+      // usageHistory stores a fingerprint, not the raw key (see
+      // helpers/apiKeyPrivacy.js), so index the fingerprint too — otherwise the
+      // dashboard loses the human-readable key name and falls back to a prefix.
+      const fp = fingerprintApiKey(k.key);
+      if (fp && fp !== k.key) apiKeyMap[fp] = { name: k.name, id: k.id, createdAt: k.createdAt };
+    }
 
     const value = { connectionMap, providerNodeNameMap, apiKeyMap };
     referenceCache.value = value;
@@ -411,6 +423,14 @@ export async function saveRequestUsage(entry) {
     const hasExplicitTimestamp = Boolean(entry.timestamp);
     if (!hasExplicitTimestamp) entry.timestamp = new Date().toISOString();
     entry.cost = await calculateCost(entry.provider, entry.model, entry.tokens);
+
+    // Never persist a usable gateway key. Fingerprint ONCE, here, so the
+    // dedup probe, the INSERT, the usageDaily rollup and the in-memory ring all
+    // agree on the same value — mixing raw and fingerprinted forms would create
+    // duplicate rows and split one key's stats across two buckets.
+    // Callers keep their own object untouched apart from this field, which is
+    // exactly what every downstream reader expects to see.
+    entry.apiKey = fingerprintApiKey(entry.apiKey);
 
     const tokens = entry.tokens || {};
     const promptTokens = tokens.prompt_tokens || tokens.input_tokens || 0;

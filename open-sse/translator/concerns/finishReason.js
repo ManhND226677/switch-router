@@ -33,7 +33,6 @@ export function toOpenAIFinish(reason, format) {
         case GEMINI_FINISH.PROHIBITED_CONTENT: return OPENAI_FINISH.CONTENT_FILTER;
         default: return OPENAI_FINISH.STOP;
       }
-    case "kiro":
     case "ollama":
       switch (reason) {
         case "tool_calls":

@@ -17,7 +17,6 @@ const FORMAT_TO_NATIVE = {
   "gemini-cli": "gemini-budget",
   vertex: "gemini-budget",
   antigravity: "gemini-budget",
-  kiro: "kiro",
 };
 
 // Strip a trailing thinking suffix "model(value)" → "model" (no-op when absent).
@@ -302,9 +301,6 @@ function applyFormat(fmt, body, cfg, caps) {
       if (level) body.reasoning_effort = level === "xhigh" || level === "max" ? "high" : level;
       break;
     }
-    case "kiro":
-      // Kiro thinking handled via system-tag injection in openai-to-kiro.js; no body field here.
-      break;
     default:
       break;
   }

@@ -3,7 +3,7 @@
 // Bổ sung coverage còn thiếu so với golden-response-stream.test.js:
 //   - commandcode usage/finish
 //   - passthrough openai→openai (request + response)
-//   - kiro/ollama finish_reason sau tool (lock behavior HIỆN TẠI, kể cả bug đã biết)
+//   - ollama finish_reason sau tool (lock behavior HIỆN TẠI, kể cả bug đã biết)
 // Sau refactor chạy lại phải khớp y hệt. Lệch = regression.
 import { describe, it, expect } from "vitest";
 import "./registerAll.js";
@@ -47,18 +47,6 @@ describe("GOLDEN response stream: CommandCode → OpenAI", () => {
       { type: "finish" },
     ];
     expect(runStream(FORMATS.COMMANDCODE, FORMATS.OPENAI, events)).toMatchSnapshot();
-  });
-});
-
-describe("GOLDEN response stream: Kiro → OpenAI (finish after tool)", () => {
-  it("toolUse then stop — lock current finish_reason behavior", () => {
-    const events = [
-      { assistantResponseEvent: { content: "Hi" }, _eventType: "assistantResponseEvent" },
-      { toolUseEvent: { toolUseId: "tu_1", name: "search", input: { q: "x" } }, _eventType: "toolUseEvent" },
-      { usageEvent: { inputTokens: 7, outputTokens: 3 }, _eventType: "usageEvent" },
-      { _eventType: "messageStopEvent" },
-    ];
-    expect(runStream(FORMATS.KIRO, FORMATS.OPENAI, events)).toMatchSnapshot();
   });
 });
 

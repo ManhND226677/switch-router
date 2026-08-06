@@ -87,7 +87,7 @@ export function filterUsageForFormat(usage, targetFormat) {
       'input_tokens_details', 'output_tokens_details',
       'estimated'
     ],
-    // OpenAI format (default for OPENAI, CODEX, KIRO, etc.)
+    // OpenAI format (default for OPENAI, CODEX, etc.)
     default: [
       'prompt_tokens', 'completion_tokens', 'total_tokens',
       'cached_tokens', 'reasoning_tokens',

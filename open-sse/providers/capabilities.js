@@ -71,7 +71,7 @@ export function capabilitiesFromServiceKind(kind) {
  * otherwise mis-match. Only declare deltas vs DEFAULT.
  */
 export const MODEL_CAPABILITIES = {
-  // Claude 4.6/4.7/4.8 and Kiro Sonnet 5 have 1M context + adaptive thinking (override generic claude pattern)
+  // Claude 4.6/4.7/4.8 have 1M context + adaptive thinking (override generic claude pattern)
   "claude-opus-4.6":   { vision: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000 },
   "claude-opus-4.7":   { vision: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000 },
   "claude-opus-4-7":   { vision: true, reasoning: true, search: true, thinkingFormat: "claude-adaptive", contextWindow: 1000000, maxOutput: 128000 },
@@ -98,8 +98,6 @@ export const MODEL_CAPABILITIES = {
   "coder-model":       { reasoning: true, thinkingFormat: "qwen", contextWindow: 1000000 },
 };
 
-const KIRO_GPT_5_6_CAPABILITIES = { vision: true, reasoning: true, search: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 128000 };
-
 /**
  * Provider-specific capability overrides. Keyed by provider alias/id.
  */
@@ -118,20 +116,6 @@ export const PROVIDER_CAPABILITIES = {
     "z-ai/glm-5.2": { reasoning: true, thinkingFormat: "openai", contextWindow: 200000, maxOutput: 128000 },
     "deepseek-ai/deepseek-v4-pro": { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 65536 },
     "deepseek-ai/deepseek-v4-flash": { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 65536 },
-  },
-  "kiro": {
-    "gpt-5.6-sol": KIRO_GPT_5_6_CAPABILITIES,
-    "gpt-5.6-terra": KIRO_GPT_5_6_CAPABILITIES,
-    "gpt-5.6-luna": KIRO_GPT_5_6_CAPABILITIES,
-    "gpt-5.6-sol-thinking": KIRO_GPT_5_6_CAPABILITIES,
-    "gpt-5.6-terra-thinking": KIRO_GPT_5_6_CAPABILITIES,
-    "gpt-5.6-luna-thinking": KIRO_GPT_5_6_CAPABILITIES,
-    "gpt-5.6-sol-agentic": KIRO_GPT_5_6_CAPABILITIES,
-    "gpt-5.6-terra-agentic": KIRO_GPT_5_6_CAPABILITIES,
-    "gpt-5.6-luna-agentic": KIRO_GPT_5_6_CAPABILITIES,
-    "gpt-5.6-sol-thinking-agentic": KIRO_GPT_5_6_CAPABILITIES,
-    "gpt-5.6-terra-thinking-agentic": KIRO_GPT_5_6_CAPABILITIES,
-    "gpt-5.6-luna-thinking-agentic": KIRO_GPT_5_6_CAPABILITIES,
   },
 };
 
