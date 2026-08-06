@@ -15,7 +15,6 @@ import {
   getQwenUsage,
   getOllamaUsage,
   getGlmUsage,
-  getVercelAiGatewayUsage,
   getQoderUsage,
 } from "./usage/misc.js";
 
@@ -36,7 +35,6 @@ const USAGE_HANDLERS = {
   ollama: (c) => getOllamaUsage(c.accessToken),
   glm: (c) => getGlmUsage(c.apiKey, c.provider, c.proxyOptions),
   minimax: (c) => getMiniMaxUsage(c.apiKey, c.provider, c.proxyOptions),
-  "vercel-ai-gateway": (c) => getVercelAiGatewayUsage(c.apiKey, c.proxyOptions),
   "grok-cli": (c) => getGrokCliUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
   cavoti: (c) => getCavotiUsage(c.apiKey || c.accessToken, c.providerSpecificData, c.proxyOptions),
 };

@@ -41,78 +41,6 @@ export function getRefreshLeadMs(provider) {
   return REFRESH_LEAD_MS[provider] || TOKEN_EXPIRY_BUFFER_MS;
 }
 
-export function parseVertexSaJson(apiKey) {
-  if (typeof apiKey !== "string") return null;
-  try {
-    const parsed = JSON.parse(apiKey);
-    if (parsed.type === "service_account" && parsed.client_email && parsed.private_key && parsed.project_id) {
-      return parsed;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-// Cache Vertex tokens keyed by service account email { token, expiresAt }
-const vertexTokenCache = new Map();
-
-export async function refreshVertexToken(saJson, log) {
-  const cacheKey = saJson.client_email;
-  const cached = vertexTokenCache.get(cacheKey);
-
-  if (cached && cached.expiresAt - Date.now() > 5 * 60 * 1000) {
-    return { accessToken: cached.token, expiresAt: cached.expiresAt };
-  }
-
-  try {
-    const { SignJWT, importPKCS8 } = await import("jose");
-    log?.debug?.("TOKEN_REFRESH", `Vertex minting token for ${saJson.client_email}`);
-    const privateKey = await importPKCS8(saJson.private_key.replace(/\\n/g, "\n"), "RS256");
-    const now = Math.floor(Date.now() / 1000);
-
-    const jwt = await new SignJWT({ scope: "https://www.googleapis.com/auth/cloud-platform" })
-      .setProtectedHeader({ alg: "RS256" })
-      .setIssuer(saJson.client_email)
-      .setAudience(OAUTH_ENDPOINTS.google.token)
-      .setIssuedAt(now)
-      .setExpirationTime(now + 3600)
-      .sign(privateKey);
-
-    const res = await fetch(OAUTH_ENDPOINTS.google.token, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-        assertion: jwt,
-      }),
-    });
-
-    if (!res.ok) {
-      const err = await res.text();
-      log?.error?.("TOKEN_REFRESH", `Vertex token mint failed: ${err}`);
-      return null;
-    }
-
-    const { access_token, expires_in } = await res.json();
-    const expiresAt = Date.now() + (expires_in ?? 3600) * 1000;
-
-    vertexTokenCache.set(cacheKey, { token: access_token, expiresAt });
-    log?.info?.("TOKEN_REFRESH", `Vertex token minted for ${saJson.client_email}`);
-
-    return { accessToken: access_token, expiresAt };
-  } catch (error) {
-    log?.error?.("TOKEN_REFRESH", `Vertex token error: ${error.message}`);
-    return null;
-  }
-}
-
-function vertexRefreshHandler(c, log) {
-  const saJson = parseVertexSaJson(c.apiKey);
-  if (!saJson) return null;
-  return refreshVertexToken(saJson, log);
-}
-
 const REFRESH_HANDLERS = {
   "gemini-cli": (c, log) => refreshGoogleToken(c.refreshToken, PROVIDERS["gemini-cli"].clientId, PROVIDERS["gemini-cli"].clientSecret, log),
   antigravity: (c, log) => refreshGoogleToken(c.refreshToken, PROVIDERS.antigravity.clientId, PROVIDERS.antigravity.clientSecret, log),
@@ -124,8 +52,6 @@ const REFRESH_HANDLERS = {
   // Grok CLI shares xAI OAuth client + token endpoint (device-code tokens refresh the same way)
   "grok-cli": (c, log) => refreshXaiToken(c.refreshToken, log),
   gcli: (c, log) => refreshXaiToken(c.refreshToken, log),
-  vertex: vertexRefreshHandler,
-  "vertex-partner": vertexRefreshHandler
 };
 
 export async function getAccessToken(provider, credentials, log) {

@@ -3,8 +3,9 @@ import { getProviderConnectionById } from "@/models";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
 import { GEMINI_CONFIG } from "@/lib/oauth/constants/oauth";
 import { refreshGoogleToken, updateProviderCredentials } from "@/sse/services/tokenRefresh";
-import { resolveOllamaLocalHost } from "open-sse/config/providers.js";
+import { PROVIDERS, resolveOllamaLocalHost } from "open-sse/config/providers.js";
 import { getModelsByProviderId } from "open-sse/config/providerModels.js";
+import { ANTIGRAVITY_IDE_USER_AGENT, ANTIGRAVITY_IDE_VERSION, ANTIGRAVITY_OAUTH_CLIENT } from "open-sse/providers/shared.js";
 import { resolveKimchiModels } from "open-sse/services/kimchiModels.js";
 import { resolveQoderModels } from "open-sse/services/qoderModels.js";
 import { resolveGrokCliModels } from "open-sse/services/grokCliModels.js";
@@ -14,6 +15,9 @@ import { fetchStepFunModels } from "@/sse/services/stepfun.js";
 import { resolveVilaoConnectionEndpoint, VILAO_MODELS_PATH } from "open-sse/providers/vilao.js";
 
 const GEMINI_CLI_MODELS_URL = "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels";
+// Single-source from the registry (transport.usage.quotaApiUrl) so the models
+// listing and the quota poller can never drift onto different hosts.
+const ANTIGRAVITY_MODELS_URL = PROVIDERS.antigravity?.usage?.quotaApiUrl || GEMINI_CLI_MODELS_URL;
 
 const parseOpenAIStyleModels = (data) => {
   if (Array.isArray(data)) return data;
@@ -167,13 +171,42 @@ const PROVIDER_MODELS_CONFIG = {
     parseResponse: parseCodexModels
   },
   antigravity: {
-    url: "https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:models",
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    authHeader: "Authorization",
-    authPrefix: "Bearer ",
-    body: {},
-    parseResponse: (data) => data.models || []
+    // The old `daily-cloudcode-pa.sandbox.googleapis.com/v1internal:models` host
+    // is gone and answers with Google's 404 HTML page, which blew up JSON parsing
+    // ("Error fetching models from antigravity: <!DOCTYPE html>"). Use the same
+    // production Cloud Code endpoint the quota/usage path already relies on
+    // (open-sse/services/usage/google.js → registry transport.usage.quotaApiUrl),
+    // with OAuth refresh-on-401 and a static-catalog fallback.
+    customResolver: async (connection) => {
+      const resolve = buildOAuthResolver({
+        refreshFn: (conn) => refreshGoogleToken(conn.refreshToken, ANTIGRAVITY_OAUTH_CLIENT.clientId, ANTIGRAVITY_OAUTH_CLIENT.clientSecret),
+        fetchFn: (token, conn) => {
+          const projectId = conn.projectId || conn.providerSpecificData?.projectId;
+          return fetch(ANTIGRAVITY_MODELS_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`,
+              "User-Agent": ANTIGRAVITY_IDE_USER_AGENT,
+              "X-Client-Name": "antigravity",
+              "X-Client-Version": ANTIGRAVITY_IDE_VERSION,
+            },
+            body: JSON.stringify(projectId ? { project: projectId } : {}),
+          });
+        },
+        parseFn: parseGeminiCliModels,
+        errorLabel: "Failed to fetch Antigravity models",
+      });
+
+      const result = await resolve(connection);
+      if (result.error) return result;
+      // Antigravity's catalog is curated in the registry; keep the UI populated
+      // when the upstream call fails or returns an empty list.
+      if (!result.models?.length) {
+        return { models: getStaticProviderModels("antigravity"), ...(result.warning ? { warning: result.warning } : {}) };
+      }
+      return result;
+    },
   },
   github: {
     url: "https://api.githubcopilot.com/models",
@@ -240,36 +273,15 @@ const PROVIDER_MODELS_CONFIG = {
     parseResponse: (data) => data.data || []
   },
 
-  "alicode-intl": {
-    url: "https://coding-intl.dashscope.aliyuncs.com/v1/models",
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    authHeader: "Authorization",
-    authPrefix: "Bearer ",
-    parseResponse: (data) => data.data || []
-  },
-  byteplus: createOpenAIModelsConfig("https://ark.ap-southeast.bytepluses.com/api/coding/v3/models"),
-
   // OpenAI-compatible API key providers
   deepseek: createOpenAIModelsConfig("https://api.deepseek.com/models"),
   groq: createOpenAIModelsConfig("https://api.groq.com/openai/v1/models"),
   xai: createOpenAIModelsConfig("https://api.x.ai/v1/models"),
   mistral: createOpenAIModelsConfig("https://api.mistral.ai/v1/models"),
-  perplexity: createOpenAIModelsConfig("https://api.perplexity.ai/v1/models"),
-  "perplexity-agent": createOpenAIModelsConfig("https://api.perplexity.ai/v1/models"),
-  together: createOpenAIModelsConfig("https://api.together.xyz/v1/models"),
-  fireworks: createOpenAIModelsConfig("https://api.fireworks.ai/inference/v1/models"),
-  cohere: createOpenAIModelsConfig("https://api.cohere.ai/v1/models"),
-  nebius: createOpenAIModelsConfig("https://api.studio.nebius.ai/v1/models"),
-  siliconflow: createOpenAIModelsConfig("https://api.siliconflow.com/v1/models"),
-  hyperbolic: createOpenAIModelsConfig("https://api.hyperbolic.xyz/v1/models"),
   ollama: createOpenAIModelsConfig("https://ollama.com/api/tags"),
   // ollama-local: url resolved dynamically below via providerSpecificData.baseUrl
   nanobanana: createOpenAIModelsConfig("https://api.nanobananaapi.ai/v1/models"),
-  chutes: createOpenAIModelsConfig("https://llm.chutes.ai/v1/models"),
-  nvidia: createOpenAIModelsConfig("https://integrate.api.nvidia.com/v1/models"),
   assemblyai: createOpenAIModelsConfig("https://api.assemblyai.com/v1/models"),
-  "vercel-ai-gateway": createOpenAIModelsConfig("https://ai-gateway.vercel.sh/v1/models"),
   vilao: {
     // P2P marketplace: model ids are the aliases the user configured on their key,
     // and the gateway host itself can be overridden per key.
@@ -284,22 +296,6 @@ const PROVIDER_MODELS_CONFIG = {
       const data = await res.json();
       return { models: parseOpenAIStyleModels(data) };
     },
-  },
-  kimchi: {
-    customResolver: async (connection) => {
-      const result = await resolveKimchiModels({
-        accessToken: connection.accessToken,
-        apiKey: connection.apiKey,
-        providerSpecificData: connection.providerSpecificData || {},
-      }, { forceRefresh: true, log: console });
-      if (result?.models?.length) {
-        return { models: result.models };
-      }
-      return {
-        models: getStaticProviderModels("kimchi"),
-        warning: "Kimchi returned no live models; falling back to static catalog.",
-      };
-    }
   },
 
   // Custom resolvers (non-OpenAI-shaped APIs / token-refresh flows)

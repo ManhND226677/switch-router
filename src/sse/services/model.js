@@ -40,7 +40,8 @@ export async function getModelInfo(modelStr) {
 
   if (!parsed.isAlias) {
     // Provider-node prefixes are user-defined. They must not override built-in
-    // provider ids/aliases such as `cf`, `cloudflare-ai`, `openai`, or `hf`.
+     // provider ids/aliases such as `openai`, or `hf`.
+
     if (!RESERVED_PROVIDER_PREFIXES.has(parsed.providerAlias)) {
       const openaiNodes = await getProviderNodes({ type: "openai-compatible" });
       const matchedOpenAI = openaiNodes.find((node) => node.prefix === parsed.providerAlias);

@@ -11,14 +11,13 @@ const snapPath = join(here, "alias-baseline.json");
 // All known alias tokens to probe (collected from both maps' historical keys)
 const ALIAS_TOKENS = [
   "cc","cx","gc","qw","ag","gh","kr","cu","kc","kmc","cl","oc","ocg","qd","qoder",
-  "el","openai","vercel","vercel-ai-gateway","anthropic","gemini","openrouter","glm","kimi",
+  "el","openai","anthropic","gemini","openrouter","glm","kimi",
   "minimax","hf","huggingface","ds","deepseek","cmc","commandcode","groq","xai",
-  "mistral","pplx","perplexity","together","fireworks","cohere","nvidia","nebius",
-  "siliconflow","hyp","hyperbolic","dg","deepgram","aai","assemblyai","nb","nanobanana","ch",
-  "chutes","byteplus","bpm","cursor","vx","vertex","vxp","vertex-partner",
+  "mistral","fireworks","nvidia",
+  "siliconflow","dg","deepgram","aai","assemblyai","nb","nanobanana","cursor",
   "gw","grok-web","gcli","gb","grok-build","grok-cli","pw","perplexity-web","mimo","xiaomi-mimo",
-  "xmtp","xiaomi-tokenplan","cf",
-  "cloudflare-ai","fal","fal-ai","stability","stability-ai","bfl","black-forest-labs","recraft",
+  "xmtp","xiaomi-tokenplan",
+  "fal","fal-ai","stability","stability-ai","bfl","black-forest-labs","recraft",
   "topaz","runway","runwayml","jina","jina-ai","polly","aws-polly",
 ];
 

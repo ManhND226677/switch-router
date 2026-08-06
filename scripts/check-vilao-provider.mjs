@@ -24,13 +24,13 @@ ok("format = openai", p?.format === "openai", p?.format);
 ok("validateUrl", p?.validateUrl === "https://api.vilao.ai/v1/models", p?.validateUrl);
 
 ok("alias maps to itself", PROVIDER_ID_TO_ALIAS.vilao === "vilao", PROVIDER_ID_TO_ALIAS.vilao);
-// Passthrough aggregators (vercel-ai-gateway does the same) intentionally omit
-// `models` from the registry entry, so PROVIDER_MODELS has NO key for them —
-// the catalog comes from modelsFetcher at runtime. Assert we match that shape.
+// Passthrough aggregators intentionally omit `models` from the registry entry,
+// so PROVIDER_MODELS has NO key for them — the catalog comes from modelsFetcher
+// at runtime. Assert we match that shape.
 ok(
-  "no static model list (same shape as vercel-ai-gateway)",
-  ("vilao" in PROVIDER_MODELS) === ("vercel-ai-gateway" in PROVIDER_MODELS),
-  `vilao=${"vilao" in PROVIDER_MODELS}, vercel=${"vercel-ai-gateway" in PROVIDER_MODELS}`
+  "no static model list (passthrough aggregator shape)",
+  !("vilao" in PROVIDER_MODELS),
+  `vilao in PROVIDER_MODELS = ${"vilao" in PROVIDER_MODELS}`
 );
 
 // passthrough: any user-defined marketplace alias must be accepted

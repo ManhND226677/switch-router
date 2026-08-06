@@ -61,32 +61,6 @@ describe("planBulkAdd: custom name|apiKey", () => {
   });
 });
 
-describe("planBulkAdd: cloudflare-ai (name|apiKey|accountId)", () => {
-  it("parses 3-part lines into name + apiKey + accountId", () => {
-    const out = planBulkAdd(
-      ["main|sk-key1|acc123", "main|sk-key2|def789"],
-      [],
-      { isCloudflareAi: true }
-    );
-    expect(out.map(o => o.name)).toEqual(["main 1", "main 2"]);
-    expect(out[0].apiKey).toBe("sk-key1");
-    expect(out[0].providerSpecificData).toEqual({ accountId: "acc123" });
-    expect(out[1].providerSpecificData).toEqual({ accountId: "def789" });
-  });
-
-  it("2-part cloudflare line is name|apiKey (no accountId)", () => {
-    const out = planBulkAdd(["main|sk-key1"], [], { isCloudflareAi: true });
-    expect(out[0].name).toBe("main 1");
-    expect(out[0].apiKey).toBe("sk-key1");
-    expect(out[0].providerSpecificData).toBeUndefined();
-  });
-
-  it("1-part cloudflare line is auto-named Key N", () => {
-    const out = planBulkAdd(["sk-key1"], [], { isCloudflareAi: true });
-    expect(out[0].name).toBe("Key 1");
-    expect(out[0].apiKey).toBe("sk-key1");
-  });
-});
 
 describe("planBulkAdd: robustness", () => {
   it("returns [] for no input", () => {

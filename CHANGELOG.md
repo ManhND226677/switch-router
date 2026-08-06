@@ -2,6 +2,19 @@
 
 This file tracks changes for the local personal build only.
 
+## 0.5.0 — 2026-08-06
+
+### Removed
+
+- **6 unused providers**: nvidia, fireworks, siliconflow, cline, clinepass, kimchi
+  - Registry entries, executors (kimchi), OAuth flows (cline/clinepass/kimchi), services (clinepassModels, kimchiModels, clineAuth)
+  - API endpoint logic (validate, test, models), handler branches (embeddingProviders, sttCore, ttsProviders, capabilities)
+  - UI components (OAuthModal kimchi token input)
+  - Test files (nvidia-thinking.e2e.test.js, kimchi*.test.js)
+  - Registry count: 46 → 40 providers
+  - Alias count: 74 → 68 tokens
+  - **All baselines re-snapshotted and verified green** (providers-baseline.json, alias-baseline.json, oauth-urls-baseline.json)
+
 ## 0.2.0 — 2026-08-04
 
 ### Removed (from upstream)
@@ -126,6 +139,77 @@ This file tracks changes for the local personal build only.
   Azure provider removal and the evaluation-driven UI/UX fixes as separate, clearly
   described commits. TypeScript migration is recorded as a **long-term
   recommendation** (not executed, to avoid breaking the build).
+
+## 0.4.0 — 2026-08-06
+
+### Fixed
+
+- **Claude in Excel / Claude for M365 could not connect** (`Unable to connect. Check
+  your network connection and ensure access to the API is not blocked.`). The Office
+  taskpane talks to the gateway through the Anthropic **browser** SDK, which always
+  attaches `anthropic-dangerous-direct-browser-access` plus the `x-stainless-*`
+  header family. `OFFICE_ALLOWED_HEADERS` only listed 6 headers, so the CORS
+  preflight omitted the ones the browser asked for and the fetch was blocked before
+  it ever left the machine — the gateway itself was healthy the whole time
+  (`curl`/PowerShell calls returned 200). `src/app/office/v1/_shared.js` now:
+  - allows the full Anthropic browser-SDK header set;
+  - echoes any additional `Access-Control-Request-Headers` back (lowercased and
+    deduped) so a future SDK version cannot break the preflight again;
+  - answers Chromium **Private Network Access** preflights with
+    `Access-Control-Allow-Private-Network: true` (an HTTPS page calling a loopback
+    gateway requires it);
+  - sets `Vary: Origin, Access-Control-Request-Headers`.
+
+  The add-in's gateway config lives in the Office WebView2 Local Storage under
+  `_OfficeRuntime_Storage_claude.inference.profile`, **not** in the registry
+  (`HKCU\...\WEF\Developer` only holds sideloaded manifest paths).
+
+### Removed
+
+- **9 providers**, with every downstream reference cleaned up: `cohere`,
+  `byteplus`, `vertex`, `nebius`, `perplexity-agent`, `venice`,
+  `vercel-ai-gateway`, `perplexity`, `vertex-partner`.
+  `PROVIDERS` 61 → 52, registry entries 93 → 84.
+  - `VertexExecutor` (served both `vertex` and `vertex-partner`) and the
+    `openai-to-vertex` translator.
+  - The `vertex` **translator format** itself (`FORMATS.VERTEX`) — verified no
+    remaining provider resolves to that format, so the format branches in
+    `modality.js`, `prefetch.js`, `thinkingUnified.js`, `systemInject.js`,
+    `nonStreamingHandler.js`, `stream.js` and `gemini-to-openai.js` were dead code.
+    `gemini` / `gemini-cli` / `antigravity` keep their own formats and are untouched.
+  - `getVercelAiGatewayUsage` + its module-level credits URL, the `vertex` /
+    `vertex-partner` token-refresh handlers and the Vertex service-account JWT
+    minting path.
+  - `perplexity` search builder/normalizer and the `perplexity` /
+    `perplexity-agent` chat-search providers. Other search providers (exa,
+    brave-search, tavily, serper, google-pse, linkup, searchapi) are unaffected.
+  - `nebius` / `vercel-ai-gateway` embedding adapters and the
+    `vercel-ai-gateway` image adapter.
+  - Dashboard/API references: provider model-fetch configs, `validate` and
+    `test` cases, and the `vercel-ai-gateway` quota normalizer.
+
+  > **`perplexity-web` is a different provider and is kept.** It has its own
+  > registry entry and executor; every `perplexity` regex matches it too.
+
+- **Kiro dead code left over from 0.3.0.** The provider was removed then, but
+  references survived and the build printed `Attempted import error` warnings on
+  every run: the 146-line `kiro` OAuth block in `src/lib/oauth/providers.js`,
+  `KIRO_CONFIG` imports in `providers.js` and `testUtils.js`, the `kiro` token
+  refresh branch, and the `KiroOAuthWrapper` import/JSX in the provider detail
+  page. The build is now `✓ Compiled successfully` with no warnings.
+
+### Changed
+
+- `tests/__baseline__/known-fails.txt` trimmed 25 → 15 entries. The 10 stale
+  `rtk.test.js` entries pass again (45/45 verified), so they no longer mask a
+  real regression.
+- Removed 3 obsolete Kiro golden snapshots and re-snapshotted the three
+  provider baselines (`providers` 52, `alias` 75 tokens, `oauth-urls`).
+- Local data: dropped the orphaned `cohere` and `byteplus` keys from
+  `settings.providerStrategies` (19 → 17). Migration 003 cannot clean these —
+  it only prunes ids with a dynamic prefix (`openai-compatible-chat-`,
+  `anthropic-compatible-`, …), so static provider ids are skipped. Applied after
+  a dry run on a DB copy, with a `data.pre-provclean-*.sqlite` backup.
 
 ## 0.3.0 — 2026-08-05
 

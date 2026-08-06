@@ -251,6 +251,7 @@ export default function ProviderLimits() {
 
   // Fetch quota for a specific connection. The optional commit=false mode is
   // used by refreshAll so a concurrency batch can commit React state together.
+
   const fetchQuota = useCallback(async (connectionId, provider, options = {}) => {
     const { commit = true, force = false } = options;
     const previousController = quotaControllersRef.current.get(connectionId);

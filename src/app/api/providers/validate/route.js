@@ -184,29 +184,6 @@ export async function POST(request) {
         });
       }
 
-      if (provider === "cloudflare-ai") {
-        const { providerSpecificData } = body;
-        const accountId = providerSpecificData?.accountId;
-        if (!accountId) {
-          return NextResponse.json({ valid: false, error: "Missing Account ID" });
-        }
-        const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1/chat/completions`;
-        const cfRes = await fetch(url, {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: getDefaultModel("cloudflare-ai"),
-            messages: [{ role: "user", content: "test" }],
-            max_tokens: 1,
-          }),
-        });
-        isValid = cfRes.status !== 401 && cfRes.status !== 403 && cfRes.status !== 404;
-        return NextResponse.json({
-          valid: isValid,
-          error: isValid ? null : "Invalid API token or Account ID",
-        });
-      }
-
       if (provider === "azure") {
         const { providerSpecificData } = body;
         const endpoint = (providerSpecificData?.azureEndpoint || "").replace(/\/$/, "");
@@ -262,13 +239,6 @@ export async function POST(request) {
           isValid = openaiRes.ok;
           break;
 
-        case "vercel-ai-gateway":
-          const vercelAiGatewayRes = await fetch("https://ai-gateway.vercel.sh/v1/models", {
-            headers: { "Authorization": `Bearer ${apiKey}` },
-          });
-          isValid = vercelAiGatewayRes.ok;
-          break;
-
         case "vilao":
           // Per-key gateway override (P2P marketplace) falls back to api.vilao.ai.
           const vilaoRes = await fetch(getVilaoModelsUrl(providerSpecificData?.baseUrl), {
@@ -310,75 +280,36 @@ export async function POST(request) {
         case "glm":
         case "kimi":
         case "minimax":
-        case "alicode-intl":
         case "agentrouter": {
-          // Use baseUrl from PROVIDERS (DRY); separate openai-format vs claude-format flow
+          // Use baseUrl from PROVIDERS (DRY) for Anthropic-compatible providers.
           const cfg = PROVIDERS[provider];
-          const isOpenAiFormat = provider === "alicode-intl";
-
-          if (isOpenAiFormat) {
-            const testModel = getDefaultModel(provider);
-            const res = await fetch(cfg.baseUrl, {
-              method: "POST",
-              headers: { "Authorization": `Bearer ${apiKey}`, "content-type": "application/json" },
-              body: JSON.stringify({ model: testModel, max_tokens: 1, messages: [{ role: "user", content: "test" }] }),
-            });
-            isValid = res.status !== 401 && res.status !== 403;
-          } else {
-            const testModel = getDefaultModel(provider) || "claude-sonnet-4-20250514";
-            const res = await fetch(cfg.baseUrl, {
-              method: "POST",
-              headers: {
-                "x-api-key": apiKey,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-                ...(cfg.headers || {}),
-              },
-              body: JSON.stringify({ model: testModel, max_tokens: 1, messages: [{ role: "user", content: "test" }] }),
-            });
-            // 400 = model resolution error but auth passed (e.g. agentrouter "no available channel")
-            isValid = res.status !== 401 && res.status !== 403;
-          }
-          break;
-        }
-        case "byteplus": {
-          const res = await fetch(PROVIDERS[provider]?.baseUrl, {
+          const testModel = getDefaultModel(provider) || "claude-sonnet-4-20250514";
+          const res = await fetch(cfg.baseUrl, {
             method: "POST",
             headers: {
-              "Authorization": `Bearer ${apiKey}`,
+              "x-api-key": apiKey,
+              "anthropic-version": "2023-06-01",
               "content-type": "application/json",
+              ...(cfg.headers || {}),
             },
-            body: JSON.stringify({
-              model: getDefaultModel(provider),
-              max_tokens: 1,
-              messages: [{ role: "user", content: "test" }],
-            }),
+            body: JSON.stringify({ model: testModel, max_tokens: 1, messages: [{ role: "user", content: "test" }] }),
           });
+          // 400 = model resolution error but auth passed (e.g. agentrouter "no available channel")
           isValid = res.status !== 401 && res.status !== 403;
           break;
         }
-
         case "deepseek":
         case "groq":
         case "xai":
         case "mistral":
-        case "perplexity":
-        case "together":
-        case "fireworks":
-        case "cohere":
-        case "nebius":
-        case "siliconflow":
-        case "hyperbolic":
         case "cavoti":
         case "stepfun":
         case "ollama":
         case "ollama-local":
         case "assemblyai":
         case "nanobanana":
-        case "chutes":
         case "xiaomi-mimo":
-        case "xiaomi-tokenplan":
-        case "nvidia": {
+        case "xiaomi-tokenplan": {
           const endpoints = {
             ...Object.fromEntries(
               Object.entries(PROVIDERS).filter(([, t]) => t.validateUrl).map(([id, t]) => [id, t.validateUrl])
@@ -455,38 +386,6 @@ export async function POST(request) {
             headers: { "Authorization": `Token ${apiKey}` },
           });
           isValid = res.ok;
-          break;
-        }
-
-        case "vertex": {
-          // Raw key: probe global endpoint (always 404 for unknown model, never 401)
-          // SA JSON: attempt token mint via JWT assertion
-          const saJson = (() => { try { const p = JSON.parse(apiKey); return p.type === "service_account" ? p : null; } catch { return null; } })();
-          if (saJson) {
-            // Validate SA JSON has required fields
-            isValid = !!(saJson.client_email && saJson.private_key && saJson.project_id);
-          } else {
-            // Raw key: probe Vertex — 404 means key is valid (model just doesn't exist), 401 means invalid key
-            const probeRes = await fetch(
-              `https://aiplatform.googleapis.com/v1/publishers/google/models/__probe__:generateContent?key=${apiKey}`,
-              { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }
-            );
-            isValid = probeRes.status !== 401 && probeRes.status !== 403;
-          }
-          break;
-        }
-
-        case "vertex-partner": {
-          const saJson = (() => { try { const p = JSON.parse(apiKey); return p.type === "service_account" ? p : null; } catch { return null; } })();
-          if (saJson) {
-            isValid = !!(saJson.client_email && saJson.private_key && saJson.project_id);
-          } else {
-            const probeRes = await fetch(
-              `https://aiplatform.googleapis.com/v1/publishers/google/models/__probe__:generateContent?key=${apiKey}`,
-              { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }
-            );
-            isValid = probeRes.status !== 401 && probeRes.status !== 403;
-          }
           break;
         }
 

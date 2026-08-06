@@ -261,7 +261,6 @@ import "./request/claude-to-openai.js";
 import "./request/openai-to-claude.js";
 import "./request/gemini-to-openai.js";
 import "./request/openai-to-gemini.js";
-import "./request/openai-to-vertex.js";
 import "./request/antigravity-to-openai.js";
 import "./request/openai-responses.js";
 import "./request/openai-to-cursor.js";

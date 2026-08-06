@@ -10,7 +10,6 @@ import falAi from "./falAi.js";
 import stabilityAi from "./stabilityAi.js";
 import blackForestLabs from "./blackForestLabs.js";
 import runwayml from "./runwayml.js";
-import cloudflareAi from "./cloudflareAi.js";
 import antigravity from "./antigravity.js";
 import stepfun from "./stepfun.js";
 
@@ -19,7 +18,6 @@ const ADAPTERS = {
   minimax: createOpenAIAdapter("minimax"),
   openrouter: createOpenAIAdapter("openrouter"),
   recraft: createOpenAIAdapter("recraft"),
-  "vercel-ai-gateway": createOpenAIAdapter("vercel-ai-gateway"),
   xai: createOpenAIAdapter("xai"),
   cavoti: createOpenAIAdapter("cavoti"),
   stepfun,
@@ -34,7 +32,6 @@ const ADAPTERS = {
   "stability-ai": stabilityAi,
   "black-forest-labs": blackForestLabs,
   runwayml,
-  "cloudflare-ai": cloudflareAi,
 };
 
 export function getImageAdapter(provider) {

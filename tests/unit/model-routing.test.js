@@ -40,25 +40,6 @@ describe("model routing", () => {
     else process.env.DATA_DIR = originalDataDir;
   });
 
-  it("keeps built-in provider aliases ahead of compatible node prefixes", async () => {
-    const ctx = await setupDb();
-    cleanup = ctx.cleanup;
-
-    await ctx.createProviderNode({
-      id: "openai-compatible-chat-test",
-      type: "openai-compatible",
-      name: "Compatible CF Collision",
-      prefix: "cf",
-      apiType: "chat",
-      baseUrl: "https://compatible.test/v1",
-    });
-
-    await expect(ctx.getModelInfo("cf/@cf/black-forest-labs/flux-2-klein-9b"))
-      .resolves.toEqual({
-        provider: "cloudflare-ai",
-        model: "@cf/black-forest-labs/flux-2-klein-9b",
-      });
-  });
 
   it("still routes non-reserved compatible node prefixes", async () => {
     const ctx = await setupDb();

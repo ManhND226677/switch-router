@@ -141,7 +141,6 @@ export function stripUnsupportedModalities(body, sourceFormat, caps) {
       break;
     case FORMATS.GEMINI:
     case FORMATS.GEMINI_CLI:
-    case FORMATS.VERTEX:
       stripGeminiParts(body.contents, caps);
       break;
     case FORMATS.ANTIGRAVITY:

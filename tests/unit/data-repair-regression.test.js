@@ -262,6 +262,86 @@ describe("P4: modelLock_* pruning and errorCode hygiene", () => {
     // Counters must be preserved by the rebuild.
     expect(bucket.requests).toBe(1);
   });
+  it("deleteProviderNode cascades live configuration but preserves history", async () => {
+    const nodeId = "openai-compatible-chat-cascade-node";
+    const otherNodeId = "openai-compatible-chat-other-node";
+    const node = await db.createProviderNode({
+      id: nodeId, type: "openai-compatible", name: "Cascade", prefix: "cascade",
+      apiType: "chat", baseUrl: "https://cascade.example/v1",
+    });
+    await db.createProviderNode({
+      id: otherNodeId, type: "openai-compatible", name: "Other", prefix: "other",
+      apiType: "chat", baseUrl: "https://other.example/v1",
+    });
+
+    const connection = await db.createProviderConnection({
+      provider: nodeId, authType: "apikey", name: "cascade-connection", apiKey: "sk-cascade",
+    });
+    const otherConnection = await db.createProviderConnection({
+      provider: otherNodeId, authType: "apikey", name: "other-connection", apiKey: "sk-other",
+    });
+
+    await db.addCustomModel({ providerAlias: nodeId, id: "cascade-model", type: "llm" });
+    await db.addCustomModel({ providerAlias: otherNodeId, id: "other-model", type: "llm" });
+    await db.setModelAlias("cascade-alias", `${nodeId}/cascade-model`);
+    await db.setModelAlias(`${nodeId}/legacy-model`, "legacy-cascade-alias");
+    await db.setModelAlias("other-alias", `${otherNodeId}/other-model`);
+    await db.disableModels(nodeId, ["cascade-model"]);
+    await db.disableModels(otherNodeId, ["other-model"]);
+    await db.updatePricing({ [nodeId]: { "cascade-model": { input: 1 } }, [otherNodeId]: { "other-model": { input: 2 } } });
+    await db.updateSettings({
+      providerStrategies: { [nodeId]: { fallbackStrategy: "round-robin" }, [otherNodeId]: { fallbackStrategy: "fallback" } },
+      providerThinking: { [nodeId]: { mode: "max" }, [otherNodeId]: { mode: "low" } },
+      quotaVisibility: { [nodeId]: { hidden: ["cascade-model"] }, [otherNodeId]: { hidden: ["other-model"] } },
+      claudeAutoPing: { connections: { [connection.id]: true, [otherConnection.id]: false } },
+      codexAutoPing: { connections: { [connection.id]: true, [otherConnection.id]: false } },
+    });
+    const combo = await db.createCombo({ name: "cascade-combo", models: [`${nodeId}/cascade-model`, `${otherNodeId}/other-model`] });
+    const emptyCombo = await db.createCombo({ name: "only-cascade-combo", models: [`${nodeId}/cascade-model`] });
+
+    // Historical rows intentionally remain after deleting their live connection.
+    await db.saveRequestUsage({ provider: nodeId, model: "cascade-model", connectionId: connection.id, tokens: { prompt_tokens: 1 }, status: "ok" });
+    await db.saveRequestDetail({ id: "cascade-history", provider: nodeId, model: "cascade-model", connectionId: connection.id, status: "success", request: {}, response: {} });
+    await new Promise((r) => setTimeout(r, 250));
+
+    const removed = await db.deleteProviderNode(nodeId);
+    expect(removed?.id).toBe(nodeId);
+
+    expect(await db.getProviderNodeById(nodeId)).toBeNull();
+    expect(await db.getProviderConnectionById(connection.id)).toBeNull();
+    expect(await db.getProviderConnectionById(otherConnection.id)).not.toBeNull();
+
+    const aliases = await db.getModelAliases();
+    expect(aliases["cascade-alias"]).toBeUndefined();
+    expect(aliases[`${nodeId}/legacy-model`]).toBeUndefined();
+    expect(aliases["other-alias"]).toBe(`${otherNodeId}/other-model`);
+    expect((await db.getCustomModels()).some((m) => m.providerAlias === nodeId)).toBe(false);
+    expect((await db.getCustomModels()).some((m) => m.providerAlias === otherNodeId)).toBe(true);
+    expect((await db.getDisabledModels())[nodeId]).toBeUndefined();
+    expect((await db.getDisabledModels())[otherNodeId]).toEqual(["other-model"]);
+    expect((await db.getPricing())[nodeId]).toBeUndefined();
+    expect((await db.getPricing())[otherNodeId]).toBeDefined();
+
+    const settings = await db.getSettings();
+    for (const field of ["providerStrategies", "providerThinking", "quotaVisibility"]) {
+      expect(settings[field][nodeId]).toBeUndefined();
+      expect(settings[field][otherNodeId]).toBeDefined();
+    }
+    for (const field of ["claudeAutoPing", "codexAutoPing"]) {
+      expect(settings[field].connections[connection.id]).toBeUndefined();
+      expect(settings[field].connections[otherConnection.id]).toBeDefined();
+    }
+
+    const combos = await db.getCombos();
+    expect(combos.find((c) => c.id === combo.id)?.models).toEqual([`${otherNodeId}/other-model`]);
+    expect(combos.some((c) => c.id === emptyCombo.id)).toBe(false);
+    expect((await db.getRequestDetails({ connectionId: connection.id, pageSize: 20 })).pagination.totalItems).toBe(1);
+    expect((await db.getUsageHistory({ provider: nodeId })).length).toBe(1);
+  });
+
+  it("deleteProviderNode is a no-op for an unknown id", async () => {
+    expect(await db.deleteProviderNode("openai-compatible-chat-does-not-exist")).toBeNull();
+  });
 });
 
 // ───────────────────────────────────────────────────────────────────────────

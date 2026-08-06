@@ -500,11 +500,6 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         return;
       }
 
-      if (provider === "kimchi" && input && !input.includes("://") && !input.includes("?")) {
-        await exchangeTokens(input, null);
-        return;
-      }
-
       const url = new URL(input);
       const code = url.searchParams.get("code");
       const token = url.searchParams.get("token");
@@ -519,9 +514,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         throw new Error(
           provider === "xai"
             ? "Paste the callback URL or copied xAI code"
-            : provider === "kimchi"
-              ? "No Kimchi token found in URL"
-              : "No authorization code found in URL"
+            : "No authorization code found in URL"
         );
       }
 
@@ -544,14 +537,11 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
 
   if (!provider || !providerInfo) return null;
   const isXaiProvider = provider === "xai";
-  const isKimchiProvider = provider === "kimchi";
   const deviceLoginUrl = deviceData?.verification_uri_complete || deviceData?.verification_uri || "";
   const modalTitle = isXaiProvider ? "Connect Grok Build OAuth" : `Connect ${providerInfo.name}`;
   const manualPlaceholder = isXaiProvider
     ? "http://127.0.0.1:56121/callback?code=... or copied code"
-    : isKimchiProvider
-      ? `${placeholderUrl.replace("code=...", "token=...")} or copied token`
-      : placeholderUrl;
+    : placeholderUrl;
 
   return (
     <Modal isOpen={isOpen} title={modalTitle} onClose={handleClose} size="lg">

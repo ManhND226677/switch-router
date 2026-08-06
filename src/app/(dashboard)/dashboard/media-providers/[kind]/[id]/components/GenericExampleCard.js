@@ -7,20 +7,6 @@ import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { Row, KIND_EXAMPLE_CONFIG } from "./exampleShared";
 
-const CLOUDFLARE_TEST_IMAGE_URL = "https://pub-1fb693cb11cc46b2b2f656f51e015a2c.r2.dev/dog.png";
-const CLOUDFLARE_TEST_MASK_URL = "https://pub-1fb693cb11cc46b2b2f656f51e015a2c.r2.dev/dog-mask.png";
-
-function getImageEditDefaults(providerId, modelId) {
-  if (providerId !== "cloudflare-ai") return {};
-  if (modelId === "@cf/runwayml/stable-diffusion-v1-5-img2img") {
-    return { image: CLOUDFLARE_TEST_IMAGE_URL };
-  }
-  if (modelId === "@cf/runwayml/stable-diffusion-v1-5-inpainting") {
-    return { image: CLOUDFLARE_TEST_IMAGE_URL, mask_image: CLOUDFLARE_TEST_MASK_URL };
-  }
-  return {};
-}
-
 function toImagePreviewSrc(value) {
   const trimmed = typeof value === "string" ? value.trim() : "";
   if (!trimmed) return "";
@@ -93,9 +79,8 @@ export function GenericExampleCard({ providerId, kind }) {
   const modelFull = !needsModel
     ? safeProviderAlias
     : (selectedModel ? `${safeProviderAlias}/${selectedModel}` : (allowManualModel ? "" : safeProviderAlias));
-  const imageEditDefaults = getImageEditDefaults(providerId, selectedModel);
-  const effectiveRefImage = refImage.trim() || imageEditDefaults.image || "";
-  const effectiveMaskImage = maskImage.trim() || imageEditDefaults.mask_image || "";
+  const effectiveRefImage = refImage.trim();
+  const effectiveMaskImage = maskImage.trim();
   const refImagePreviewSrc = toImagePreviewSrc(effectiveRefImage);
   const maskImagePreviewSrc = toImagePreviewSrc(effectiveMaskImage);
 

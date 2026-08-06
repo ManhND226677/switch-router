@@ -15,7 +15,6 @@ const FORMAT_TO_NATIVE = {
   claude: "claude-budget",
   gemini: "gemini-budget",
   "gemini-cli": "gemini-budget",
-  vertex: "gemini-budget",
   antigravity: "gemini-budget",
 };
 

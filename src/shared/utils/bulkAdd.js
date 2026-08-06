@@ -18,26 +18,12 @@
 // "skip-if-exists" flag on POST /api/providers if single-add ever needs it.
 
 /**
- * Parse one pipe-separated bulk line into { baseName, apiKey, providerSpecificData? }.
+ * Parse one pipe-separated bulk line into { baseName, apiKey }.
  * @param {string} line
- * @param {{isCloudflareAi?: boolean}} [opts]
- * @returns {{baseName: string, apiKey: string, providerSpecificData?: object}|null}
+ * @returns {{baseName: string, apiKey: string}|null}
  */
-function parseLine(line, opts = {}) {
-  const { isCloudflareAi = false } = opts;
+function parseLine(line) {
   const parts = line.split("|");
-
-  if (isCloudflareAi && parts.length >= 3) {
-    // name|apiKey|accountId  (apiKey may itself contain pipes)
-    const baseName = parts[0].trim();
-    const apiKey = parts.slice(1, -1).join("|").trim();
-    const accountId = parts[parts.length - 1].trim();
-    return {
-      baseName: baseName || "Key",
-      apiKey,
-      providerSpecificData: { accountId },
-    };
-  }
 
   if (parts.length >= 2) {
     // name|apiKey  (apiKey may itself contain pipes)
@@ -56,12 +42,9 @@ function parseLine(line, opts = {}) {
  *
  * @param {string[]} lines raw paste lines
  * @param {string[]|null|undefined} existingNames connection names already saved
- * @param {{isCloudflareAi?: boolean}} [opts]
- * @returns {{name: string, apiKey: string, skipped: boolean, providerSpecificData?: object}[]}
+ * @returns {{name: string, apiKey: string, skipped: boolean}[]}
  */
-export function planBulkAdd(lines, existingNames, opts = {}) {
-  const { isCloudflareAi = false } = opts;
-
+export function planBulkAdd(lines, existingNames) {
   const safeExisting = Array.isArray(existingNames) ? existingNames : [];
   const used = new Set(safeExisting.map((n) => (typeof n === "string" ? n.toLowerCase() : "")));
 
@@ -70,7 +53,7 @@ export function planBulkAdd(lines, existingNames, opts = {}) {
     const line = typeof raw === "string" ? raw.trim() : "";
     if (!line) continue;
 
-    const parsed = parseLine(line, { isCloudflareAi });
+    const parsed = parseLine(line);
     if (!parsed || !parsed.apiKey) continue;
 
     const base = parsed.baseName;
@@ -86,9 +69,7 @@ export function planBulkAdd(lines, existingNames, opts = {}) {
     }
     used.add(name.toLowerCase());
 
-    const entry = { name, apiKey: parsed.apiKey, skipped: false };
-    if (parsed.providerSpecificData) entry.providerSpecificData = parsed.providerSpecificData;
-    out.push(entry);
+    out.push({ name, apiKey: parsed.apiKey, skipped: false });
   }
   return out;
 }

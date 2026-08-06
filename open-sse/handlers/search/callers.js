@@ -115,21 +115,6 @@ function buildBraveRequest(config, params) {
   };
 }
 
-function buildPerplexityRequest(config, params) {
-  const body = { query: params.query, max_results: params.maxResults };
-  if (params.country) body.country = params.country;
-  if (params.language) body.search_language_filter = [params.language];
-  if (params.domainFilter?.length) body.search_domain_filter = params.domainFilter;
-  return {
-    url: resolveBaseUrl(config, params),
-    init: {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${params.token}` },
-      body: JSON.stringify(body),
-    },
-  };
-}
-
 function buildExaRequest(config, params) {
   const { includes, excludes } = parseDomainFilter(params.domainFilter);
   const body = {
@@ -332,7 +317,6 @@ function buildSearxngRequest(config, params) {
 const BUILDERS = {
   "serper": buildSerperRequest,
   "brave-search": buildBraveRequest,
-  "perplexity": buildPerplexityRequest,
   "exa": buildExaRequest,
   "tavily": buildTavilyRequest,
   "google-pse": buildGooglePseRequest,

@@ -22,7 +22,6 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
     deployment: "",
     organization: "",
   });
-  const [cloudflareData, setCloudflareData] = useState({ accountId: "" });
   const [region, setRegion] = useState("");
   const [endpointProfile, setEndpointProfile] = useState("default");
   const [apiMode, setApiMode] = useState("");
@@ -54,9 +53,6 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
           organization: connection.providerSpecificData.organization || "",
         });
       }
-      if (connection.provider === "cloudflare-ai" && connection.providerSpecificData) {
-        setCloudflareData({ accountId: connection.providerSpecificData.accountId || "" });
-      }
       // Load region for providers that support it (e.g. xiaomi-tokenplan)
       const providerCfg = AI_PROVIDERS?.[connection.provider];
       if (providerCfg?.regions) {
@@ -75,7 +71,6 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
 
   const isOAuth = connection?.authType === "oauth";
   const isAzure = connection?.provider === "azure";
-  const isCloudflareAi = connection?.provider === "cloudflare-ai";
   const isCompatible = connection
     ? (isOpenAICompatibleProvider(connection.provider) || isAnthropicCompatibleProvider(connection.provider))
     : false;
@@ -130,7 +125,6 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
           provider: connection.provider,
           apiKey: formData.apiKey,
           ...(isAzure ? { providerSpecificData: azureData } : {}),
-          ...(isCloudflareAi ? { providerSpecificData: cloudflareData } : {}),
            ...(providerRegions ? { providerSpecificData: buildRegionSpecificData() } : {}),
            ...(connection.provider === "cavoti" ? { providerSpecificData: buildCavotiSpecificData() } : {}),
            ...(providerApiModes.length > 0 ? { providerSpecificData: buildApiModeSpecificData() } : {}),
@@ -167,8 +161,7 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
                 provider: connection.provider,
                 apiKey: formData.apiKey,
                 ...(isAzure ? { providerSpecificData: azureData } : {}),
-                ...(isCloudflareAi ? { providerSpecificData: cloudflareData } : {}),
-                 ...(providerRegions ? { providerSpecificData: buildRegionSpecificData() } : {}),
+                       ...(providerRegions ? { providerSpecificData: buildRegionSpecificData() } : {}),
                  ...(connection.provider === "cavoti" ? { providerSpecificData: buildCavotiSpecificData() } : {}),
                  ...(providerApiModes.length > 0 ? { providerSpecificData: buildApiModeSpecificData() } : {}),
                }),
@@ -197,9 +190,6 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
           deployment: azureData.deployment,
           organization: azureData.organization,
         };
-      }
-      if (isCloudflareAi) {
-        updates.providerSpecificData = { accountId: cloudflareData.accountId };
       }
       // Persist updated region for region-aware providers
       if (providerRegions && region) {
@@ -331,7 +321,7 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
           />
         )}
 
-        {!isCompatible && !isAzure && !isCloudflareAi && (
+        {!isCompatible && !isAzure && (
           <div className="flex items-center gap-3">
             <Button onClick={handleTest} variant="secondary" disabled={testing}>
               {testing ? "Testing..." : "Test Connection"}

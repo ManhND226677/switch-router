@@ -116,14 +116,41 @@ try {
     const deadAlias = [];
     for (const row of all(`SELECT key, value FROM kv WHERE scope='modelAliases'`)) {
       const target = J(row.value, row.value);
-      if (typeof target !== "string") continue;
-      const provider = target.split("/")[0];
-      if (isDynamic(provider) && !liveNodes.has(provider)) deadAlias.push(row.key);
+      const candidates = [];
+      if (typeof target === "string") candidates.push({ source: "value", model: target });
+      // Legacy /api/models stores provider/model in the key and the display
+      // alias in the value; the current endpoint uses the opposite direction.
+      if (typeof row.key === "string") candidates.push({ source: "key", model: row.key });
+      for (const candidate of candidates) {
+        const provider = candidate.model.split("/")[0];
+        if (isDynamic(provider) && !liveNodes.has(provider)) {
+          deadAlias.push({ key: row.key, source: candidate.source });
+          break;
+        }
+      }
     }
     if (deadAlias.length) {
       add("ERROR", "DANGLING_ALIAS",
         `${deadAlias.length} model alias(es) resolve to a deleted provider-node → requests 404`,
         { aliases: deadAlias.slice(0, 20) });
+    }
+
+    const deadDisabled = all(`SELECT key FROM kv WHERE scope='disabledModels'`)
+      .filter((row) => isDynamic(row.key) && !liveNodes.has(row.key))
+      .map((row) => row.key);
+    if (deadDisabled.length) {
+      add("WARN", "DANGLING_DISABLED_MODELS",
+        `${deadDisabled.length} disabledModels provider bucket(s) reference a deleted provider-node`,
+        { providers: deadDisabled.slice(0, 20) });
+    }
+
+    const deadPricing = all(`SELECT key FROM kv WHERE scope='pricing'`)
+      .filter((row) => isDynamic(row.key) && !liveNodes.has(row.key))
+      .map((row) => row.key);
+    if (deadPricing.length) {
+      add("WARN", "DANGLING_PRICING",
+        `${deadPricing.length} pricing provider bucket(s) reference a deleted provider-node`,
+        { providers: deadPricing.slice(0, 20) });
     }
   }
 

@@ -26,17 +26,12 @@
     "claude": "https://api.anthropic.com/v1/oauth/token",
     "codex": "https://auth.openai.com/oauth/token",
     "qwen": "https://chat.qwen.ai/api/v1/oauth2/token",
-
     "xai": "https://auth.x.ai/oauth2/token",
     "grok-cli": "https://auth.x.ai/oauth2/token",
-    "cline": "https://api.cline.bot/api/v1/auth/token",
     "kimi-coding": "https://auth.kimi.com/api/oauth/token"
   },
-  "authUrls": {
-    "kiro": "https://prod.us-east-1.auth.desktop.kiro.dev"
-  },
+  "authUrls": {},
   "refreshUrls": {
-    "cline": "https://api.cline.bot/api/v1/auth/refresh",
     "kimi-coding": "https://auth.kimi.com/api/oauth/token",
     "xai": "https://auth.x.ai/oauth2/token",
     "grok-cli": "https://auth.x.ai/oauth2/token"

@@ -131,7 +131,7 @@ export default function AddCustomEmbeddingModal({ isOpen, onClose, onCreated, on
           value={formData.baseUrl}
           onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
           placeholder="https://api.voyageai.com/v1"
-          hint="Most embedding APIs are OpenAI-compatible: Voyage, Cohere, Jina, Mistral, Together..."
+          hint="Most embedding APIs are OpenAI-compatible: Voyage, Cohere, Jina, Mistral..."
         />
         <Input
           label="API Key (for Check)"
