@@ -25,6 +25,10 @@ export async function GET() {
     
     const enableRequestLogs = process.env.ENABLE_REQUEST_LOGS === "true";
     const enableTranslator = process.env.ENABLE_TRANSLATOR === "true";
+    // Debug surfaces (Console Log, Translator) are shown unless explicitly
+    // disabled via ENABLE_DEBUG=false. Defaults to visible to avoid hiding
+    // useful observability tooling for existing deployments.
+    const enableDebug = process.env.ENABLE_DEBUG !== "false";
     // Read-only mirror of the Office gateway env contract so the dashboard can
     // describe the /office/v1 surface. The flag itself stays env-driven: it is
     // deliberately NOT settable over PATCH (changing it requires a restart).
@@ -40,6 +44,7 @@ export async function GET() {
       ...safeSettings, 
       enableRequestLogs,
       enableTranslator,
+      enableDebug,
       officeGatewayEnabled,
       officeModelAllowlistCount,
       hasPassword: !!password
