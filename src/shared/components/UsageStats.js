@@ -437,7 +437,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
 
   const spinner = (
     <div className="flex items-center justify-center py-12 text-text-muted">
-      <span className="material-symbols-outlined text-[32px] animate-spin">progress_activity</span>
+      <span className="material-symbols-outlined text-4xl animate-spin">progress_activity</span>
     </div>
   );
 
@@ -459,7 +459,7 @@ export default function UsageStats({ period: periodProp, setPeriod: setPeriodPro
             ))}
           </div>
           {fetching && (
-            <span className="material-symbols-outlined text-[16px] text-text-muted animate-spin">progress_activity</span>
+            <span className="material-symbols-outlined text-base text-text-muted animate-spin">progress_activity</span>
           )}
         </div>
       )}

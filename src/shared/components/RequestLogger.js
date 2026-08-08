@@ -151,7 +151,7 @@ export default function RequestLogger() {
                       <td className="px-3 py-1.5 border-r border-border text-text-muted">{parts[0]}</td>
                       <td className="px-3 py-1.5 border-r border-border font-medium">{parts[1]}</td>
                       <td className="px-3 py-1.5 border-r border-border">
-                        <span className="px-1.5 py-0.5 rounded bg-bg-subtle border border-border text-[10px] uppercase font-bold">
+                        <span className="px-1.5 py-0.5 rounded bg-bg-subtle border border-border text-xs uppercase font-bold">
                           {parts[2]}
                         </span>
                       </td>
@@ -172,7 +172,7 @@ export default function RequestLogger() {
           )}
         </div>
       </Card>
-      <div className="text-[10px] text-text-muted italic">
+      <div className="text-xs text-text-muted italic">
         Logs are loaded from the request history database.
       </div>
     </div>

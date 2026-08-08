@@ -17,7 +17,7 @@ export default function Navigation() {
           aria-label="Navigate to home"
         >
           <div className="size-8 rounded bg-linear-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white">
-            <span className="material-symbols-outlined text-[20px]">hub</span>
+            <span className="material-symbols-outlined text-xl">hub</span>
           </div>
           <h2 className="text-white text-xl font-bold tracking-tight">Switch-Router</h2>
         </button>
@@ -28,7 +28,7 @@ export default function Navigation() {
           <a className="text-gray-300 hover:text-white text-sm font-medium transition-colors" href="#how-it-works">How it Works</a>
           <a className="text-gray-300 hover:text-white text-sm font-medium transition-colors" href="/dashboard/skills">Skills</a>
           <a className="text-gray-300 hover:text-white text-sm font-medium transition-colors flex items-center gap-1" href="/dashboard/endpoint">
-            Endpoint <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+            Endpoint <span className="material-symbols-outlined text-sm">arrow_forward</span>
           </a>
         </div>
 

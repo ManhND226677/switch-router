@@ -38,7 +38,7 @@ export default function Card({
           <div className="flex items-center gap-3">
             {icon && (
               <div className="p-2 rounded-[10px] bg-bg text-text-muted">
-                <span className="material-symbols-outlined text-[20px]">{icon}</span>
+                <span className="material-symbols-outlined text-xl">{icon}</span>
               </div>
             )}
             <div>

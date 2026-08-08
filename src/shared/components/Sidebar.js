@@ -47,13 +47,13 @@ function NavLink({ item, active, onClose }) {
     >
       <span
         className={cn(
-          "material-symbols-outlined text-[18px]",
+          "material-symbols-outlined text-lg",
           active ? "fill-1" : "group-hover:text-primary transition-colors"
         )}
       >
         {item.icon}
       </span>
-      <span className="text-[13px] font-medium">{item.label}</span>
+      <span className="text-sm font-medium">{item.label}</span>
     </Link>
   );
 }
@@ -108,7 +108,7 @@ export default function Sidebar({ onClose }) {
         <div className="px-6 py-4 flex flex-col gap-2">
           <Link href="/dashboard" className="flex items-center gap-3">
             <div className="flex items-center justify-center size-9 rounded-[10px] bg-gradient-to-br from-brand-500 to-brand-700 shadow-[var(--shadow-warm)]">
-              <span className="material-symbols-outlined text-white text-[20px]">hub</span>
+              <span className="material-symbols-outlined text-white text-xl">hub</span>
             </div>
             <div className="flex flex-col">
               <h1 className="text-lg font-semibold tracking-tight text-text-main">
@@ -148,10 +148,10 @@ export default function Sidebar({ onClose }) {
                   : "text-text-muted hover:bg-surface-2 hover:text-text-main"
               )}
             >
-              <span className="material-symbols-outlined text-[18px]">perm_media</span>
-              <span className="text-[13px] font-medium flex-1 text-left">Media Providers</span>
+              <span className="material-symbols-outlined text-lg">perm_media</span>
+              <span className="text-sm font-medium flex-1 text-left">Media Providers</span>
               <span
-                className="material-symbols-outlined text-[14px] transition-transform"
+                className="material-symbols-outlined text-sm transition-transform"
                 style={{ transform: mediaOpen ? "rotate(180deg)" : "rotate(0deg)" }}
               >
                 expand_more
@@ -171,7 +171,7 @@ export default function Sidebar({ onClose }) {
                         : "text-text-muted hover:bg-surface-2 hover:text-text-main"
                     )}
                   >
-                    <span className="material-symbols-outlined text-[16px]">{kind.icon}</span>
+                    <span className="material-symbols-outlined text-base">{kind.icon}</span>
                     <span className="text-sm">{kind.label}</span>
                   </Link>
                 ))}
@@ -186,7 +186,7 @@ export default function Sidebar({ onClose }) {
                       : "text-text-muted hover:bg-surface-2 hover:text-text-main"
                   )}
                 >
-                  <span className="material-symbols-outlined text-[16px]">{COMBINED_WEB_ITEM.icon}</span>
+                  <span className="material-symbols-outlined text-base">{COMBINED_WEB_ITEM.icon}</span>
                   <span className="text-sm">{COMBINED_WEB_ITEM.label}</span>
                 </Link>
               </div>

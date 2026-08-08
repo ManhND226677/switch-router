@@ -432,7 +432,7 @@ export default function ModelSelectModal({
       {/* Search - compact */}
       <div className="mb-3">
         <div className="relative">
-          <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted text-[16px]">
+          <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted text-base">
             search
           </span>
           <input
@@ -451,9 +451,9 @@ export default function ModelSelectModal({
         {filteredCombos.length > 0 && (
           <div>
             <div className="flex items-center gap-1.5 mb-1.5 sticky top-0 bg-surface py-0.5">
-              <span className="material-symbols-outlined text-primary text-[14px]">layers</span>
+              <span className="material-symbols-outlined text-primary text-sm">layers</span>
               <span className="text-xs font-medium text-primary">Combos</span>
-              <span className="text-[10px] text-text-muted">({filteredCombos.length})</span>
+              <span className="text-xs text-text-muted">({filteredCombos.length})</span>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {filteredCombos.map((combo) => {
@@ -498,7 +498,7 @@ export default function ModelSelectModal({
               <span className="text-xs font-medium text-primary">
                 {group.name}
               </span>
-              <span className="text-[10px] text-text-muted">
+              <span className="text-xs text-text-muted">
                 ({group.models.length})
               </span>
             </div>
@@ -530,13 +530,13 @@ export default function ModelSelectModal({
                       )}
                       {isPlaceholder ? (
                         <>
-                          <span className="material-symbols-outlined text-[11px]">edit</span>
+                          <span className="material-symbols-outlined text-xs">edit</span>
                           {model.name}
                         </>
                       ) : model.isCustom ? (
                         <>
                           {model.name}
-                          <span className="text-[9px] opacity-60 font-normal">custom</span>
+                          <span className="text-xs opacity-60 font-normal">custom</span>
                           <CapacityBadges caps={getCaps(model.value)} />
                         </>
                       ) : (

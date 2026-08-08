@@ -284,7 +284,7 @@ export function GenericExampleCard({ providerId, kind }) {
                 onClick={() => setInput("")}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-primary transition-colors"
               >
-                <span className="material-symbols-outlined text-[14px]">close</span>
+                <span className="material-symbols-outlined text-sm">close</span>
               </button>
             )}
           </div>
@@ -307,7 +307,7 @@ export function GenericExampleCard({ providerId, kind }) {
                     onClick={() => setRefImage("")}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-primary transition-colors"
                   >
-                    <span className="material-symbols-outlined text-[14px]">close</span>
+                    <span className="material-symbols-outlined text-sm">close</span>
                   </button>
                 )}
               </div>
@@ -340,7 +340,7 @@ export function GenericExampleCard({ providerId, kind }) {
                     onClick={() => setMaskImage("")}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-primary transition-colors"
                   >
-                    <span className="material-symbols-outlined text-[14px]">close</span>
+                    <span className="material-symbols-outlined text-sm">close</span>
                   </button>
                 )}
               </div>
@@ -416,7 +416,7 @@ export function GenericExampleCard({ providerId, kind }) {
                 onClick={() => copyCurl(curlSnippet)}
                 className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-primary transition-colors"
               >
-                <span className="material-symbols-outlined text-[14px]">{copiedCurl ? "check" : "content_copy"}</span>
+                <span className="material-symbols-outlined text-sm">{copiedCurl ? "check" : "content_copy"}</span>
                 {copiedCurl ? "Copied" : "Copy"}
               </button>
             <button
@@ -424,7 +424,7 @@ export function GenericExampleCard({ providerId, kind }) {
               disabled={running || !input.trim() || !modelFull}
               className="flex w-full sm:w-auto items-center justify-center gap-1.5 px-3 py-1 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-                <span className="material-symbols-outlined text-[14px]" style={running ? { animation: "spin 1s linear infinite" } : undefined}>
+                <span className="material-symbols-outlined text-sm" style={running ? { animation: "spin 1s linear infinite" } : undefined}>
                   play_arrow
                 </span>
                 {running ? "Running..." : "Run"}
@@ -437,7 +437,7 @@ export function GenericExampleCard({ providerId, kind }) {
         {/* Streaming progress */}
         {(running || progress) && useStreaming && (
           <div className="flex flex-col gap-2 px-3 py-2 rounded-lg bg-sidebar border border-border sm:flex-row sm:items-center sm:gap-3">
-            <span className="material-symbols-outlined text-[16px] text-primary" style={running ? { animation: "spin 1s linear infinite" } : undefined}>
+            <span className="material-symbols-outlined text-base text-primary" style={running ? { animation: "spin 1s linear infinite" } : undefined}>
               {running ? "progress_activity" : "check_circle"}
             </span>
             <span className="text-xs text-text-muted">
@@ -473,7 +473,7 @@ export function GenericExampleCard({ providerId, kind }) {
                 onClick={() => copyRes(resultJson)}
                 className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-primary transition-colors"
               >
-                <span className="material-symbols-outlined text-[14px]">{copiedRes ? "check" : "content_copy"}</span>
+                <span className="material-symbols-outlined text-sm">{copiedRes ? "check" : "content_copy"}</span>
                 {copiedRes ? "Copied" : "Copy"}
               </button>
             )}
@@ -489,7 +489,7 @@ export function GenericExampleCard({ providerId, kind }) {
                   download="image.png"
                   className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-primary transition-colors"
                 >
-                  <span className="material-symbols-outlined text-[14px]">download</span>
+                  <span className="material-symbols-outlined text-sm">download</span>
                   Download
                 </a>
               </div>

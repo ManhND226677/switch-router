@@ -33,7 +33,7 @@ export default function BaseUrlSelect({ onChange, withV1 = true }) {
         aria-label="Local Switch-Router endpoint"
         className="w-full min-w-0 rounded border border-border bg-surface px-2 py-2 font-mono text-xs text-text-main focus:outline-none sm:py-1.5"
       />
-      <span className="text-[11px] text-text-muted">Local endpoint only</span>
+      <span className="text-xs text-text-muted">Local endpoint only</span>
     </div>
   );
 }

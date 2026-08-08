@@ -15,11 +15,11 @@ function CopyButton({ value, label = "Copy URL" }) {
   return (
     <button
       onClick={() => copy(value)}
-      className="px-2 py-1 rounded-md bg-primary text-white text-[11px] font-medium hover:bg-primary/90 transition-colors cursor-pointer shrink-0 inline-flex items-center gap-1"
+      className="px-2 py-1 rounded-md bg-primary text-white text-xs font-medium hover:bg-primary/90 transition-colors cursor-pointer shrink-0 inline-flex items-center gap-1"
       title={value}
       type="button"
     >
-      <span className="material-symbols-outlined text-[12px]">
+      <span className="material-symbols-outlined text-xs">
         {copied ? "check" : "content_copy"}
       </span>
       {copied ? "Copied!" : label}
@@ -50,12 +50,12 @@ function CopySkillButton({ skill }) {
   return (
     <button
       onClick={handleCopy}
-      className="px-2 py-1 rounded-md bg-primary text-white text-[11px] font-medium hover:bg-primary/90 transition-colors cursor-pointer shrink-0 inline-flex items-center gap-1"
+      className="px-2 py-1 rounded-md bg-primary text-white text-xs font-medium hover:bg-primary/90 transition-colors cursor-pointer shrink-0 inline-flex items-center gap-1"
       title="Copy the complete local Markdown skill"
       type="button"
       disabled={loading}
     >
-      <span className="material-symbols-outlined text-[12px]">
+      <span className="material-symbols-outlined text-xs">
         {loading ? "progress_activity" : failed ? "error" : copied ? "check" : "description"}
       </span>
       {loading ? "Loading..." : failed ? "Unavailable" : copied ? "Copied!" : "Copy skill"}
@@ -78,7 +78,7 @@ function SkillRow({ skill }) {
           skill.isEntry ? "bg-primary text-white" : "bg-primary/10 text-primary"
         }`}
       >
-        <span className="material-symbols-outlined text-[18px]">{skill.icon}</span>
+        <span className="material-symbols-outlined text-lg">{skill.icon}</span>
       </div>
 
       <div className="min-w-0 flex-1">
@@ -89,7 +89,7 @@ function SkillRow({ skill }) {
           )}
           {skill.endpoint && (
             <Badge variant="default" size="sm">
-              <code className="text-[10px]">{skill.endpoint}</code>
+              <code className="text-xs">{skill.endpoint}</code>
             </Badge>
           )}
         </div>
@@ -98,10 +98,10 @@ function SkillRow({ skill }) {
           href={getSkillRawUrl(skill.id)}
           target="_blank"
           rel="noreferrer"
-          className="text-[11px] text-text-muted hover:text-primary mt-1 inline-flex items-center gap-1 break-all"
+          className="text-xs text-text-muted hover:text-primary mt-1 inline-flex items-center gap-1 break-all"
         >
           {localUrl}
-          <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+          <span className="material-symbols-outlined text-xs">open_in_new</span>
         </a>
       </div>
 
@@ -120,7 +120,7 @@ export default function SkillsPage() {
     <div className="max-w-4xl mx-auto space-y-6">
       <Card padding="md">
         <div className="text-xs text-text-muted mb-2">Paste this to your local AI agent:</div>
-        <div className="px-3 py-2 rounded bg-surface-2 font-mono text-[12px] text-text-main break-all">
+        <div className="px-3 py-2 rounded bg-surface-2 font-mono text-xs text-text-main break-all">
           {entryInstruction}
         </div>
         <p className="text-xs text-text-muted mt-2">

@@ -359,7 +359,7 @@ export function getHiddenQuotaRows(provider, quotas = [], quotaVisibility = {}) 
 
 /**
  * Parse provider-specific quota structures into normalized array
- * @param {string} provider - Provider name (github, antigravity, codex, kiro, claude)
+ * @param {string} provider - Provider name (github, antigravity, codex, qoder, claude)
  * @param {Object} data - Raw quota data from provider
  * @returns {Array<Object>} Normalized quota objects with { name, used, total, resetAt }
  */
@@ -406,19 +406,6 @@ export function parseQuotaData(provider, data) {
               used: quota.used || 0,
               total: quota.total || 0,
               remaining: quota.remaining,
-              resetAt: quota.resetAt || null,
-            });
-          });
-        }
-        break;
-
-      case "kiro":
-        if (data.quotas) {
-          Object.entries(data.quotas).forEach(([quotaType, quota]) => {
-            normalizedQuotas.push({
-              name: quotaType,
-              used: quota.used || 0,
-              total: quota.total || 0,
               resetAt: quota.resetAt || null,
             });
           });

@@ -196,7 +196,7 @@ export default function UsageTable({
                 >
                   <td className="px-6 py-3">
                     <div className="flex items-center gap-2">
-                      <span className={`material-symbols-outlined text-[18px] text-text-muted transition-transform ${expanded.has(group.groupKey) ? "rotate-90" : ""}`}>
+                      <span className={`material-symbols-outlined text-lg text-text-muted transition-transform ${expanded.has(group.groupKey) ? "rotate-90" : ""}`}>
                         chevron_right
                       </span>
                       <span className={`font-medium transition-colors ${group.summary.pending > 0 ? "text-primary" : ""}`}>

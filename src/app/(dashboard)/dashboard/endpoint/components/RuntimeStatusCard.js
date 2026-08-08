@@ -64,9 +64,9 @@ export default function RuntimeStatusCard({
           key={item.id}
           className="flex min-w-[150px] flex-1 items-center gap-2.5 rounded-lg border border-border-subtle bg-surface-2 px-3 py-2"
         >
-          <span className="material-symbols-outlined text-[18px] text-text-muted">{item.icon}</span>
+          <span className="material-symbols-outlined text-lg text-text-muted">{item.icon}</span>
           <div className="min-w-0">
-            <p className="text-[11px] uppercase tracking-wide text-text-muted">{item.label}</p>
+            <p className="text-xs uppercase tracking-wide text-text-muted">{item.label}</p>
             <p className={`truncate font-mono text-sm ${
               item.variant === "warning"
                 ? "text-yellow-600 dark:text-yellow-400"

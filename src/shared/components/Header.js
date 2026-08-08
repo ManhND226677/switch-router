@@ -272,7 +272,7 @@ function HeaderSearch() {
 
   return (
     <div className="relative w-[160px] sm:w-[220px]">
-      <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-text-muted text-[16px] pointer-events-none">
+      <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-text-muted text-base pointer-events-none">
         search
       </span>
       <input
@@ -289,7 +289,7 @@ function HeaderSearch() {
           className="absolute right-1 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-main p-0.5 rounded"
           aria-label="Clear search"
         >
-          <span className="material-symbols-outlined text-[16px]">close</span>
+          <span className="material-symbols-outlined text-base">close</span>
         </button>
       )}
     </div>

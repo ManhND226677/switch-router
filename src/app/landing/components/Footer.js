@@ -9,7 +9,7 @@ export default function Footer() {
           <div className="col-span-2 lg:col-span-2">
             <div className="flex items-center gap-3 mb-6">
               <div className="size-6 rounded bg-brand-500 flex items-center justify-center text-white">
-                <span className="material-symbols-outlined text-[16px]">hub</span>
+                <span className="material-symbols-outlined text-base">hub</span>
               </div>
               <h3 className="text-white text-lg font-bold">Switch-Router</h3>
             </div>

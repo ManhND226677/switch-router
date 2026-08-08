@@ -53,7 +53,7 @@ export default function EndpointRow({
           title={`Copy ${url}`}
           type="button"
         >
-          <span className="material-symbols-outlined text-[18px]">
+          <span className="material-symbols-outlined text-lg">
             {copied === copyId ? "check" : "content_copy"}
           </span>
         </button>
@@ -68,7 +68,7 @@ export default function EndpointRow({
               {routes.map((route) => (
                 <code
                   key={route}
-                  className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] leading-4 text-text-muted"
+                  className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-xs leading-4 text-text-muted"
                 >
                   {route.replace(/\s+/g, " ")}
                 </code>

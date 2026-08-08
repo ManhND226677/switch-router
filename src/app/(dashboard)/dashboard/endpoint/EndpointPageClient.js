@@ -280,7 +280,7 @@ export default function EndpointPageClient() {
         {keys.length === 0 ? (
           <div className="py-12 text-center">
             <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <span className="material-symbols-outlined text-[32px]">vpn_key</span>
+              <span className="material-symbols-outlined text-4xl">vpn_key</span>
             </div>
             <p className="mb-1 font-medium text-text-main">No API keys yet</p>
             <p className="mb-4 text-sm text-text-muted">Create a key for local clients and CLI tools.</p>
@@ -304,7 +304,7 @@ export default function EndpointPageClient() {
                       className="rounded p-1 text-text-muted transition-all hover:bg-black/5 hover:text-primary dark:hover:bg-white/5 sm:opacity-0 sm:group-hover:opacity-100"
                       title={visibleKeys.has(key.id) ? "Hide key" : "Show key"}
                     >
-                      <span className="material-symbols-outlined text-[14px]">
+                      <span className="material-symbols-outlined text-sm">
                         {visibleKeys.has(key.id) ? "visibility_off" : "visibility"}
                       </span>
                     </button>
@@ -313,7 +313,7 @@ export default function EndpointPageClient() {
                       className="rounded p-1 text-text-muted transition-all hover:bg-black/5 hover:text-primary dark:hover:bg-white/5 sm:opacity-0 sm:group-hover:opacity-100"
                       title="Copy key"
                     >
-                      <span className="material-symbols-outlined text-[14px]">
+                      <span className="material-symbols-outlined text-sm">
                         {copied === key.id ? "check" : "content_copy"}
                       </span>
                     </button>
@@ -335,7 +335,7 @@ export default function EndpointPageClient() {
                     className="rounded p-2 text-red-500 transition-all hover:bg-red-500/10 sm:opacity-0 sm:group-hover:opacity-100"
                     title="Delete key"
                   >
-                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                    <span className="material-symbols-outlined text-lg">delete</span>
                   </button>
                 </div>
               </div>

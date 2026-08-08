@@ -268,7 +268,7 @@ export default function ComboDetailPage() {
         <div className="flex flex-col gap-4">
           <div>
             <Input label="Combo Name" value={name} onChange={(e) => { setName(e.target.value); validateName(e.target.value); }} onBlur={handleSaveName} error={nameError} />
-            <p className="text-[10px] text-text-muted mt-0.5">Only letters, numbers, -, _ and .</p>
+            <p className="text-xs text-text-muted mt-0.5">Only letters, numbers, -, _ and .</p>
           </div>
           <div className="flex items-center justify-between">
             <div>
@@ -311,17 +311,17 @@ export default function ComboDetailPage() {
                   />
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium truncate">{p?.name || providerId}</div>
-                    {model && <code className="text-[10px] text-text-muted font-mono truncate block">{model}</code>}
+                    {model && <code className="text-xs text-text-muted font-mono truncate block">{model}</code>}
                   </div>
                   <div className="flex items-center gap-0.5">
                     <button onClick={() => handleMove(idx, -1)} disabled={idx === 0} className={`p-1 rounded ${idx === 0 ? "text-text-muted/20" : "text-text-muted hover:text-primary hover:bg-black/5"}`} title="Move up">
-                      <span className="material-symbols-outlined text-[16px]">arrow_upward</span>
+                      <span className="material-symbols-outlined text-base">arrow_upward</span>
                     </button>
                     <button onClick={() => handleMove(idx, 1)} disabled={idx === providers.length - 1} className={`p-1 rounded ${idx === providers.length - 1 ? "text-text-muted/20" : "text-text-muted hover:text-primary hover:bg-black/5"}`} title="Move down">
-                      <span className="material-symbols-outlined text-[16px]">arrow_downward</span>
+                      <span className="material-symbols-outlined text-base">arrow_downward</span>
                     </button>
                     <button onClick={() => handleRemoveProvider(idx)} className="p-1 rounded text-text-muted hover:text-red-500 hover:bg-red-500/10" title="Remove">
-                      <span className="material-symbols-outlined text-[16px]">close</span>
+                      <span className="material-symbols-outlined text-base">close</span>
                     </button>
                   </div>
                 </div>
@@ -349,13 +349,13 @@ export default function ComboDetailPage() {
           {testResult && (
             <div className="mt-3 flex flex-col gap-3">
               {testResult.latencyMs != null && (
-                <span className="text-[11px] text-text-muted">⚡ {testResult.latencyMs}ms</span>
+                <span className="text-xs text-text-muted">⚡ {testResult.latencyMs}ms</span>
               )}
               {testResult.imageUrl && (
                 <div>
                   <div className="flex items-center justify-end mb-1.5">
                     <a href={testResult.imageUrl} download="image.png" className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-primary transition-colors">
-                      <span className="material-symbols-outlined text-[14px]">download</span>
+                      <span className="material-symbols-outlined text-sm">download</span>
                       Download
                     </a>
                   </div>
@@ -366,7 +366,7 @@ export default function ComboDetailPage() {
                 <div>
                   <div className="flex items-center justify-end mb-1.5">
                     <a href={testResult.audioUrl} download="speech.mp3" className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-primary transition-colors">
-                      <span className="material-symbols-outlined text-[14px]">download</span>
+                      <span className="material-symbols-outlined text-sm">download</span>
                       Download
                     </a>
                   </div>
@@ -389,7 +389,7 @@ export default function ComboDetailPage() {
         {logs.length === 0 ? (
           <p className="text-xs text-text-muted italic">No usage yet.</p>
         ) : (
-          <pre className="text-[11px] font-mono bg-black/[0.03] dark:bg-white/[0.03] p-3 rounded-lg overflow-auto max-h-[400px] whitespace-pre-wrap">
+          <pre className="text-xs font-mono bg-black/[0.03] dark:bg-white/[0.03] p-3 rounded-lg overflow-auto max-h-[400px] whitespace-pre-wrap">
             {logs.join("\n")}
           </pre>
         )}
