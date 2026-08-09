@@ -2,6 +2,15 @@
 
 This file tracks changes for the local personal build only.
 
+## 0.6.8 - 2026-08-09
+
+### Fixed
+
+- **Usage Logs tab:** added auto-refresh polling (~15s) so new requests appear while the tab stays open.
+- **Endpoint page layout:** redistributed cards — API Keys + M365 Gateway side-by-side, Base URLs full-width below.
+- **Basic Chat model list:** only show models from connections that actually have credentials; auth failures no longer fall back to the static catalog.
+- **Quota Total Accounts count:** now only counts active, credentialled connections.
+
 ## 0.6.7 - 2026-08-09
 
 ### Removed

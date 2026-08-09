@@ -67,10 +67,24 @@ export async function GET() {
       const name = isCompatible
         ? (c.name || nodeNameMap[c.provider] || c.providerSpecificData?.nodeName || c.provider)
         : c.name;
-      return redactProviderConnection({
-        ...c,
-        name,
-      });
+      return {
+        ...redactProviderConnection({
+          ...c,
+          name,
+        }),
+        // Secrets are stripped above; expose only whether a credential exists
+        // so clients can filter out unconfigured connections. noAuth providers
+        // (e.g. ollama-local) need no credential and stay eligible.
+        hasCredentials: Boolean(
+          AI_PROVIDERS[c.provider]?.noAuth === true
+          || c.apiKey
+          || c.accessToken
+          || c.refreshToken
+          || c.idToken
+          || c.copilotToken
+          || c.clientSecret
+        ),
+      };
     });
 
     return NextResponse.json({ connections: safeConnections });

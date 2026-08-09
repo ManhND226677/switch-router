@@ -344,6 +344,7 @@ export default function BasicChatPageClient() {
         const connections = Array.isArray(providersData.connections)
           ? providersData.connections.filter((connection) => (
             connection?.isActive !== false
+            && connection?.hasCredentials !== false
             && connection?.testStatus !== "error"
             && connection?.testStatus !== "unavailable"
           ))
@@ -377,6 +378,7 @@ export default function BasicChatPageClient() {
               models: [],
               liveCatalogLoaded: false,
               liveModelIds: new Set(),
+              authFailed: false,
             });
           }
 
@@ -397,7 +399,12 @@ export default function BasicChatPageClient() {
             try {
               const response = await fetchWithTimeout(`/api/providers/${connection.id}/models`, { cache: "no-store" });
               const data = await response.json().catch(() => ({}));
-              if (!response.ok) return { connection, models: [] };
+              if (!response.ok) {
+                // Auth failures (bad/expired key) must not fall back to the
+                // static catalog — the connection simply is not usable.
+                const authFailed = response.status === 401 || response.status === 403;
+                return { connection, models: [], authFailed };
+              }
               const providerId = connection.provider || connection.id;
               const staticCatalog = getModelsByProviderId(providerId).filter(isAvailableChatModel);
               const rawModels = parseProviderModelsPayload(data);
@@ -420,6 +427,7 @@ export default function BasicChatPageClient() {
           const group = providerMap.get(providerId);
           if (!group) continue;
           group.liveCatalogLoaded = group.liveCatalogLoaded || result.liveCatalogLoaded === true;
+          if (result.authFailed) group.authFailed = true;
           for (const model of result.models) group.liveModelIds.add(model.id);
           group.models.push(...result.models);
         }
@@ -427,9 +435,10 @@ export default function BasicChatPageClient() {
         const normalizedProviders = Array.from(providerMap.values())
           .map((group) => {
             const models = dedupeModels(group.models)
-              .filter((model) => !group.liveCatalogLoaded
-                || model.source !== "static"
-                || group.liveModelIds.has(model.id))
+              .filter((model) => (group.liveCatalogLoaded || group.authFailed)
+                ? model.source !== "static"
+                  || group.liveModelIds.has(model.id)
+                : true)
               .sort((a, b) => a.name.localeCompare(b.name));
             return {
               providerId: group.providerId,

@@ -136,8 +136,9 @@ export default function RequestDetailsTab() {
     }
   }, []);
 
-  const fetchDetails = useCallback(async () => {
-    setLoading(true);
+  const fetchDetails = useCallback(async (options = {}) => {
+    const silent = options.silent === true;
+    if (!silent) setLoading(true);
     try {
       const params = new URLSearchParams({
         page: pagination.page.toString(),
@@ -155,7 +156,7 @@ export default function RequestDetailsTab() {
     } catch (error) {
       console.error("Failed to fetch request details:", error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [pagination.page, pagination.pageSize, filters]);
 
@@ -167,6 +168,14 @@ export default function RequestDetailsTab() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on mount; state updates only after the response resolves
     fetchDetails();
+  }, [fetchDetails]);
+
+  // Poll so newly logged requests appear while the tab stays open.
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      fetchDetails({ silent: true });
+    }, 15000);
+    return () => clearInterval(intervalId);
   }, [fetchDetails]);
 
   const handleViewDetail = (detail) => {

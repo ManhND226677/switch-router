@@ -270,37 +270,39 @@ export default function EndpointPageClient() {
             </div>
           </Card>
         </div>
+
+        {/* Side Column - spans 1 column */}
+        <div className="flex flex-col gap-6 xl:col-span-1">
+          <Card title="Claude for M365 Gateway" icon="description" subtitle="An isolated namespace for Office agents. It never changes the behaviour of the endpoints above.">
+            <OfficeGatewayCard
+              origin={origin}
+              enabled={officeGatewayEnabled}
+              allowlistCount={officeAllowlistCount}
+              copied={copied}
+              onCopy={copy}
+            />
+          </Card>
+        </div>
       </div>
 
-      {/* Side Column - spans 1 column */}
-      <div className="flex flex-col gap-6 xl:col-span-1">
-        <Card title="Base URLs" icon="api" subtitle="One gateway, several client formats. Point each tool at the base URL matching the API it speaks.">
-          <div className="flex flex-col gap-5">
-            {visibleGroups.map((group) => (
-              <EndpointRow
-                key={group.id}
-                label={group.label}
-                badge={group.badge}
-                tone={group.tone}
-                url={`${origin}${group.path}`}
-                copyId={`endpoint_${group.id}`}
-                copied={copied}
-                onCopy={copy}
-              />
-            ))}
-          </div>
-        </Card>
-
-        <Card title="Claude for M365 Gateway" icon="description" subtitle="An isolated namespace for Office agents. It never changes the behaviour of the endpoints above.">
-          <OfficeGatewayCard
-            origin={origin}
-            enabled={officeGatewayEnabled}
-            allowlistCount={officeAllowlistCount}
-            copied={copied}
-            onCopy={copy}
-          />
-        </Card>
-      </div>
+      <Card title="Base URLs" icon="api" subtitle="One gateway, several client formats. Point each tool at the base URL matching the API it speaks.">
+        <div className="grid grid-cols-1 gap-x-10 gap-y-5 2xl:grid-cols-2">
+          {visibleGroups.map((group) => (
+            <EndpointRow
+              key={group.id}
+              label={group.label}
+              badge={group.badge}
+              tone={group.tone}
+              url={`${origin}${group.path}`}
+              copyId={`endpoint_${group.id}`}
+              copied={copied}
+              onCopy={copy}
+              desc={group.desc}
+              routes={group.routes}
+            />
+          ))}
+        </div>
+      </Card>
 
       <Modal
         isOpen={showAddModal}

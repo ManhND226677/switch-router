@@ -43,10 +43,21 @@ function sanitize(c) {
   return safe;
 }
 
+function hasCredentials(connection) {
+  return Boolean(
+    connection.apiKey
+    || connection.accessToken
+    || connection.refreshToken
+    || connection.idToken
+    || connection.copilotToken
+    || connection.clientSecret
+  );
+}
+
 function isUsageEligible(connection) {
   return USAGE_SUPPORTED_PROVIDERS.includes(connection.provider) && (
     connection.authType === "oauth" || USAGE_APIKEY_PROVIDERS.includes(connection.provider)
-  );
+  ) && hasCredentials(connection);
 }
 
 function parsePositiveInt(value, fallback) {
@@ -87,6 +98,10 @@ export async function GET(request) {
 
     const allConnections = await getProviderConnections();
     const eligibleConnections = allConnections.filter(isUsageEligible);
+    // The "Total Accounts" card counts only connections that are both
+    // credentialled and turned on; the list below still surfaces inactive
+    // accounts via the accountStatus filter.
+    const activeEligibleConnections = eligibleConnections.filter((conn) => (conn.isActive ?? true) === true);
     const providerOptions = Array.from(new Set(eligibleConnections.map((conn) => conn.provider))).sort();
 
     const providerFilteredConnections = eligibleConnections.filter((conn) => (
@@ -116,7 +131,7 @@ export async function GET(request) {
         totalPages,
       },
       totals: {
-        eligibleConnections: eligibleConnections.length,
+        eligibleConnections: activeEligibleConnections.length,
         providerFilteredConnections: providerFilteredConnections.length,
       },
     });
