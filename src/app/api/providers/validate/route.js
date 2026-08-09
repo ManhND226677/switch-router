@@ -5,7 +5,6 @@ import { getDefaultModel } from "open-sse/config/providerModels.js";
 import { resolveOllamaLocalHost, resolveXiaomiTokenplanBaseUrl, PROVIDERS } from "open-sse/config/providers.js";
 import { openaiToCommandCodeRequest } from "open-sse/translator/request/openai-to-commandcode.js";
 import { normalizeProviderId } from "@/lib/providerNormalization";
-import { CAVOTI_DEFAULT_MODEL_PATH, resolveCavotiEndpoint } from "open-sse/providers/cavoti.js";
 import { getVilaoModelsUrl } from "open-sse/providers/vilao.js";
 import { resolveStepFunEndpoints } from "open-sse/providers/stepfun.js";
 
@@ -302,7 +301,6 @@ export async function POST(request) {
         case "groq":
         case "xai":
         case "mistral":
-        case "cavoti":
         case "stepfun":
         case "ollama":
         case "ollama-local":
@@ -318,20 +316,12 @@ export async function POST(request) {
             "ollama-local": `${resolveOllamaLocalHost({ providerSpecificData })}/api/tags`,
             "xiaomi-tokenplan": `${resolveXiaomiTokenplanBaseUrl({ providerSpecificData })}/models`,
             stepfun: resolveStepFunEndpoints(providerSpecificData).models,
-            cavoti: resolveCavotiEndpoint({
-              endpointProfile: providerSpecificData?.endpointProfile,
-              path: CAVOTI_DEFAULT_MODEL_PATH,
-            }),
           };
           const headers = {};
           if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
           const res = await fetch(endpoints[provider], { headers, signal: AbortSignal.timeout(8000) });
           // xai returns 400 for bad key, 403 for valid-but-no-credit. Other providers use 401.
-          if (provider === "cavoti") {
-            // A valid Cavoti key can still lack an eligible model group; only
-            // explicit auth failures should reject the connection.
-            isValid = res.status !== 401 && res.status !== 403;
-          } else if (provider === "stepfun") {
+          if (provider === "stepfun") {
             isValid = res.ok;
           } else if (provider === "xai") {
             isValid = res.status === 200 || res.status === 403;

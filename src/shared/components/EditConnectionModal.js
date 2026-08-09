@@ -60,9 +60,6 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
         setRegion(savedRegion);
       }
       setApiMode(connection.providerSpecificData?.apiMode || defaultApiMode);
-      if (connection.provider === "cavoti") {
-        setEndpointProfile(connection.providerSpecificData?.endpointProfile || "default");
-      }
       setTestResult(null);
       setValidationResult(null);
     }
@@ -75,20 +72,12 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
     ? (isOpenAICompatibleProvider(connection.provider) || isAnthropicCompatibleProvider(connection.provider))
     : false;
   const providerRegions = connection ? (AI_PROVIDERS?.[connection.provider]?.regions || null) : null;
-  const cavotiEndpointProfiles = connection?.provider === "cavoti"
-    ? Object.values(AI_PROVIDERS?.cavoti?.endpointProfiles || {}).filter((profile) => profile.id !== "images")
-    : [];
 
   // Build providerSpecificData for region-aware providers
   const buildRegionSpecificData = () => {
     if (providerRegions && region) return { ...((connection?.providerSpecificData) || {}), region };
     return undefined;
   };
-
-  const buildCavotiSpecificData = () => ({
-    ...((connection?.providerSpecificData) || {}),
-    endpointProfile: endpointProfile === "global" ? "global" : "default",
-  });
 
   const buildApiModeSpecificData = () => {
     if (providerApiModes.length === 0 || !apiMode) return undefined;
@@ -125,10 +114,9 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
           provider: connection.provider,
           apiKey: formData.apiKey,
           ...(isAzure ? { providerSpecificData: azureData } : {}),
-           ...(providerRegions ? { providerSpecificData: buildRegionSpecificData() } : {}),
-           ...(connection.provider === "cavoti" ? { providerSpecificData: buildCavotiSpecificData() } : {}),
-           ...(providerApiModes.length > 0 ? { providerSpecificData: buildApiModeSpecificData() } : {}),
-         }),
+          ...(providerRegions ? { providerSpecificData: buildRegionSpecificData() } : {}),
+          ...(providerApiModes.length > 0 ? { providerSpecificData: buildApiModeSpecificData() } : {}),
+        }),
       });
       const data = await res.json();
       setValidationResult(data.valid ? "success" : "failed");
@@ -161,10 +149,9 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
                 provider: connection.provider,
                 apiKey: formData.apiKey,
                 ...(isAzure ? { providerSpecificData: azureData } : {}),
-                       ...(providerRegions ? { providerSpecificData: buildRegionSpecificData() } : {}),
-                 ...(connection.provider === "cavoti" ? { providerSpecificData: buildCavotiSpecificData() } : {}),
-                 ...(providerApiModes.length > 0 ? { providerSpecificData: buildApiModeSpecificData() } : {}),
-               }),
+                ...(providerRegions ? { providerSpecificData: buildRegionSpecificData() } : {}),
+                ...(providerApiModes.length > 0 ? { providerSpecificData: buildApiModeSpecificData() } : {}),
+              }),
             });
             const data = await res.json();
             isValid = !!data.valid;
@@ -194,9 +181,6 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
       // Persist updated region for region-aware providers
       if (providerRegions && region) {
         updates.providerSpecificData = buildRegionSpecificData();
-      }
-      if (connection.provider === "cavoti") {
-        updates.providerSpecificData = buildCavotiSpecificData();
       }
       if (providerApiModes.length > 0) {
         updates.providerSpecificData = buildApiModeSpecificData();
@@ -309,15 +293,6 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
             value={apiMode}
             onChange={(e) => setApiMode(e.target.value)}
             options={providerApiModes.map((modeOption) => ({ value: modeOption.id, label: modeOption.label }))}
-          />
-        )}
-
-        {cavotiEndpointProfiles.length > 0 && (
-          <Select
-            label="API Endpoint"
-            value={endpointProfile}
-            onChange={(e) => setEndpointProfile(e.target.value)}
-            options={cavotiEndpointProfiles.map((profile) => ({ value: profile.id, label: profile.label }))}
           />
         )}
 

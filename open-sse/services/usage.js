@@ -10,7 +10,6 @@ import { getCodexUsage, consumeCodexRateLimitResetCredit, getCodexRateLimitReset
 export { consumeCodexRateLimitResetCredit, getCodexRateLimitResetCredits };
 import { getMiniMaxUsage } from "./usage/minimax.js";
 import { getGrokCliUsage } from "./usage/grok-cli.js";
-import { getCavotiUsage } from "./usage/cavoti.js";
 import {
   getQwenUsage,
   getOllamaUsage,
@@ -36,7 +35,6 @@ const USAGE_HANDLERS = {
   glm: (c) => getGlmUsage(c.apiKey, c.provider, c.proxyOptions),
   minimax: (c) => getMiniMaxUsage(c.apiKey, c.provider, c.proxyOptions),
   "grok-cli": (c) => getGrokCliUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
-  cavoti: (c) => getCavotiUsage(c.apiKey || c.accessToken, c.providerSpecificData, c.proxyOptions),
 };
 
 export async function getUsageForProvider(connection, proxyOptions = null) {

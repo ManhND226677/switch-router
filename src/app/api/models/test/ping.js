@@ -1,8 +1,6 @@
 import { getApiKeys } from "@/lib/localDb";
 import { SERVER_CONFIG } from "@/shared/constants/config";
 import { getConsistentMachineId } from "@/shared/utils/machineId";
-import { fetchCavotiModels } from "open-sse/services/cavoti.js";
-import { CAVOTI_MODEL_KIND_BY_ID } from "open-sse/providers/cavoti.js";
 
 const CLI_TOKEN_SALT = "9r-cli-auth";
 
@@ -52,43 +50,7 @@ async function getInternalHeaders() {
   return headers;
 }
 
-export async function testCavotiModel(model, requestedKind) {
-  const modelId = String(model).replace(/^cavoti\//, "");
-  const kind = requestedKind || CAVOTI_MODEL_KIND_BY_ID[modelId] || "llm";
-  const { getProviderConnections } = await import("@/lib/localDb");
-  const connections = await getProviderConnections({ provider: "cavoti", isActive: true });
-  const connection = connections.find((candidate) => candidate.apiKey) || connections[0];
-
-  if (!connection?.apiKey) {
-    return { ok: false, latencyMs: 0, error: "No active Cavoti API key" };
-  }
-
-  const start = Date.now();
-  const result = await fetchCavotiModels(connection, { includePricing: false });
-  const liveModel = result.models?.find(
-    (candidate) => candidate.id === modelId
-      && candidate.kind === kind
-      && candidate.availability === "available",
-  );
-  const latencyMs = Date.now() - start;
-
-  if (liveModel) {
-    return { ok: true, latencyMs, error: null, status: 200 };
-  }
-
-  const warning = result.warning ? ` (${result.warning})` : "";
-  return {
-    ok: false,
-    latencyMs,
-    error: `Cavoti model ${modelId} is not available for this API key${warning}`,
-  };
-}
-
 export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:${process.env.PORT || SERVER_CONFIG.appPort}`) {
-  if (String(model).startsWith("cavoti/")) {
-    return testCavotiModel(model, kind);
-  }
-
   const headers = await getInternalHeaders();
   const start = Date.now();
 

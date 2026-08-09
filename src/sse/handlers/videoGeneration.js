@@ -14,9 +14,6 @@ import { updateProviderCredentials, checkAndRefreshToken } from "../services/tok
 import * as log from "../utils/logger.js";
 import { modelForProvider, resolveConnectionSelector } from "../services/connectionSelector.js";
 
-// Requests without a provider prefix keep the legacy xAI default. Explicit
-// Cavoti models are resolved through getModelInfo and poll requests use the
-// connection returned with the creation response.
 const DEFAULT_VIDEO_PROVIDER = "xai";
 
 // Creation POSTs are billable jobs — only rotate to another account for

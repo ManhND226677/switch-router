@@ -133,9 +133,8 @@ export async function GET(request, { params }) {
       return Response.json({ error: "Connection not found" }, { status: 404 });
     }
 
-    // Allow OAuth connections, plus whitelisted apikey providers (glm/minimax/kiro/...)
-    // Kiro's headless api-key flow persists authType "api_key" (underscore) while
-    // generic apikey providers persist "apikey" — accept both spellings here.
+    // Allow OAuth connections plus whitelisted API-key providers. Accept both
+    // historical `api_key` and current `apikey` auth-type spellings.
     const isOAuth = connection.authType === "oauth";
     const isApikeyAuth =
       connection.authType === "apikey" || connection.authType === "api_key";

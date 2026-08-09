@@ -6,7 +6,6 @@ import p3 from "./aws-polly.js";
 import p4 from "./black-forest-labs.js";
 import p5 from "./brave-search.js";
 import p6 from "./cartesia.js";
-import p7 from "./cavoti.js";
 import p8 from "./claude.js";
 import p9 from "./codex.js";
 import p10 from "./comfyui.js";
@@ -80,7 +79,6 @@ export default [
   p4,
   p5,
   p6,
-  p7,
   p8,
   p9,
   p10,

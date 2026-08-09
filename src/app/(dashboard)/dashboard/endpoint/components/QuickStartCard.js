@@ -33,8 +33,8 @@ export default function QuickStartCard({ origin, keys, copied, onCopy }) {
   ];
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         <SegmentedControl
           options={SNIPPET_TABS}
           value={tab}
@@ -42,7 +42,7 @@ export default function QuickStartCard({ origin, keys, copied, onCopy }) {
           size="sm"
         />
         {activeKeys.length > 0 && (
-          <div className="min-w-[240px]">
+          <div className="w-full">
             <Select
               value={selectedKeyId}
               onChange={(event) => setSelectedKeyId(event.target.value)}

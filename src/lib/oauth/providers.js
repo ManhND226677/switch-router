@@ -19,10 +19,7 @@ import {
   CURSOR_CONFIG,
   KIMI_CODING_CONFIG,
   KILOCODE_CONFIG,
-  CLINE_CONFIG,
-  CLINEPASS_CONFIG,
   GITLAB_CONFIG,
-  KIMCHI_CONFIG,
   GROK_CLI_CONFIG,
   getOAuthClientMetadata,
 } from "./constants/oauth";
@@ -32,10 +29,9 @@ import {
   decodeXaiIdTokenEmail,
   extractEmailFromAccessToken,
   extractCodexAccountInfo,
-  fetchKiroProfileArn,
 } from "./providerHelpers";
 
-export { extractCodexAccountInfo, fetchKiroProfileArn };
+export { extractCodexAccountInfo };
 
 // Inlined from services/xai.js to keep web route bundle free of `open` (CLI-only) package
 let cachedXaiDiscovery = null;
@@ -1099,7 +1095,7 @@ export async function requestDeviceCode(providerName, codeChallenge, options) {
  * @param {string} providerName - Provider name
  * @param {string} deviceCode - Device code from requestDeviceCode
  * @param {string} codeVerifier - PKCE code verifier (optional for some providers)
- * @param {object} extraData - Extra data from device code response (e.g. clientId/clientSecret for Kiro)
+ * @param {object} extraData - Provider-specific data captured during device authorization
  */
 export async function pollForToken(providerName, deviceCode, codeVerifier, extraData) {
   const provider = getProvider(providerName);

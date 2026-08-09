@@ -20,10 +20,6 @@
     "baseUrl": "https://api.assemblyai.com/v1/audio/transcriptions",
     "format": "openai"
   },
-  "cavoti": {
-    "baseUrl": "https://cavoti.com/v1/chat/completions",
-    "format": "openai"
-  },
   "claude": {
     "baseUrl": "https://api.anthropic.com/v1/messages",
     "format": "claude",

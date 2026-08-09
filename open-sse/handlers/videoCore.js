@@ -2,7 +2,6 @@ import { createErrorResult } from "../utils/error.js";
 import { HTTP_STATUS } from "../config/runtimeConfig.js";
 import { refreshTokenByProvider } from "../services/tokenRefresh.js";
 import { PROVIDER_MEDIA } from "../providers/index.js";
-import { CAVOTI_VIDEO_PATH, resolveCavotiConnectionEndpoint } from "../providers/cavoti.js";
 
 // Upstream fetch deadline for video job submission/polling (the job itself is
 // async upstream — this only bounds the HTTP round-trip, not video rendering).
@@ -14,15 +13,9 @@ const VIDEO_FETCH_TIMEOUT_MS = Number(process.env.VIDEO_FETCH_TIMEOUT_MS || 1200
 // which upstream rejects before job creation).
 export const VIDEO_ACTIONS = new Set(["generations", "edits", "extensions"]);
 
-export function getVideoConfig(provider, credentials = null) {
+export function getVideoConfig(provider) {
   const config = PROVIDER_MEDIA[provider]?.videoConfig || null;
   if (!config) return null;
-  if (provider === "cavoti") {
-    return {
-      ...config,
-      baseUrl: resolveCavotiConnectionEndpoint(credentials, "video", CAVOTI_VIDEO_PATH),
-    };
-  }
   return config;
 }
 
@@ -162,7 +155,7 @@ export async function handleVideoProxyCore({
       const parsed = JSON.parse(bodyText);
       message = parsed?.error?.message || parsed?.error || parsed?.message || bodyText;
     } catch {
-      // Keep the upstream text for non-JSON errors such as Cavoti 503s.
+      // Keep the upstream text for non-JSON errors such as upstream 503s.
     }
     message = sanitizeSecrets(message, credentials);
     return createErrorResult(upstream.status, `[${provider}] ${message.slice(0, 2000)}`);

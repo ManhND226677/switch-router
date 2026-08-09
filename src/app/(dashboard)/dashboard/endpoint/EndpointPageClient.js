@@ -5,9 +5,7 @@ import { Card, Button, Input, Modal, CardSkeleton, Toggle, ConfirmModal } from "
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import EndpointRow from "./components/EndpointRow";
 import RuntimeStatusCard from "./components/RuntimeStatusCard";
-import QuickStartCard from "./components/QuickStartCard";
 import OfficeGatewayCard from "./components/OfficeGatewayCard";
-import AccessSecurityCard from "./components/AccessSecurityCard";
 import { ENDPOINT_GROUPS } from "./endpointConstants";
 
 export default function EndpointPageClient() {
@@ -174,17 +172,13 @@ export default function EndpointPageClient() {
   }
 
   const visibleGroups = ENDPOINT_GROUPS.filter(
-    (group) => !group.requiresOfficeGateway || officeGatewayEnabled,
+    (group) => (!group.requiresOfficeGateway || officeGatewayEnabled) && !group.excludeFromBaseUrls
   );
   const activeKeyCount = keys.filter((key) => key.isActive !== false).length;
 
   return (
-    <div className="flex flex-col gap-8">
-      <Card>
-        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-          <span className="material-symbols-outlined text-primary">monitor_heart</span>
-          Gateway Status
-        </h2>
+    <div className="flex flex-col gap-6">
+      <Card title="Gateway Status" icon="monitor_heart">
         <RuntimeStatusCard
           health={health}
           origin={origin}
@@ -195,154 +189,118 @@ export default function EndpointPageClient() {
         />
       </Card>
 
-      <Card>
-        <h2 className="mb-1 flex items-center gap-2 text-lg font-semibold">
-          <span className="material-symbols-outlined text-primary">api</span>
-          Base URLs
-        </h2>
-        <p className="mb-4 text-sm text-text-muted">
-          One gateway, several client formats. Point each tool at the base URL matching the API it speaks.
-        </p>
-        <div className="flex flex-col gap-5">
-          {visibleGroups.map((group) => (
-            <EndpointRow
-              key={group.id}
-              label={group.label}
-              badge={group.badge}
-              tone={group.tone}
-              url={`${origin}${group.path}`}
-              copyId={`endpoint_${group.id}`}
-              copied={copied}
-              onCopy={copy}
-              desc={group.desc}
-              routes={group.routes}
-            />
-          ))}
-        </div>
-      </Card>
-
-      <Card>
-        <h2 className="mb-1 flex items-center gap-2 text-lg font-semibold">
-          <span className="material-symbols-outlined text-primary">rocket_launch</span>
-          Quick Start
-        </h2>
-        <p className="mb-4 text-sm text-text-muted">
-          Ready-to-paste client configuration for this gateway.
-        </p>
-        <QuickStartCard origin={origin} keys={keys} copied={copied} onCopy={copy} />
-      </Card>
-
-      <Card>
-        <h2 className="mb-1 flex items-center gap-2 text-lg font-semibold">
-          <span className="material-symbols-outlined text-primary">description</span>
-          Claude for M365 Gateway
-        </h2>
-        <p className="mb-4 text-sm text-text-muted">
-          An isolated namespace for Office agents. It never changes the behaviour of the endpoints above.
-        </p>
-        <OfficeGatewayCard
-          origin={origin}
-          enabled={officeGatewayEnabled}
-          allowlistCount={officeAllowlistCount}
-          copied={copied}
-          onCopy={copy}
-        />
-      </Card>
-
-      <Card>
-        <h2 className="mb-1 flex items-center gap-2 text-lg font-semibold">
-          <span className="material-symbols-outlined text-primary">shield</span>
-          Access &amp; Security
-        </h2>
-        <p className="mb-4 text-sm text-text-muted">
-          Who can reach this gateway right now, and where credentials live.
-        </p>
-        <AccessSecurityCard origin={origin} requireApiKey={requireApiKey} />
-      </Card>
-
-      <Card id="require-api-key">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-lg font-semibold">
-            <span className="material-symbols-outlined text-primary">vpn_key</span>
-            API Keys
-          </h2>
-          <Button icon="add" onClick={() => setShowAddModal(true)}>Create Key</Button>
-        </div>
-
-        <div className="mb-4 flex items-center justify-between border-b border-border pb-4">
-          <div>
-            <p className="font-medium">Require API key</p>
-            <p className="text-sm text-text-muted">Requests without a valid key will be rejected.</p>
-          </div>
-          <Toggle checked={requireApiKey} onChange={() => handleRequireApiKey(!requireApiKey)} />
-        </div>
-
-        {keys.length === 0 ? (
-          <div className="py-12 text-center">
-            <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <span className="material-symbols-outlined text-4xl">vpn_key</span>
-            </div>
-            <p className="mb-1 font-medium text-text-main">No API keys yet</p>
-            <p className="mb-4 text-sm text-text-muted">Create a key for local clients and CLI tools.</p>
-            <Button icon="add" onClick={() => setShowAddModal(true)}>Create Key</Button>
-          </div>
-        ) : (
-          <div className="flex flex-col">
-            {keys.map((key) => (
-              <div
-                key={key.id}
-                className={`group flex items-center justify-between border-b border-black/[0.03] py-3 last:border-b-0 dark:border-white/[0.03] ${key.isActive === false ? "opacity-60" : ""}`}
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">{key.name}</p>
-                  <div className="mt-1 flex items-center gap-2">
-                    <code className="font-mono text-xs text-text-muted">
-                      {visibleKeys.has(key.id) ? key.key : maskKey(key.key)}
-                    </code>
-                    <button
-                      onClick={() => toggleKeyVisibility(key.id)}
-                      className="rounded p-1 text-text-muted transition-all hover:bg-black/5 hover:text-primary dark:hover:bg-white/5 sm:opacity-0 sm:group-hover:opacity-100"
-                      title={visibleKeys.has(key.id) ? "Hide key" : "Show key"}
-                    >
-                      <span className="material-symbols-outlined text-sm">
-                        {visibleKeys.has(key.id) ? "visibility_off" : "visibility"}
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => copy(key.key, key.id)}
-                      className="rounded p-1 text-text-muted transition-all hover:bg-black/5 hover:text-primary dark:hover:bg-white/5 sm:opacity-0 sm:group-hover:opacity-100"
-                      title="Copy key"
-                    >
-                      <span className="material-symbols-outlined text-sm">
-                        {copied === key.id ? "check" : "content_copy"}
-                      </span>
-                    </button>
-                  </div>
-                  <p className="mt-1 text-xs text-text-muted">
-                    Created {key.createdAt ? new Date(key.createdAt).toLocaleDateString() : "unknown date"}
-                  </p>
-                  {key.isActive === false && <p className="mt-1 text-xs text-orange-500">Paused</p>}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Main Content Area - spans 2 columns */}
+        <div className="flex flex-col gap-6 xl:col-span-2">
+          <Card id="require-api-key" title="API Keys" icon="vpn_key" action={<Button icon="add" onClick={() => setShowAddModal(true)}>Create Key</Button>}>
+            <div className="flex flex-col">
+              <div className="mb-4 flex items-center justify-between border-b border-border pb-4">
+                <div>
+                  <p className="font-medium">Require API key</p>
+                  <p className="text-sm text-text-muted">Requests without a valid key will be rejected.</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Toggle
-                    size="sm"
-                    checked={key.isActive !== false}
-                    onChange={(checked) => handleToggleKey(key.id, checked)}
-                    title={key.isActive === false ? "Resume key" : "Pause key"}
-                  />
-                  <button
-                    onClick={() => handleDeleteKey(key.id, key.name)}
-                    className="rounded p-2 text-red-500 transition-all hover:bg-red-500/10 sm:opacity-0 sm:group-hover:opacity-100"
-                    title="Delete key"
-                  >
-                    <span className="material-symbols-outlined text-lg">delete</span>
-                  </button>
-                </div>
+                <Toggle checked={requireApiKey} onChange={() => handleRequireApiKey(!requireApiKey)} />
               </div>
+
+              {keys.length === 0 ? (
+                <div className="py-12 text-center">
+                  <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <span className="material-symbols-outlined text-4xl">vpn_key</span>
+                  </div>
+                  <p className="mb-1 font-medium text-text-main">No API keys yet</p>
+                  <p className="mb-4 text-sm text-text-muted">Create a key for local clients and CLI tools.</p>
+                  <Button icon="add" onClick={() => setShowAddModal(true)}>Create Key</Button>
+                </div>
+              ) : (
+                <div className="flex flex-col">
+                  {keys.map((key) => (
+                    <div
+                      key={key.id}
+                      className={`group flex items-center justify-between border-b border-border-subtle py-3 last:border-b-0 ${key.isActive === false ? "opacity-60" : ""}`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium">{key.name}</p>
+                        <div className="mt-1 flex items-center gap-2">
+                          <code className="font-mono text-xs text-text-muted">
+                            {visibleKeys.has(key.id) ? key.key : maskKey(key.key)}
+                          </code>
+                          <button
+                            onClick={() => toggleKeyVisibility(key.id)}
+                            className="rounded p-1 text-text-muted transition-all hover:bg-black/5 hover:text-primary dark:hover:bg-white/5 sm:opacity-40 sm:group-hover:opacity-100"
+                            title={visibleKeys.has(key.id) ? "Hide key" : "Show key"}
+                          >
+                            <span className="material-symbols-outlined text-sm">
+                              {visibleKeys.has(key.id) ? "visibility_off" : "visibility"}
+                            </span>
+                          </button>
+                          <button
+                            onClick={() => copy(key.key, key.id)}
+                            className="rounded p-1 text-text-muted transition-all hover:bg-black/5 hover:text-primary dark:hover:bg-white/5 sm:opacity-40 sm:group-hover:opacity-100"
+                            title="Copy key"
+                          >
+                            <span className="material-symbols-outlined text-sm">
+                              {copied === key.id ? "check" : "content_copy"}
+                            </span>
+                          </button>
+                        </div>
+                        <p className="mt-1 text-xs text-text-muted">
+                          Created {key.createdAt ? new Date(key.createdAt).toLocaleDateString() : "unknown date"}
+                        </p>
+                        {key.isActive === false && <p className="mt-1 text-xs text-orange-500">Paused</p>}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Toggle
+                          size="sm"
+                          checked={key.isActive !== false}
+                          onChange={(checked) => handleToggleKey(key.id, checked)}
+                          title={key.isActive === false ? "Resume key" : "Pause key"}
+                        />
+                        <button
+                          onClick={() => handleDeleteKey(key.id, key.name)}
+                          className="rounded p-2 text-red-500 transition-all hover:bg-red-500/10 sm:opacity-40 sm:group-hover:opacity-100"
+                          title="Delete key"
+                        >
+                          <span className="material-symbols-outlined text-lg">delete</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
+      </div>
+
+      {/* Side Column - spans 1 column */}
+      <div className="flex flex-col gap-6 xl:col-span-1">
+        <Card title="Base URLs" icon="api" subtitle="One gateway, several client formats. Point each tool at the base URL matching the API it speaks.">
+          <div className="flex flex-col gap-5">
+            {visibleGroups.map((group) => (
+              <EndpointRow
+                key={group.id}
+                label={group.label}
+                badge={group.badge}
+                tone={group.tone}
+                url={`${origin}${group.path}`}
+                copyId={`endpoint_${group.id}`}
+                copied={copied}
+                onCopy={copy}
+              />
             ))}
           </div>
-        )}
-      </Card>
+        </Card>
+
+        <Card title="Claude for M365 Gateway" icon="description" subtitle="An isolated namespace for Office agents. It never changes the behaviour of the endpoints above.">
+          <OfficeGatewayCard
+            origin={origin}
+            enabled={officeGatewayEnabled}
+            allowlistCount={officeAllowlistCount}
+            copied={copied}
+            onCopy={copy}
+          />
+        </Card>
+      </div>
 
       <Modal
         isOpen={showAddModal}
@@ -356,13 +314,12 @@ export default function EndpointPageClient() {
             onChange={(event) => setNewKeyName(event.target.value)}
             placeholder="Local CLI"
           />
-          <div className="flex gap-2">
-            <Button onClick={handleCreateKey} fullWidth disabled={!newKeyName.trim()}>Create</Button>
+          <div className="flex justify-end gap-2 mt-2">
             <Button
               onClick={() => { setShowAddModal(false); setNewKeyName(""); }}
               variant="ghost"
-              fullWidth
             >Cancel</Button>
+            <Button onClick={handleCreateKey} disabled={!newKeyName.trim()}>Create</Button>
           </div>
         </div>
       </Modal>
@@ -381,7 +338,9 @@ export default function EndpointPageClient() {
               onClick={() => copy(createdKey, "created_key")}
             >{copied === "created_key" ? "Copied!" : "Copy"}</Button>
           </div>
-          <Button onClick={() => setCreatedKey(null)} fullWidth>Done</Button>
+          <div className="flex justify-end mt-2">
+            <Button onClick={() => setCreatedKey(null)}>Done</Button>
+          </div>
         </div>
       </Modal>
 

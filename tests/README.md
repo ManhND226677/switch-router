@@ -1,51 +1,52 @@
-# Switch-Router Embeddings Tests
+# Switch-Router Tests
 
-Unit tests for the `/v1/embeddings` endpoint implementation.
+Vitest suite covering the translator layer, provider config, DB layer, and API handlers.
+
+**~1250 tests across 143 files. Full run ~18s, fast lane ~13s.**
+
+The full QA process — lanes, the regression gate, triage rules — is documented in
+[`docs/QA-WORKFLOW.md`](../docs/QA-WORKFLOW.md). This file is just the quick reference.
 
 ## Setup
 
-Vitest must be installed globally or in `/tmp/node_modules` (due to npm workspace hoisting from the root Next.js project):
+Node **24** required (see `.nvmrc` — Node 22 breaks `better-sqlite3` native bindings).
 
 ```bash
-cd /tmp && npm install vitest
+npm install     # from repo root — tests import src/ and open-sse/
+cd tests && npm install
 ```
 
-## Running Tests
+## Commands
+
+Run from `tests/`:
+
+| Command | What it does |
+|---------|--------------|
+| `npm run test:fast` | Skips benchmarks + network tests. Expected known failures remain; use the gate for pass/fail. |
+| `npm test` | Everything, including benchmarks and known failures. |
+| `npm run gate` | Runs the deterministic lane, then fails only on pass→fail regressions. **What CI enforces.** |
+| `npm run test:watch` | Watch mode. |
+| `npm run test:live` | Real provider API calls. Needs credentials. |
+| `npm run test:bench` | DB benchmarks. Measures performance, not correctness. |
+| `npm run profile` | Slowest files + failure clusters from the last report. |
+
+Single file:
 
 ```bash
-cd tests/
-NODE_PATH=/tmp/node_modules /tmp/node_modules/.bin/vitest run --reporter=verbose --config ./vitest.config.js
+npx vitest run unit/embeddingsCore.test.js --reporter=verbose
 ```
 
-Or using the package script (from the `tests/` directory):
+## Layout
 
-```bash
-npm test
-```
+| Path | Contents |
+|------|----------|
+| `unit/` | 123 files — handlers, DB, providers, OAuth, translators |
+| `translator/` | Format conversion; `__snapshots__/` holds golden URL/header fixtures |
+| `translator/real/` | Live provider calls — excluded from the fast lane |
+| `__baseline__/` | Regression gate: `known-fails.txt`, verifier scripts, snapshots |
 
-## Test Files
+## The gate, in one line
 
-| File | What it tests |
-|------|--------------|
-| `unit/embeddingsCore.test.js` | `open-sse/handlers/embeddingsCore.js` — core logic: body builder, URL router, headers, handler flow |
-| `unit/embeddings.cloud.test.js` | `cloud/src/handlers/embeddings.js` — cloud worker handler: auth, validation, rate limits, CORS |
-
-## Coverage Summary (59 tests)
-
-### `embeddingsCore.test.js` (36 tests)
-- `buildEmbeddingsBody`: single string, array, encoding_format, default float
-- `buildEmbeddingsUrl`: openai, openrouter, openai-compatible-*, unsupported providers
-- `buildEmbeddingsHeaders`: per-provider header sets, fallback to accessToken
-- `handleEmbeddingsCore` input validation: missing, wrong type, null, empty
-- `handleEmbeddingsCore` success: response format, CORS, Content-Type, callbacks
-- `handleEmbeddingsCore` errors: 400/429/500, network error, invalid JSON
-- `handleEmbeddingsCore` token refresh: 401 retry, graceful fallback
-
-### `embeddings.cloud.test.js` (23 tests)
-- CORS OPTIONS: 200 response, empty body, correct headers
-- Authentication: missing key, bad format, old-format key, wrong key value, valid key
-- Body validation: invalid JSON, missing model, missing input, bad model
-- Happy path: single string, array, correct delegation, CORS header, machineId override
-- Rate limiting: all accounts rate-limited → 503 + Retry-After, no credentials → 400
-- Error propagation: non-fallback errors passed through, 429 exhausts accounts
-- machineId override: validates key, rejects wrong key
+A pre-existing failure listed in `__baseline__/known-fails.txt` is tolerated; a test
+that goes **pass → fail** blocks the merge. Don't bulk-regenerate the baseline to get
+green — that turns the gate into decoration.

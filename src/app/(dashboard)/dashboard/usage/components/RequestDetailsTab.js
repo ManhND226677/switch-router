@@ -7,6 +7,7 @@ import Drawer from "@/shared/components/Drawer";
 import Pagination from "@/shared/components/Pagination";
 import { cn } from "@/shared/utils/cn";
 import { AI_PROVIDERS, getProviderByAlias } from "@/shared/constants/providers";
+import { fetchModelNames, getModelName } from "@/shared/utils/modelNames";
 
 let providerNameCache = null;
 let providerNodesCache = null;
@@ -112,6 +113,7 @@ export default function RequestDetailsTab() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [providers, setProviders] = useState([]);
   const [providerNameCache, setProviderNameCache] = useState(null);
+  const [modelNameCache, setModelNameCache] = useState(null);
   const [filters, setFilters] = useState({
     provider: "",
     startDate: "",
@@ -126,6 +128,9 @@ export default function RequestDetailsTab() {
 
       const cache = await fetchProviderNames();
       setProviderNameCache(cache.providerNameCache);
+
+      const modelCache = await fetchModelNames();
+      setModelNameCache(modelCache);
     } catch (error) {
       console.error("Failed to fetch providers:", error);
     }
@@ -290,8 +295,8 @@ export default function RequestDetailsTab() {
                     <td className="whitespace-nowrap p-4 text-sm text-text-main">
                       {new Date(detail.timestamp).toLocaleString()}
                     </td>
-                    <td className="max-w-[260px] truncate p-4 font-mono text-sm text-text-main">
-                      {detail.model}
+                    <td className="max-w-[260px] truncate p-4 font-mono text-sm text-text-main" title={detail.model}>
+                      {getModelName(detail.model, modelNameCache)}
                     </td>
                     <td className="max-w-[180px] truncate p-4 text-sm text-text-main">
                        <span className="font-medium">
@@ -368,7 +373,9 @@ export default function RequestDetailsTab() {
                </div>
               <div>
                 <span className="text-text-muted">Model:</span>{" "}
-                <span className="text-text-main font-mono">{selectedDetail.model}</span>
+                <span className="text-text-main font-mono" title={selectedDetail.model}>
+                  {getModelName(selectedDetail.model, modelNameCache)}
+                </span>
               </div>
               <div>
                 <span className="text-text-muted">Status:</span>{" "}

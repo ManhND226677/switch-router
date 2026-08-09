@@ -71,8 +71,16 @@ export default function DashboardLayout({ children }) {
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/20 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/20 md:hidden"
           onClick={() => setSidebarOpen(false)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
+              setSidebarOpen(false);
+            }
+          }}
+          aria-label="Close sidebar"
         />
       )}
 
@@ -80,10 +88,15 @@ export default function DashboardLayout({ children }) {
       <div className="hidden lg:flex">
         <Sidebar />
       </div>
+      
+      {/* Sidebar - Mini (Tablet) */}
+      <div className="hidden md:flex lg:hidden">
+        <Sidebar isMini={true} />
+      </div>
 
       {/* Sidebar - Mobile */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 transform lg:hidden transition-transform duration-300 ease-in-out ${
+        className={`fixed inset-y-0 left-0 z-50 transform md:hidden transition-transform duration-300 ease-in-out ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >

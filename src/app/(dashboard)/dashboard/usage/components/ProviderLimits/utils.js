@@ -476,23 +476,6 @@ export function parseQuotaData(provider, data) {
         }
         break;
 
-      case "cavoti":
-        if (data.quotas) {
-          Object.entries(data.quotas).forEach(([key, quota]) => {
-            if (!quota || typeof quota !== "object") return;
-            normalizedQuotas.push({
-              name: quota.name || key,
-              used: quota.used ?? quota.value ?? 0,
-              total: quota.total ?? 0,
-              unit: quota.unit || null,
-              displayValue: quota.displayValue || null,
-              percentageAvailable: quota.percentageAvailable === true,
-              resetAt: quota.resetAt || null,
-            });
-          });
-        }
-        break;
-
       default:
         // Generic fallback for unknown providers
         if (data.quotas) {

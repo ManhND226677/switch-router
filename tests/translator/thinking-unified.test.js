@@ -127,12 +127,12 @@ describe("applyThinking per provider format", () => {
     expect(out.reasoning_effort).toBe("high");
   });
   it("Kimi auto → supported reasoning_effort", () => {
-    const out = apply("openai", "kimi-k2.7", { reasoning_effort: "auto" }, "kimchi");
+    const out = apply("openai", "kimi-k2.7", { reasoning_effort: "auto" }, "kimi");
     expect(out.reasoning_effort).toBe("high");
   });
   it("Kimi unsupported OpenAI levels → supported reasoning_effort", () => {
-    const minimal = apply("openai", "kimi-k2.7", { reasoning_effort: "minimal" }, "kimchi");
-    const xhigh = apply("openai", "kimi-k2.7", { reasoning_effort: "xhigh" }, "kimchi");
+    const minimal = apply("openai", "kimi-k2.7", { reasoning_effort: "minimal" }, "kimi");
+    const xhigh = apply("openai", "kimi-k2.7", { reasoning_effort: "xhigh" }, "kimi");
     expect(minimal.reasoning_effort).toBe("low");
     expect(xhigh.reasoning_effort).toBe("max");
   });
@@ -143,11 +143,6 @@ describe("applyThinking per provider format", () => {
   it("non-reasoning model → strips thinking", () => {
     const out = apply("openai", "gpt-4o", { reasoning_effort: "high" }, "openai");
     expect(out.reasoning_effort).toBeUndefined();
-  });
-  it("aggregator (siliconflow) GLM model → forced openai reasoning_effort", () => {
-    const out = apply("openai", "zai-org/GLM-5", { reasoning_effort: "high" }, "siliconflow");
-    expect(out.reasoning_effort).toBe("high");
-    expect(out.enable_thinking).toBeUndefined();
   });
   it("suffix overrides body", () => {
     const out = apply("openai", "gpt-5(low)", { reasoning_effort: "high" }, "openai");

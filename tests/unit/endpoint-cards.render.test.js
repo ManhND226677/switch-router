@@ -83,8 +83,6 @@ describe("endpoint page cards render", () => {
       }),
     );
     expect(enabled).toContain("/office/v1/messages");
-    expect(enabled).toContain("https://pivot.claude.ai");
-    expect(enabled).toContain("2 explicit ID(s)");
 
     const disabled = renderToStaticMarkup(
       React.createElement(OfficeGatewayCard, {

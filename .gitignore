@@ -54,6 +54,7 @@ source/*
 docs/*
 !docs/ARCHITECTURE.md
 !docs/WINDOWS-TRAY.md
+!docs/QA-WORKFLOW.md
 test/*
 open-sse/test/*
 RM.vn.md

@@ -24,9 +24,6 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
   const defaultRegion = AI_PROVIDERS?.[provider]?.defaultRegion || providerRegions?.[0]?.id || "";
   const providerApiModes = AI_PROVIDERS?.[provider]?.apiModes || [];
   const defaultApiMode = AI_PROVIDERS?.[provider]?.defaultApiMode || providerApiModes[0]?.id || "";
-  const cavotiEndpointProfiles = provider === "cavoti"
-    ? Object.values(AI_PROVIDERS?.[provider]?.endpointProfiles || {}).filter((profile) => profile.id !== "images")
-    : [];
 
   const [formData, setFormData] = useState({
     name: "",
@@ -72,9 +69,6 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
         deployment: azureData.deployment,
         organization: azureData.organization,
       });
-    }
-    if (provider === "cavoti") {
-      providerSpecificData.endpointProfile = endpointProfile;
     }
     if (providerRegions && region) {
       providerSpecificData.region = region;
@@ -292,14 +286,6 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
             value={region}
             onChange={(e) => setRegion(e.target.value)}
             options={providerRegions.map((r) => ({ value: r.id, label: r.label }))}
-          />
-        )}
-        {cavotiEndpointProfiles.length > 0 && (
-          <Select
-            label="API Endpoint"
-            value={endpointProfile}
-            onChange={(e) => setEndpointProfile(e.target.value)}
-            options={cavotiEndpointProfiles.map((profile) => ({ value: profile.id, label: profile.label }))}
           />
         )}
         {isCompatible && (

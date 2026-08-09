@@ -1,16 +1,20 @@
 {
   "name": "switch-router-app",
-  "version": "0.5.0",
+  "version": "0.6.7",
   "description": "Switch-Router personal AI gateway dashboard",
   "private": true,
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1 --port 28701",
     "dev:webpack": "next dev --webpack --hostname 127.0.0.1 --port 28701",
     "build": "next build --webpack",
+    "lint": "eslint .",
     "start": "node custom-server.js",
     "dev:bun": "bun --bun next dev --webpack --port 28701",
     "build:bun": "bun --bun next build --webpack",
-    "start:bun": "bun ./.next/standalone/server.js",
+    "start:bun": "bun custom-server.js",
     "icon": "node scripts/windows/generate-icon.mjs",
     "tray": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/tray.ps1",
     "tray:hidden": "wscript //nologo scripts\\windows\\switch-router-tray.vbs",

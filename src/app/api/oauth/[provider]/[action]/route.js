@@ -150,21 +150,9 @@ export async function GET(request, { params }) {
       }
 
       const authData = await generateAuthData(provider, null);
-      const startUrl = searchParams.get("start_url");
-      const region = searchParams.get("region");
-      const authMethod = searchParams.get("auth_method");
-      const deviceOptions = provider === "kiro"
-        ? {
-            ...(startUrl ? { startUrl } : {}),
-            ...(region ? { region } : {}),
-            ...(authMethod ? { authMethod } : {}),
-          }
-        : undefined;
-      
       // Providers that don't use PKCE for device code (Grok CLI HAR: plain device_code, no challenge)
       const noPkceDeviceProviders = [
         "github",
-        "kiro",
         "kimi-coding",
         "kilocode",
         "qoder",
@@ -172,10 +160,10 @@ export async function GET(request, { params }) {
       ];
       let deviceData;
       if (noPkceDeviceProviders.includes(provider)) {
-        deviceData = await requestDeviceCode(provider, undefined, deviceOptions);
+        deviceData = await requestDeviceCode(provider, undefined);
       } else {
         // Qwen and other PKCE providers
-        deviceData = await requestDeviceCode(provider, authData.codeChallenge, deviceOptions);
+        deviceData = await requestDeviceCode(provider, authData.codeChallenge);
       }
 
       return NextResponse.json({
@@ -252,9 +240,7 @@ export async function POST(request, { params }) {
         });
       }
 
-      // Cline and ClinePass use authorization_code without PKCE. Kimchi returns a browser token.
-      const noPkceExchangeProviders = ["kimchi"];
-      if (!code || !redirectUri || (!codeVerifier && !noPkceExchangeProviders.includes(provider))) {
+      if (!code || !redirectUri || !codeVerifier) {
         return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
       }
 
@@ -295,9 +281,6 @@ export async function POST(request, { params }) {
       let result;
       if (noPkceProviders.includes(provider)) {
         result = await pollForToken(provider, deviceCode);
-      } else if (provider === "kiro") {
-        // Kiro needs extraData (clientId, clientSecret) from device code response
-        result = await pollForToken(provider, deviceCode, null, extraData);
       } else if (provider === "qoder") {
         // Qoder needs both the PKCE verifier (codeVerifier) and the machineId
         // captured at device-code time (extraData._qoderMachineId) so

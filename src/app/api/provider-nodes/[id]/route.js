@@ -91,6 +91,26 @@ export async function DELETE(request, { params }) {
     }
 
     await deleteProviderNode(id);
+    
+    const { 
+      deleteModelAlias, getModelAliases, 
+      deleteCustomModel, getCustomModels, 
+    } = await import("@/lib/localDb");
+    
+    // Clean up references to models exposed via this provider
+    const aliases = await getModelAliases();
+    for (const [aliasId, resolvedModel] of Object.entries(aliases)) {
+      if (resolvedModel.startsWith(`${id}/`)) {
+         await deleteModelAlias(aliasId);
+      }
+    }
+    
+    const customModels = await getCustomModels();
+    for (const customModel of customModels) {
+      if (customModel.providerId === id) {
+         await deleteCustomModel(customModel.id);
+      }
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

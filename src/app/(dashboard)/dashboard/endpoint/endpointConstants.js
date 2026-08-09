@@ -83,6 +83,7 @@ export const ENDPOINT_GROUPS = [
     icon: "description",
     desc: "Isolated Office gateway — always requires its own API key",
     requiresOfficeGateway: true,
+    excludeFromBaseUrls: true,
     routes: [
       "GET  /office/v1/models",
       "POST /office/v1/messages",

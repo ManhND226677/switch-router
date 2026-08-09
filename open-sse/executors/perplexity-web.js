@@ -291,7 +291,7 @@ async function* extractContent(eventStream, signal) {
   yield { delta: "", answer: fullAnswer, backendUuid: backendUuid ?? undefined, done: true };
 }
 
-function buildStreamingResponse(eventStream, model, cid, created, history, currentMsg, signal) {
+function buildStreamingResponse(eventStream, model, cid, created, history, currentMsg, signal, upstreamAc = null) {
   const encoder = new TextEncoder();
   return new ReadableStream({
     async start(controller) {
@@ -350,6 +350,13 @@ function buildStreamingResponse(eventStream, model, cid, created, history, curre
       } finally {
         controller.close();
       }
+    },
+    cancel(reason) {
+      // Client disconnected (downstream cancelled the stream): abort the upstream
+      // fetch immediately instead of relying solely on the 500ms delayed
+      // streamController abort. The generator checks `signal?.aborted`, so this
+      // unwinds the upstream promptly and frees the connection.
+      upstreamAc?.abort?.(reason || "client_cancelled");
     },
   });
 }
@@ -450,8 +457,14 @@ export class PerplexityWebExecutor extends BaseExecutor {
 
     log?.info?.("PPLX-WEB", `Query to ${model} (pref=${modelPref}, mode=${pplxMode}), len=${query.length}`);
 
-    const fetchOptions = { method: "POST", headers, body: JSON.stringify(pplxBody) };
-    if (signal) fetchOptions.signal = signal;
+    // Dedicated AbortController for the upstream fetch so a client disconnect can
+    // tear it down immediately. It fires on parent `signal` abort (request cancelled)
+    // and on the stream's own `cancel` (downstream closed) — see buildStreamingResponse.
+    const upstreamAc = new AbortController();
+    if (signal && typeof signal.addEventListener === "function") {
+      signal.addEventListener("abort", () => upstreamAc.abort(signal.reason), { once: true });
+    }
+    const fetchOptions = { method: "POST", headers, body: JSON.stringify(pplxBody), signal: upstreamAc.signal };
 
     let response;
     try {
@@ -488,13 +501,13 @@ export class PerplexityWebExecutor extends BaseExecutor {
 
     let finalResponse;
     if (stream) {
-      const sseStream = buildStreamingResponse(response.body, model, cid, created, parsed.history, parsed.currentMsg, signal);
+      const sseStream = buildStreamingResponse(response.body, model, cid, created, parsed.history, parsed.currentMsg, upstreamAc.signal, upstreamAc);
       finalResponse = new Response(sseStream, {
         status: 200,
         headers: { ...SSE_HEADERS_NO_BUFFER },
       });
     } else {
-      finalResponse = await buildNonStreamingResponse(response.body, model, cid, created, parsed.history, parsed.currentMsg, signal);
+      finalResponse = await buildNonStreamingResponse(response.body, model, cid, created, parsed.history, parsed.currentMsg, upstreamAc.signal);
     }
     return { response: finalResponse, url: PPLX_SSE_ENDPOINT, headers, transformedBody: pplxBody };
   }

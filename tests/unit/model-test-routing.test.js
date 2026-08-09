@@ -194,36 +194,4 @@ describe("model test route kind routing", () => {
     expect(body.status).toBe(502);
     expect(body.error).toBe("HTTP 502: bad upstream");
   });
-
-  it("checks Cavoti model availability through /models without sending a chat request", async () => {
-    mocks.getProviderConnections.mockResolvedValue([{
-      provider: "cavoti",
-      apiKey: "test-key",
-      isActive: true,
-      providerSpecificData: { endpointProfile: "global" },
-    }]);
-    global.fetch = vi.fn((url) => {
-      if (url === "https://cavoti.up.railway.app/v1/models") {
-        return Promise.resolve(new Response(JSON.stringify({ data: [{ id: "gpt-5.6-luna" }] }), { status: 200 }));
-      }
-      throw new Error(`Unexpected URL: ${url}`);
-    });
-
-    const { POST } = await import("../../src/app/api/models/test/route.js");
-    const req = new Request("http://localhost/api/models/test", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "cavoti/gpt-5.6-luna" }),
-    });
-
-    const res = await POST(req);
-    const body = await res.json();
-
-    expect(body.ok).toBe(true);
-    expect(global.fetch).toHaveBeenCalledWith(
-      "https://cavoti.up.railway.app/v1/models",
-      expect.objectContaining({ method: "GET" }),
-    );
-    expect(global.fetch.mock.calls.some(([url]) => String(url).includes("/chat/completions"))).toBe(false);
-  });
 });

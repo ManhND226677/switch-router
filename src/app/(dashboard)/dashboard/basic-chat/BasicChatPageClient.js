@@ -201,9 +201,6 @@ function normalizeLiveModel(model, connection) {
   if (!isPassthrough && isCompatible && !rawId.includes("/")) {
     requestModel = `${connection.provider}/${rawId}`;
   }
-  if (connection.provider === "cavoti" && !rawId.includes("/")) {
-    requestModel = `${providerAlias || connection.provider}/${rawId}`;
-  }
 
   return {
     id: requestModel,

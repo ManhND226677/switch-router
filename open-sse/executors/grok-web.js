@@ -132,7 +132,7 @@ async function* extractContent(eventStream, isThinkingModel, signal) {
   yield { done: true, fingerprint, responseId };
 }
 
-function buildStreamingResponse(eventStream, model, cid, created, isThinkingModel, signal) {
+function buildStreamingResponse(eventStream, model, cid, created, isThinkingModel, signal, upstreamAc = null) {
   const encoder = new TextEncoder();
   return new ReadableStream({
     async start(controller) {
@@ -183,6 +183,12 @@ function buildStreamingResponse(eventStream, model, cid, created, isThinkingMode
       } finally {
         controller.close();
       }
+    },
+    cancel(reason) {
+      // Client disconnected (downstream cancelled the stream): abort the upstream
+      // fetch immediately instead of relying solely on the 500ms delayed
+      // streamController abort. The generator checks `signal?.aborted`.
+      upstreamAc?.abort?.(reason || "client_cancelled");
     },
   });
 }
@@ -291,10 +297,18 @@ export class GrokWebExecutor extends BaseExecutor {
 
     log?.info?.("GROK-WEB", `Query to ${model} (grok=${grokModel}, mode=${modelMode}), len=${message.length}`);
 
+    // Dedicated AbortController for the upstream fetch so a client disconnect can
+    // tear it down immediately. Fires on parent `signal` abort and on the stream's
+    // own `cancel` — see buildStreamingResponse.
+    const upstreamAc = new AbortController();
+    if (signal && typeof signal.addEventListener === "function") {
+      signal.addEventListener("abort", () => upstreamAc.abort(signal.reason), { once: true });
+    }
+
     let response;
     try {
       response = await fetch(GROK_CHAT_API, {
-        method: "POST", headers, body: JSON.stringify(grokPayload), signal,
+        method: "POST", headers, body: JSON.stringify(grokPayload), signal: upstreamAc.signal,
       });
     } catch (err) {
       log?.error?.("GROK-WEB", `Fetch failed: ${err.message || String(err)}`);
@@ -328,13 +342,13 @@ export class GrokWebExecutor extends BaseExecutor {
 
     let finalResponse;
     if (stream) {
-      const sseStream = buildStreamingResponse(response.body, model, cid, created, isThinking, signal);
+      const sseStream = buildStreamingResponse(response.body, model, cid, created, isThinking, upstreamAc.signal, upstreamAc);
       finalResponse = new Response(sseStream, {
         status: 200,
         headers: { ...SSE_HEADERS_NO_BUFFER },
       });
     } else {
-      finalResponse = await buildNonStreamingResponse(response.body, model, cid, created, isThinking, signal);
+      finalResponse = await buildNonStreamingResponse(response.body, model, cid, created, isThinking, upstreamAc.signal);
     }
     return { response: finalResponse, url: GROK_CHAT_API, headers, transformedBody: grokPayload };
   }

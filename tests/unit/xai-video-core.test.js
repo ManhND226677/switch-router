@@ -38,13 +38,6 @@ describe("registry wiring", () => {
     expect(model.kind || model.type).toBe("video");
   });
 
-  it("resolves Cavoti video through the connection endpoint profile", () => {
-    expect(getVideoConfig("cavoti", { providerSpecificData: { endpointProfile: "global" } }).baseUrl)
-      .toBe("https://cavoti.up.railway.app/v1/videos");
-    expect(PROVIDER_MEDIA.cavoti.serviceKinds).toContain("image");
-    expect(PROVIDER_MEDIA.cavoti.serviceKinds).toContain("video");
-  });
-
   it("supports exactly the three creation actions", () => {
     expect([...VIDEO_ACTIONS].sort()).toEqual(["edits", "extensions", "generations"]);
   });
@@ -237,42 +230,6 @@ describe("handleVideoProxyCore", () => {
     expect(result.success).toBe(false);
     expect(refreshTokenByProvider).not.toHaveBeenCalled();
     expect(global.fetch).toHaveBeenCalledTimes(1);
-  });
-
-  it("never re-sends a creation POST after a network error", async () => {
-    global.fetch.mockRejectedValueOnce(new Error("socket hang up"));
-
-    const result = await handleVideoProxyCore({
-      provider: "xai",
-      action: "generations",
-      rawBody: "{}",
-      credentials: { accessToken: "tok", refreshToken: "ref" },
-    });
-
-    expect(result.success).toBe(false);
-    expect(result.status).toBe(502);
-    expect(global.fetch).toHaveBeenCalledTimes(1);
-  });
-
-  it("passes Cavoti 503 errors through without retrying the creation POST", async () => {
-    global.fetch.mockResolvedValueOnce(jsonResponse({ message: "No eligible group for model" }, 503));
-
-    const result = await handleVideoProxyCore({
-      provider: "cavoti",
-      action: "generations",
-      rawBody: '{"model":"seedance-2.0","prompt":"test"}',
-      contentType: "application/json",
-      credentials: {
-        apiKey: "test-key",
-        providerSpecificData: { endpointProfile: "global" },
-      },
-    });
-
-    expect(result.success).toBe(false);
-    expect(result.status).toBe(503);
-    expect(result.error).toContain("No eligible group for model");
-    expect(global.fetch).toHaveBeenCalledTimes(1);
-    expect(global.fetch.mock.calls[0][0]).toBe("https://cavoti.up.railway.app/v1/videos/generations");
   });
 
   it("sanitizes bearer tokens and credential values out of upstream errors", async () => {

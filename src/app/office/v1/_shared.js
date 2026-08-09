@@ -1,4 +1,7 @@
 import { extractApiKey, isValidApiKey } from "@/sse/services/auth.js";
+import { getOfficeModelIds } from "@/sse/services/officeRequestPolicy.js";
+
+export { getOfficeModelIds };
 
 export const OFFICE_GATEWAY_ORIGIN = "https://pivot.claude.ai";
 export const OFFICE_GATEWAY_MODEL_ENV = "OFFICE_MODEL_IDS";
@@ -32,13 +35,6 @@ function isTruthyEnv(value) {
 
 export function isOfficeGatewayEnabled() {
   return isTruthyEnv(process.env.OFFICE_GATEWAY_ENABLED);
-}
-
-export function getOfficeModelIds() {
-  return String(process.env[OFFICE_GATEWAY_MODEL_ENV] || "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
 }
 
 export function isOfficeModelId(modelId) {

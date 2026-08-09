@@ -16,7 +16,7 @@ import { getModelsByProviderId } from "../../../open-sse/config/providerModels.j
 const RUN_REAL = process.env.RUN_REAL === "1";
 const MAX_TOKENS = 32;
 const TIMEOUT_MS = 90000;
-// Optional comma-separated filter: REAL_PROVIDERS=kiro,codex,antigravity
+// Optional comma-separated filter: REAL_PROVIDERS=codex,antigravity
 const PROVIDER_FILTER = (process.env.REAL_PROVIDERS || "")
   .split(",").map((s) => s.trim()).filter(Boolean);
 

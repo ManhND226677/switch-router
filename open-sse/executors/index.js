@@ -14,7 +14,6 @@ import { OllamaLocalExecutor } from "./ollama-local.js";
 import { CommandCodeExecutor } from "./commandcode.js";
 import { XiaomiTokenplanExecutor } from "./xiaomi-tokenplan.js";
 import { MimoFreeExecutor } from "./mimo-free.js";
-import { CavotiExecutor } from "./cavoti.js";
 import { StepFunExecutor } from "./stepfun.js";
 import { DefaultExecutor } from "./default.js";
 
@@ -39,7 +38,6 @@ const executors = {
   "xiaomi-tokenplan": new XiaomiTokenplanExecutor(),
   "mimo-free": new MimoFreeExecutor(),
   mmf: new MimoFreeExecutor(), // Alias for mimo-free
-  cavoti: new CavotiExecutor(),
   stepfun: new StepFunExecutor(),
 };
 
@@ -73,5 +71,4 @@ export { OllamaLocalExecutor } from "./ollama-local.js";
 export { CommandCodeExecutor } from "./commandcode.js";
 export { XiaomiTokenplanExecutor } from "./xiaomi-tokenplan.js";
 export { MimoFreeExecutor } from "./mimo-free.js";
-export { CavotiExecutor } from "./cavoti.js";
 export { StepFunExecutor } from "./stepfun.js";

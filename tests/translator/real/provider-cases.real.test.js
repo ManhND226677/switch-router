@@ -83,33 +83,6 @@ describe.skipIf(!RUN_REAL)("REAL provider behavior cases", () => {
     expect(/"finish_reason"\s*:\s*"stop"/.test(out.raw), "no stop finish_reason").toBe(true);
   }, TIMEOUT_MS);
 
-  // Case #4: Kiro tool turn -> tool_calls finish_reason + tool_calls delta.
-  it("kiro: tool turn -> tool_calls", async () => {
-    const prep = await prepare("kiro");
-    if (!prep) return expect(true).toBe(true);
-    const out = await runChat("kiro", prep, {
-      stream: true,
-      max_tokens: 128,
-      tool_choice: "auto",
-      tools: [{
-        type: "function",
-        function: {
-          name: "get_weather",
-          description: "Get the current weather for a city",
-          parameters: {
-            type: "object",
-            properties: { city: { type: "string", description: "City name" } },
-            required: ["city"],
-          },
-        },
-      }],
-      messages: [{ role: "user", content: "What's the weather in Paris? Use the get_weather tool." }],
-    });
-    if (!out) return expect(true).toBe(true);
-    expect(/"finish_reason"\s*:\s*"tool_calls"/.test(out.raw), "no tool_calls finish_reason").toBe(true);
-    expect(/"tool_calls"/.test(out.raw), "no tool_calls delta").toBe(true);
-  }, TIMEOUT_MS);
-
   // Case #3: Ollama tiny max_tokens + long prompt -> finish_reason "length".
   it("ollama: max_tokens -> length", async () => {
     const prep = await prepare("ollama");

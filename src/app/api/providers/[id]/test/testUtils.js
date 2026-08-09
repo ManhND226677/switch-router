@@ -4,7 +4,6 @@ import { testProxyUrl } from "@/lib/network/proxyTest";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
 import { getDefaultModel } from "open-sse/config/providerModels.js";
 import { resolveOllamaLocalHost, PROVIDERS } from "open-sse/config/providers.js";
-import { CAVOTI_DEFAULT_MODEL_PATH, resolveCavotiEndpoint } from "open-sse/providers/cavoti.js";
 import { resolveVilaoConnectionEndpoint, VILAO_MODELS_PATH } from "open-sse/providers/vilao.js";
 import { resolveStepFunEndpoints } from "open-sse/providers/stepfun.js";
 import {
@@ -16,9 +15,7 @@ import {
   ANTIGRAVITY_CONFIG,
   QWEN_CONFIG,
   CLAUDE_CONFIG,
-  CLINE_CONFIG,
   KILOCODE_CONFIG,
-  KIMCHI_CONFIG,
 } from "@/lib/oauth/constants/oauth";
 
 
@@ -110,8 +107,6 @@ const OAUTH_TEST_CONFIG = {
     },
   },
 };
-
-const CAVOTI_CONNECTION_TEST_TIMEOUT_MS = 8000;
 
 /**
  * Classify an OAuth probe response as success / soft-success / hard-fail.
@@ -331,12 +326,8 @@ async function testOAuthConnection(connection, effectiveProxy = null) {
     return { valid: false, error: initial.error, refreshed };
   }
 
-  // Generic HTTP probe for configured providers (openai, groq, xai, gitlab, kilocode, ...)
-  const spec = PROVIDER_HTTP_PROBES[connection.provider];
-  if (!spec) {
-    return { valid: false, error: "No test configured for this provider", refreshed };
-  }
-
+  // Generic HTTP probe for configured OAuth providers (GitHub, KiloCode,
+  // Grok CLI, and similar). `config` was validated at the start of this function.
   try {
     const testUrl = config.buildUrl ? config.buildUrl(accessToken) : config.url;
     const headers = config.noAuth
@@ -615,18 +606,6 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
           headers: { Authorization: `Bearer ${connection.apiKey}` },
         }, effectiveProxy);
         return { valid: res.ok, error: res.ok ? null : "Invalid API key" };
-      }
-      case "cavoti": {
-        const url = resolveCavotiEndpoint({
-          endpointProfile: connection.providerSpecificData?.endpointProfile,
-          path: CAVOTI_DEFAULT_MODEL_PATH,
-        });
-        const res = await fetchWithConnectionProxy(url, {
-          headers: { Authorization: `Bearer ${connection.apiKey}` },
-          signal: AbortSignal.timeout(CAVOTI_CONNECTION_TEST_TIMEOUT_MS),
-        }, effectiveProxy);
-        const valid = res.status !== 401 && res.status !== 403;
-        return { valid, error: valid ? null : "Invalid Cavoti API key" };
       }
       case "stepfun": {
         const url = resolveStepFunEndpoints(connection).models;

@@ -271,8 +271,8 @@ function createNoOpLogger() {
  * The public logger method names and output file names intentionally remain
  * unchanged. Writes are queued so streaming chunks do not perform sync I/O.
  */
-export async function createRequestLogger(sourceFormat, targetFormat, model) {
-  if (!LOGGING_ENABLED) return createNoOpLogger();
+export async function createRequestLogger(sourceFormat, targetFormat, model, options = {}) {
+  if (options.disableContent === true || !LOGGING_ENABLED) return createNoOpLogger();
 
   const sessionPath = await createLogSession(sourceFormat, targetFormat, model);
   const pendingOperations = new Set();

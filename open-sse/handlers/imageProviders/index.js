@@ -19,7 +19,6 @@ const ADAPTERS = {
   openrouter: createOpenAIAdapter("openrouter"),
   recraft: createOpenAIAdapter("recraft"),
   xai: createOpenAIAdapter("xai"),
-  cavoti: createOpenAIAdapter("cavoti"),
   stepfun,
   gemini,
   codex,

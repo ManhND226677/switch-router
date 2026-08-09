@@ -52,23 +52,52 @@ function collectAppPids() {
   return [...pids];
 }
 
+function isProcessAlive(pid) {
+  try {
+    process.kill(Number(pid), 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function killAppProcesses() {
   const pids = collectAppPids();
+  const GRACE_MS = 3000;
 
+  // 1) Ask nicely first so adapters can flush (sql.js debounce / WAL checkpoint).
   for (const pid of pids) {
+    const n = Number(pid);
+    if (!isProcessAlive(n)) continue;
     try {
       if (process.platform === "win32") {
-        execSync(`taskkill /F /PID ${pid} 2>nul`, {
-          stdio: "ignore",
-          shell: true,
-          windowsHide: true,
-          timeout: 3000,
-        });
+        execSync(`taskkill /PID ${n} 2>nul`, { stdio: "ignore", windowsHide: true, timeout: GRACE_MS });
       } else {
-        execSync(`kill -9 ${pid} 2>/dev/null`, { stdio: "ignore", timeout: 3000 });
+        process.kill(n, "SIGTERM");
       }
     } catch {
-      // Process may already have exited.
+      // Ignore — force-kill below if still alive.
+    }
+  }
+
+  // 2) Wait (bounded) for graceful exit.
+  const deadline = Date.now() + GRACE_MS;
+  while (Date.now() < deadline && pids.some((p) => isProcessAlive(Number(p)))) {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+
+  // 3) Force-kill anything still alive.
+  for (const pid of pids) {
+    const n = Number(pid);
+    if (!isProcessAlive(n)) continue;
+    try {
+      if (process.platform === "win32") {
+        execSync(`taskkill /F /PID ${n} 2>nul`, { stdio: "ignore", windowsHide: true, timeout: GRACE_MS });
+      } else {
+        process.kill(n, "SIGKILL");
+      }
+    } catch {
+      // Process may have just exited.
     }
   }
 

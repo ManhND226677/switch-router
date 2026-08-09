@@ -21,7 +21,6 @@ export { default as McpMarketplaceModal } from "./McpMarketplaceModal";
 export { default as UsageStats } from "./UsageStats";
 export { default as LanguageSwitcher } from "./LanguageSwitcher";
 export { default as HeaderMenu } from "./HeaderMenu";
-export { default as RequestLogger } from "./RequestLogger";
 export { default as CursorAuthModal } from "./CursorAuthModal";
 export { default as GitLabAuthModal } from "./GitLabAuthModal";
 export { default as EditConnectionModal } from "./EditConnectionModal";
