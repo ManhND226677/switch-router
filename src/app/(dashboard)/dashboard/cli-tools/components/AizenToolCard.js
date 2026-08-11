@@ -17,27 +17,30 @@ export default function AizenToolCard({
   hasActiveProviders,
   initialStatus,
 }) {
+  const initialSettings = initialStatus?.settings || {};
   const [status, setStatus] = useState(initialStatus || null);
   const [checking, setChecking] = useState(false);
   const [applying, setApplying] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [message, setMessage] = useState(null);
-  const [selectedApiKey, setSelectedApiKey] = useState("");
-  const [customBaseUrl, setCustomBaseUrl] = useState("");
+  const [selectedApiKey, setSelectedApiKey] = useState(initialSettings.apiKey || "");
+  const [customBaseUrl, setCustomBaseUrl] = useState(initialSettings.baseUrl || "");
 
   // Models
-  const [selectedModels, setSelectedModels] = useState([]);
-  const [activeModel, setActiveModel] = useState("");
-  const [subagentModel, setSubagentModel] = useState("");
+  const [selectedModels, setSelectedModels] = useState(
+    Array.isArray(initialSettings.models) ? initialSettings.models : [],
+  );
+  const [activeModel, setActiveModel] = useState(initialSettings.activeModel || "");
+  const [subagentModel, setSubagentModel] = useState(initialSettings.subagentModel || "");
   const [modalOpen, setModalOpen] = useState(false);
   const [subagentModalOpen, setSubagentModalOpen] = useState(false);
   const [modelAliases, setModelAliases] = useState({});
   const selectedModelsRef = useRef([]);
 
   // Settings
-  const [thinkingEffort, setThinkingEffort] = useState(null);
-  const [autoCompact, setAutoCompact] = useState(false);
-  const [mcpCodebaseMemory, setMcpCodebaseMemory] = useState(false);
+  const [thinkingEffort, setThinkingEffort] = useState(initialSettings.thinkingEffort || null);
+  const [autoCompact, setAutoCompact] = useState(initialSettings.autoCompact === true);
+  const [mcpCodebaseMemory, setMcpCodebaseMemory] = useState(initialSettings.mcpCodebaseMemory === true);
   const [showManualConfigModal, setShowManualConfigModal] = useState(false);
 
   useEffect(() => {
@@ -66,20 +69,19 @@ export default function AizenToolCard({
     if (isExpanded) fetchModelAliases();
   }, [isExpanded]);
 
-  // Hydrate form from saved status
-  useEffect(() => {
-    if (status?.settings) {
-      const s = status.settings;
-      if (s.baseUrl) setCustomBaseUrl(s.baseUrl);
-      if (s.apiKey) setSelectedApiKey(s.apiKey);
-      if (Array.isArray(s.models)) setSelectedModels(s.models);
-      if (s.activeModel) setActiveModel(s.activeModel);
-      if (s.subagentModel) setSubagentModel(s.subagentModel);
-      if (s.thinkingEffort) setThinkingEffort(s.thinkingEffort);
-      if (typeof s.autoCompact === "boolean") setAutoCompact(s.autoCompact);
-      if (typeof s.mcpCodebaseMemory === "boolean") setMcpCodebaseMemory(s.mcpCodebaseMemory);
-    }
-  }, [status]);
+  const hydrateFormFromStatus = (nextStatus) => {
+    const settings = nextStatus?.settings;
+    if (!settings) return;
+
+    if (settings.baseUrl) setCustomBaseUrl(settings.baseUrl);
+    if (settings.apiKey) setSelectedApiKey(settings.apiKey);
+    if (Array.isArray(settings.models)) setSelectedModels(settings.models);
+    if (settings.activeModel) setActiveModel(settings.activeModel);
+    if (settings.subagentModel) setSubagentModel(settings.subagentModel);
+    if (settings.thinkingEffort) setThinkingEffort(settings.thinkingEffort);
+    if (typeof settings.autoCompact === "boolean") setAutoCompact(settings.autoCompact);
+    if (typeof settings.mcpCodebaseMemory === "boolean") setMcpCodebaseMemory(settings.mcpCodebaseMemory);
+  };
 
   const fetchModelAliases = async () => {
     try {
@@ -96,7 +98,9 @@ export default function AizenToolCard({
     try {
       const res = await fetch(ENDPOINT);
       if (res.ok) {
-        setStatus(await res.json());
+        const nextStatus = await res.json();
+        setStatus(nextStatus);
+        hydrateFormFromStatus(nextStatus);
       }
     } catch (error) {
       console.log("Error checking aizen status:", error);

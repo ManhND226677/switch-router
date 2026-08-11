@@ -193,14 +193,21 @@ describe("openaiToClaudeResponse", () => {
       }]
     };
 
-    const result = openaiToClaudeResponse(chunk, state);
-    const inputDelta = result.find(event => event.delta?.type === "input_json_delta");
+    const partialEvents = openaiToClaudeResponse(chunk, state);
+    expect(partialEvents.some(event => event.delta?.type === "input_json_delta")).toBe(false);
+
+    const finalEvents = openaiToClaudeResponse({
+      id: "chatcmpl-test",
+      model: "gpt-test",
+      choices: [{ delta: {}, finish_reason: "tool_calls" }],
+    }, state);
+    const inputDelta = finalEvents.find(event => event.delta?.type === "input_json_delta");
 
     expect(inputDelta).toBeDefined();
     expect(JSON.parse(inputDelta.delta.partial_json)).toEqual({
       file_path: "/tmp/example.txt",
       offset: 0,
-      limit: 120
+      limit: 120,
     });
   });
 });
