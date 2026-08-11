@@ -100,8 +100,6 @@ const MODEL_TYPE_TO_KIND = {
   embedding: "embedding",
   stt: "stt",
   imageToText: "imageToText",
-  video: "video",
-  realtime: "realtime",
 };
 
 function modelKind(model) {
@@ -464,25 +462,6 @@ export async function buildModelsList(kindFilter, options = {}) {
         if (liveMetadata?.pricing) model.pricing = liveMetadata.pricing;
         models.push(model);
       }
-
-      // Web search/fetch — provider IS the model, expose as {alias}/search and/or {alias}/fetch with explicit kind
-      const providerInfo = AI_PROVIDERS[providerId];
-      if (kindFilter.includes("webSearch") && providerInfo?.searchConfig) {
-        models.push({
-          id: `${outputAlias}/search`,
-          object: "model",
-          kind: "webSearch",
-          owned_by: outputAlias,
-        });
-      }
-      if (kindFilter.includes("webFetch") && providerInfo?.fetchConfig) {
-        models.push({
-          id: `${outputAlias}/fetch`,
-          object: "model",
-          kind: "webFetch",
-          owned_by: outputAlias,
-        });
-      }
     }
   }
 
@@ -511,8 +490,7 @@ export async function OPTIONS() {
 }
 
 /**
- * GET /v1/models - OpenAI compatible models list (LLM/chat models only by default).
- * For other capabilities use /v1/models/{kind} (image, tts, stt, embedding, image-to-text, web).
+ * GET /v1/models - OpenAI compatible models list (LLM/chat models).
  */
 export async function GET(request) {
   try {

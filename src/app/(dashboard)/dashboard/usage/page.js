@@ -19,8 +19,14 @@ const PERIODS = [
 
 const fmt = (n) => new Intl.NumberFormat().format(n || 0);
 const fmtCost = (n) => `$${(n || 0).toFixed(4)}`;
+const fmtLatency = (ms) => {
+  if (!ms || ms <= 0) return "—";
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+};
 
 function timeAgo(timestamp) {
+  if (!timestamp) return "—";
   const diff = Math.floor((Date.now() - new Date(timestamp)) / 1000);
   if (diff < 60) return `${diff}s ago`;
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
@@ -31,7 +37,7 @@ function timeAgo(timestamp) {
 function TimeAgo({ timestamp }) {
   const [, setTick] = useState(0);
   useEffect(() => {
-    const timer = setInterval(() => setTick((t) => t + 1), 1000);
+    const timer = setInterval(() => setTick((t) => t + 1), 30000);
     return () => clearInterval(timer);
   }, []);
   return <>{timeAgo(timestamp)}</>;
@@ -53,19 +59,60 @@ function MetricCard({ title, value, trend, trendUp }) {
   );
 }
 
+function CustomPieTooltip({ active, payload }) {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-surface border border-border shadow-md rounded-lg p-3 min-w-[120px]">
+        {payload.map((entry, index) => (
+          <div key={index} className="flex flex-col gap-1">
+            <div className="flex items-center gap-2 mb-1">
+              <div
+                className="w-2.5 h-2.5 rounded-sm"
+                style={{ backgroundColor: entry.color }}
+              />
+              <span className="text-xs font-medium text-text-muted">{entry.name}</span>
+            </div>
+            <span className="text-sm font-semibold text-text-main ml-4">
+              {fmt(entry.value)} <span className="text-text-muted font-normal text-xs">Tokens</span>
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return null;
+}
+
 function OverviewDashboard({ period }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [modelNames, setModelNames] = useState({});
 
+const [providerNameMap, setProviderNameMap] = useState({});
+
+  useEffect(() => {
+    fetch('/api/usage/providers')
+      .then(r => r.ok ? r.json() : { providers: [] })
+      .then(data => {
+        const map = {};
+        for (const p of data.providers || []) map[p.id] = p.name;
+        setProviderNameMap(map);
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
-    
+    let isFirstCall = true;
+
     async function fetchData() {
-      setLoading(true);
+      if (isFirstCall) {
+        setLoading(true);
+        isFirstCall = false;
+      }
       try {
         const [r, names] = await Promise.all([
-          fetch(`/api/usage/stats?period=${period}`),
+          fetch(`/api/usage/stats?period=${period}&_t=${Date.now()}`),
           fetchModelNames()
         ]);
         const data = r.ok ? await r.json() : null;
@@ -83,11 +130,17 @@ function OverviewDashboard({ period }) {
 
     fetchData();
 
+    const poll = setInterval(fetchData, 10000);
+
     return () => {
       isMounted = false;
+      clearInterval(poll);
     };
   }, [period]);
 
+  // SSE delivers only the live slices (recentRequests, activeRequests,
+  // errorProvider) — period-scoped totals are refreshed by the stats poll
+  // above so every value always matches the selected period.
   useEffect(() => {
     const es = new EventSource("/api/usage/stream");
     es.onmessage = (e) => {
@@ -97,18 +150,19 @@ function OverviewDashboard({ period }) {
           if (!prev) return prev;
           return {
             ...prev,
+            activeRequests: data.activeRequests,
             recentRequests: data.recentRequests,
+            errorProvider: data.errorProvider,
           };
         });
       } catch (err) {}
     };
+    es.onerror = (err) => console.warn("[SSE] Connection error, will retry:", err);
     return () => es.close();
   }, []);
 
   if (loading && !stats) return <CardSkeleton />;
   if (!stats) return <div className="text-text-muted">Failed to load dashboard data.</div>;
-
-  const tokensProcessed = (stats.totalPromptTokens || 0) + (stats.totalCompletionTokens || 0);
 
   const aggregatedModelData = Object.values(stats.byModel || {}).reduce((acc, data) => {
     const name = getModelName(data.rawModel, modelNames);
@@ -126,38 +180,20 @@ function OverviewDashboard({ period }) {
   // Use a premium, sleek palette derived from primary brand color and complementary neutral/dark tones
   const COLORS = ["#E56A4A", "#1D232A", "#64748B", "#94A3B8", "#CBD5E1", "#F1F5F9"];
 
-  const CustomPieTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-surface border border-border shadow-md rounded-lg p-3 min-w-[120px]">
-          {payload.map((entry, index) => (
-            <div key={index} className="flex flex-col gap-1">
-              <div className="flex items-center gap-2 mb-1">
-                <div 
-                  className="w-2.5 h-2.5 rounded-sm" 
-                  style={{ backgroundColor: entry.color }}
-                />
-                <span className="text-xs font-medium text-text-muted">{entry.name}</span>
-              </div>
-              <span className="text-sm font-semibold text-text-main ml-4">
-                {fmt(entry.value)} <span className="text-text-muted font-normal text-xs">Tokens</span>
-              </span>
-            </div>
-          ))}
-        </div>
-      );
-    }
-    return null;
-  };
-
   return (
     <div className="flex flex-col gap-6 animate-in fade-in duration-300">
       {/* Metrics Grid */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard title="Total Requests" value={fmt(stats.totalRequests)} trend="+12.5%" trendUp={true} />
-        <MetricCard title="Tokens Processed" value={fmt(tokensProcessed)} trend="+8.2%" trendUp={true} />
-        <MetricCard title="Avg Latency" value="245ms" trend="-15ms" trendUp={true} />
-        <MetricCard title="Est. Cost" value={fmtCost(stats.totalCost)} trend="-$2.40" trendUp={false} />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <MetricCard title="Total Requests" value={fmt(stats.totalRequests)} />
+        <MetricCard title="Input Tokens" value={fmt(stats.totalPromptTokens)} />
+        <MetricCard
+          title="Cache Tokens"
+          value={stats.totalCachedTokens > 0 ? fmt(stats.totalCachedTokens) : "0"}
+          trend={stats.totalCachedTokens > 0 ? "↻" : undefined}
+        />
+        <MetricCard title="Output Tokens" value={fmt(stats.totalCompletionTokens)} />
+        <MetricCard title="Avg Latency" value={fmtLatency(stats.avgLatencyMs)} />
+        <MetricCard title="Est. Cost" value={fmtCost(stats.totalCost)} />
       </div>
 
       {/* Charts Grid */}
@@ -242,11 +278,21 @@ function OverviewDashboard({ period }) {
                       </span>
                     </td>
                     <td className="px-6 py-3 font-medium text-text-main">{r.model}</td>
-                    <td className="px-6 py-3 text-text-muted">{r.provider || "N/A"}</td>
+                    <td className="px-6 py-3 text-text-muted">{providerNameMap[r.provider] || r.provider || "N/A"}</td>
                     <td className="px-6 py-3 text-right whitespace-nowrap">
-                      <span className="text-primary">{fmt(r.promptTokens)}</span>
-                      <span className="text-text-muted/50 mx-1.5">/</span>
-                      <span className="text-success">{fmt(r.completionTokens)}</span>
+                      <div className="flex items-center justify-end gap-2.5 text-xs">
+                        <span className="text-text-muted">
+                          In <span className={`font-mono font-medium ${r.estimated ? "" : "text-primary"}`}>{r.estimated ? "~" : ""}{fmt(r.promptTokens)}</span>
+                        </span>
+                        {r.cachedTokens > 0 && (
+                          <span className="text-text-muted">
+                            <span className="font-mono font-medium text-primary">↻{fmt(r.cachedTokens)}</span>
+                          </span>
+                        )}
+                        <span className="text-text-muted">
+                          Out <span className={`font-mono font-medium ${r.estimated ? "" : "text-success"}`}>{r.estimated ? "~" : ""}{fmt(r.completionTokens)}</span>
+                        </span>
+                      </div>
                     </td>
                     <td className="px-6 py-3 text-right text-text-muted whitespace-nowrap">
                       <TimeAgo timestamp={r.timestamp} />
@@ -284,12 +330,21 @@ function UsageContent() {
   const [period, setPeriod] = useState("today");
 
   const tabFromUrl = searchParams.get("tab");
-  const activeTab = tabFromUrl && ["overview", "logs"].includes(tabFromUrl)
-    ? tabFromUrl
-    : "overview";
+  const validTabFromUrl = tabFromUrl && ["overview", "logs"].includes(tabFromUrl) ? tabFromUrl : null;
+
+  // State is the source of truth for the active tab — clicking always switches
+  // immediately even if the URL update lags. URL seeds the initial value and is
+  // kept in sync (back/forward, deep links) via render-phase adjustment.
+  const [activeTab, setActiveTab] = useState(validTabFromUrl || "overview");
+  const [prevTabFromUrl, setPrevTabFromUrl] = useState(tabFromUrl);
+  if (tabFromUrl !== prevTabFromUrl) {
+    setPrevTabFromUrl(tabFromUrl);
+    if (validTabFromUrl) setActiveTab(validTabFromUrl);
+  }
 
   const handleTabChange = (value) => {
     if (value === activeTab) return;
+    setActiveTab(value);
     const params = new URLSearchParams(searchParams);
     params.set("tab", value);
     router.push(`/dashboard/usage?${params.toString()}`, { scroll: false });

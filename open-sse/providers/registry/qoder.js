@@ -25,18 +25,23 @@ export default {
     },
   },
   models: [
+    // Active/recommended model — matches the account's live catalog
+    // (2026-08-09: is_default=true, is_free=true). Only free Qoder model.
+    { id: "qmodel_38max", name: "Qoder Qwen 3.8 Max", free: true }, // FREE (is_free=true)
+    // Reference only — disabled in the account's live catalog; upstream may
+    // still accept chat for these keys (model_config is fetched live).
     // { id: "auto", name: "Qoder Auto" },
     // { id: "ultimate", name: "Qoder Ultimate" },
     // { id: "performance", name: "Qoder Performance" },
     // { id: "efficient", name: "Qoder Efficient" },
-    // { id: "lite", name: "Qoder Lite" },
-    // { id: "qmodel", name: "Qwen 3.6 Plus (Qoder)" },
-    { id: "qmodel_latest", name: "Qoder Qwen 3.7 Max" },
-    // { id: "dmodel", name: "DeepSeek V4 Pro (Qoder)" },
-    // { id: "dfmodel", name: "DeepSeek V4 Flash (Qoder)" },
-    // { id: "gm51model", name: "GLM 5.1 (Qoder)" },
-    // { id: "kmodel", name: "Kimi K2.6 (Qoder)" },
-    // { id: "mmodel", name: "MiniMax M2.7 (Qoder)" },
+    // { id: "qmodel_latest", name: "Qoder Qwen 3.7 Max" },
+    // { id: "qmodel", name: "Qoder Qwen 3.7 Plus" },
+    // { id: "kmodel_latest", name: "Qoder Kimi-K3" },
+    // { id: "kmodel", name: "Qoder Kimi-K2.7-Code" },
+    // { id: "gm51model", name: "Qoder GLM-5.2" },
+    // { id: "dmodel", name: "Qoder DeepSeek-V4-Pro" },
+    // { id: "dfmodel", name: "Qoder DeepSeek-V4-Flash" },
+    // { id: "mmodel", name: "Qoder MiniMax-M3" },
   ],
   oauth: {
     openApiBaseUrl: "https://openapi.qoder.sh",

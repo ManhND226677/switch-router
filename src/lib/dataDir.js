@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { getRuntimeHomeDir, joinRuntimePath } from "@/lib/runtimePaths";
+import { getRuntimeHomeDir, joinRuntimePath } from "./runtimePaths.js";
 
 const APP_NAME = "switch-router";
 const LEGACY_APP_NAME = "9router";

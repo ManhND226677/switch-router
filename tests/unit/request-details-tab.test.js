@@ -20,7 +20,7 @@ beforeAll(async () => {
   tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "9router-details-tab-"));
   process.env.DATA_DIR = tempDir;
   vi.resetModules();
-  db = await import("@/lib/db/index.js");
+  db = await import("../../src/lib/db/index.js");
   await db.initDb();
   await db.updateSettings({ enableObservability: true, observabilityBatchSize: 1 });
 

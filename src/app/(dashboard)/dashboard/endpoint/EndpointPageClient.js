@@ -189,14 +189,14 @@ export default function EndpointPageClient() {
         />
       </Card>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Main Content Area - spans 2 columns */}
-        <div className="flex flex-col gap-6 xl:col-span-2">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        {/* Main Content Area - spans 1 column */}
+        <div className="flex flex-col gap-6">
           <Card id="require-api-key" title="API Keys" icon="vpn_key" action={<Button icon="add" onClick={() => setShowAddModal(true)}>Create Key</Button>}>
             <div className="flex flex-col">
-              <div className="mb-4 flex items-center justify-between border-b border-border pb-4">
+              <div className="mb-4 flex items-center justify-between border-b border-border-subtle pb-4">
                 <div>
-                  <p className="font-medium">Require API key</p>
+                  <p className="font-medium text-text-main">Require API key</p>
                   <p className="text-sm text-text-muted">Requests without a valid key will be rejected.</p>
                 </div>
                 <Toggle checked={requireApiKey} onChange={() => handleRequireApiKey(!requireApiKey)} />
@@ -219,9 +219,9 @@ export default function EndpointPageClient() {
                       className={`group flex items-center justify-between border-b border-border-subtle py-3 last:border-b-0 ${key.isActive === false ? "opacity-60" : ""}`}
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium">{key.name}</p>
+                        <p className="text-sm font-medium text-text-main">{key.name}</p>
                         <div className="mt-1 flex items-center gap-2">
-                          <code className="font-mono text-xs text-text-muted">
+                          <code className="font-mono text-xs text-text-muted bg-surface-2 px-1.5 py-0.5 rounded">
                             {visibleKeys.has(key.id) ? key.key : maskKey(key.key)}
                           </code>
                           <button
@@ -243,24 +243,29 @@ export default function EndpointPageClient() {
                             </span>
                           </button>
                         </div>
-                        <p className="mt-1 text-xs text-text-muted">
-                          Created {key.createdAt ? new Date(key.createdAt).toLocaleDateString() : "unknown date"}
-                        </p>
-                        {key.isActive === false && <p className="mt-1 text-xs text-orange-500">Paused</p>}
+                        <div className="mt-1 flex items-center gap-2">
+                          <p className="text-xs text-text-muted">
+                            Created {key.createdAt ? new Date(key.createdAt).toLocaleDateString() : "unknown date"}
+                          </p>
+                          {key.isActive === false && (
+                            <span className="text-xs font-medium text-orange-500 bg-orange-500/10 px-1.5 py-0.5 rounded">Paused</span>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 ml-4">
                         <Toggle
                           size="sm"
                           checked={key.isActive !== false}
                           onChange={(checked) => handleToggleKey(key.id, checked)}
                           title={key.isActive === false ? "Resume key" : "Pause key"}
                         />
+                        <div className="w-[1px] h-6 bg-border-subtle mx-1"></div>
                         <button
                           onClick={() => handleDeleteKey(key.id, key.name)}
-                          className="rounded p-2 text-red-500 transition-all hover:bg-red-500/10 sm:opacity-40 sm:group-hover:opacity-100"
+                          className="rounded p-2 text-text-muted transition-all hover:bg-red-500/10 hover:text-red-500 sm:opacity-40 sm:group-hover:opacity-100"
                           title="Delete key"
                         >
-                          <span className="material-symbols-outlined text-lg">delete</span>
+                          <span className="material-symbols-outlined text-[18px]">delete</span>
                         </button>
                       </div>
                     </div>
@@ -272,7 +277,7 @@ export default function EndpointPageClient() {
         </div>
 
         {/* Side Column - spans 1 column */}
-        <div className="flex flex-col gap-6 xl:col-span-1">
+        <div className="flex flex-col gap-6">
           <Card title="Claude for M365 Gateway" icon="description" subtitle="An isolated namespace for Office agents. It never changes the behaviour of the endpoints above.">
             <OfficeGatewayCard
               origin={origin}

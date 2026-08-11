@@ -142,7 +142,8 @@ export default function RequestDetailsTab() {
     try {
       const params = new URLSearchParams({
         page: pagination.page.toString(),
-        pageSize: pagination.pageSize.toString()
+        pageSize: pagination.pageSize.toString(),
+        _t: Date.now().toString() // Thêm timestamp để bypass hoàn toàn cache trình duyệt / proxy
       });
       if (filters.provider) params.append("provider", filters.provider);
       if (filters.startDate) params.append("startDate", filters.startDate);
@@ -282,7 +283,7 @@ export default function RequestDetailsTab() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="7" className="p-8 text-center text-text-muted">
+                  <td colSpan="9" className="p-8 text-center text-text-muted">
                     <div className="flex items-center justify-center gap-2">
                       <span className="material-symbols-outlined animate-spin text-xl">progress_activity</span>
                       Loading...
@@ -291,7 +292,7 @@ export default function RequestDetailsTab() {
                 </tr>
               ) : details.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="p-8 text-center text-text-muted">
+                  <td colSpan="9" className="p-8 text-center text-text-muted">
                     No request details found
                   </td>
                 </tr>
@@ -313,7 +314,7 @@ export default function RequestDetailsTab() {
                        </span>
                      </td>
                     <td className="p-4 text-sm text-text-main text-right font-mono">
-                      {getInputTokens(detail.tokens).toLocaleString()}
+                      {detail.tokens?.estimated ? "~" : ""}{getInputTokens(detail.tokens).toLocaleString()}
                     </td>
                     <td className="p-4 text-sm text-text-main text-right font-mono">
                       {getCachedTokens(detail.tokens) > 0 ? getCachedTokens(detail.tokens).toLocaleString() : "—"}
@@ -322,7 +323,7 @@ export default function RequestDetailsTab() {
                       {getCacheCreationTokens(detail.tokens) > 0 ? getCacheCreationTokens(detail.tokens).toLocaleString() : "—"}
                     </td>
                     <td className="p-4 text-sm text-text-main text-right font-mono">
-                      {detail.tokens?.completion_tokens?.toLocaleString() || 0}
+                      {detail.tokens?.estimated ? "~" : ""}{detail.tokens?.completion_tokens?.toLocaleString() || 0}
                     </td>
                     <td className="p-4 text-sm text-text-muted">
                       <div className="flex flex-col gap-0.5">
@@ -404,7 +405,7 @@ export default function RequestDetailsTab() {
               <div>
                 <span className="text-text-muted">Input Tokens:</span>{" "}
                 <span className="text-text-main font-mono">
-                  {getInputTokens(selectedDetail.tokens).toLocaleString()}
+                  {selectedDetail.tokens?.estimated ? "~" : ""}{getInputTokens(selectedDetail.tokens).toLocaleString()}
                 </span>
               </div>
               {getCachedTokens(selectedDetail.tokens) > 0 && (
@@ -426,7 +427,7 @@ export default function RequestDetailsTab() {
               <div>
                 <span className="text-text-muted">Output Tokens:</span>{" "}
                 <span className="text-text-main font-mono">
-                  {selectedDetail.tokens?.completion_tokens?.toLocaleString() || 0}
+                  {selectedDetail.tokens?.estimated ? "~" : ""}{selectedDetail.tokens?.completion_tokens?.toLocaleString() || 0}
                 </span>
               </div>
             </div>

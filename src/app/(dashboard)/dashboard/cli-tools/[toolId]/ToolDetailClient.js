@@ -7,7 +7,7 @@ import { CLI_TOOLS } from "@/shared/constants/cliTools";
 import { getModelsByProviderId, PROVIDER_ID_TO_ALIAS } from "@/shared/constants/models";
 import {
   ClaudeToolCard, CodexToolCard, OpenClawToolCard,
-  HermesToolCard, OpenCodeToolCard, CoworkToolCard,
+  HermesToolCard, OpenCodeToolCard, CoworkToolCard, AizenToolCard,
 } from "../components";
 
 export default function ToolDetailClient({ toolId }) {
@@ -99,6 +99,8 @@ export default function ToolDetailClient({ toolId }) {
         return <OpenClawToolCard {...commonProps} activeProviders={getActiveProviders()} hasActiveProviders={hasActiveProviders} />;
       case "hermes":
         return <HermesToolCard {...commonProps} activeProviders={getActiveProviders()} hasActiveProviders={hasActiveProviders} />;
+      case "aizen":
+        return <AizenToolCard {...commonProps} activeProviders={getActiveProviders()} hasActiveProviders={hasActiveProviders} />;
       default:
         return null;
     }

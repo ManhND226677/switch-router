@@ -7,7 +7,7 @@ import { createErrorResult } from "../../utils/error.js";
 import { HTTP_STATUS } from "../../config/runtimeConfig.js";
 import { parseSSEToOpenAIResponse } from "./sseToJsonHandler.js";
 import { buildRequestDetail, extractRequestConfig, extractUsageFromResponse, saveUsageStats, formatDoneLine } from "./requestDetail.js";
-import { appendRequestLog, saveRequestDetail } from "@/lib/usageDb.js";
+import { appendRequestLog, saveRequestDetail } from "../../../src/lib/usageDb.js";
 import { decloakToolNames } from "../../utils/claudeCloaking.js";
 
 function parseToolArguments(value) {

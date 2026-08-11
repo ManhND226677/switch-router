@@ -2,7 +2,6 @@
 import REGISTRY from "./registry/index.js";
 import { PROVIDER_DEFAULTS } from "./schema.js";
 import { normalizeModel } from "./models/schema.js";
-import { buildTtsProviderModels } from "../config/ttsModels.js";
 
 // oauth block is canonical for these fields; inject into transport so executors reading
 // this.config.{clientId,clientSecret,tokenUrl} keep working without duplicating in transport
@@ -21,9 +20,7 @@ function buildTransport(transport, oauth) {
 }
 
 const MEDIA_KEYS = new Set([
-  "serviceKinds", "ttsConfig", "sttConfig", "embeddingConfig",
-  "imageConfig", "imageToTextConfig", "videoConfig", "musicConfig",
-  "searchViaChat", "searchConfig", "fetchConfig",
+  "serviceKinds",
   "modelsFetcher", "endpointProfiles", "mediaPriority", "hiddenKinds",
 ]);
 
@@ -46,6 +43,3 @@ for (const entry of REGISTRY) {
   if (entry.media) Object.assign(mediaFields, entry.media);
   if (Object.keys(mediaFields).length) PROVIDER_MEDIA[entry.id] = mediaFields;
 }
-
-// TTS model/voice tables keyed by special names (openai-tts-models, ...), not provider ids
-Object.assign(PROVIDER_MODELS, buildTtsProviderModels());

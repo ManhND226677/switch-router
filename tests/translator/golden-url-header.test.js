@@ -19,8 +19,8 @@ const SPECIAL_CRED = {
 const SPECIALIZED = new Set([
   "antigravity", "gemini-cli", "github", "qoder",
   "codex", "cursor", "qwen", "opencode",
-  "opencode-go", "grok-web", "perplexity-web", "ollama-local", "commandcode",
-  "xiaomi-tokenplan", "mimo-free",
+  "opencode-go", "grok-web", "ollama-local", "commandcode",
+  "xiaomi-tokenplan",
 ]);
 
 // Sanitize header: khử token + field thời gian động (kimi X-Msh-Device-Id) để snapshot ổn định.

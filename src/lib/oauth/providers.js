@@ -4,7 +4,7 @@
  */
 
 // Ensure outbound fetch respects HTTP(S)_PROXY/ALL_PROXY in Node runtime
-import "open-sse/index.js";
+import "../../../open-sse/index.js";
 import crypto from "crypto";
 
 import { generatePKCE, generateState } from "./utils/pkce";

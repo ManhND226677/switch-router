@@ -3,7 +3,7 @@
 // Disabled by default (limit <= 0) so existing behavior is unchanged. Set
 // UPSTREAM_CONCURRENCY_LIMIT to a positive integer to reject excess concurrent
 // upstream requests with 429 instead of letting the egress path be overwhelmed
-// (relevant for providers like grok-web / perplexity-web that hold a long-lived
+// (relevant for providers like grok-web that hold a long-lived
 // upstream socket per request).
 //
 // Note: this counts requests being *initiated* (acquire before execute, release

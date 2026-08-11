@@ -115,6 +115,7 @@ export function createDisconnectAwareStream(transformStream, streamController, o
       if (!streamController.isConnected()) {
         emitTerminal(controller);
         controller.close();
+        transformStream.finalizeUsage?.();
         void transformStream.closeLogger?.();
         return;
       }
@@ -136,6 +137,9 @@ export function createDisconnectAwareStream(transformStream, streamController, o
         if (!isControllerClosed) streamController.handleError(error);
         reader.cancel().catch(() => {});
         writer.abort().catch(() => {});
+        // flush() will never run after this — finalize usage so the request
+        // detail gets real (or estimated) tokens instead of the 0/0 placeholder.
+        transformStream.finalizeUsage?.();
         try { await transformStream.closeLogger?.(); } catch { /* best-effort logger cleanup */ }
 
         // Treat network resets / socket hang up / abort as graceful close
@@ -168,6 +172,10 @@ export function createDisconnectAwareStream(transformStream, streamController, o
 
     cancel(reason) {
       streamController.handleDisconnect(reason || "cancelled");
+      // Client left early — the transform's flush() will never run (cancel
+      // skips it), so finalize usage here (estimate if needed + onStreamComplete)
+      // or the request detail would stay at its 0/0 placeholder forever.
+      transformStream.finalizeUsage?.();
       reader.cancel();
       writer.abort();
       void transformStream.closeLogger?.();
@@ -287,7 +295,12 @@ export function pipeWithDisconnect(providerResponse, transformStream, streamCont
     .pipeThrough(transformStream);
 
   return createDisconnectAwareStream(
-    { readable: transformedBody, writable: { getWriter: () => ({ abort: () => Promise.resolve() }) } },
+    {
+      readable: transformedBody,
+      writable: { getWriter: () => ({ abort: () => Promise.resolve() }) },
+      finalizeUsage: transformStream.finalizeUsage,
+      closeLogger: () => transformStream.closeLogger?.(),
+    },
     wrappedController,
     onAbortTerminal
   );

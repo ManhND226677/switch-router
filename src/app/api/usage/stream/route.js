@@ -1,4 +1,4 @@
-import { getUsageStats, statsEmitter, getActiveRequests } from "@/lib/usageDb";
+import { statsEmitter, getActiveRequests } from "@/lib/usageDb";
 
 export const dynamic = "force-dynamic";
 
@@ -7,9 +7,6 @@ const encoder = new TextEncoder();
 if (!global._usageStreamHub) {
   global._usageStreamHub = {
     clients: new Set(),
-    stats: null,
-    statsJson: null,
-    refreshPromise: null,
     quickPromise: null,
     listenersAttached: false,
     onUpdate: null,
@@ -62,55 +59,21 @@ function broadcastSerialized(serialized) {
   for (const client of [...hub.clients]) sendSerialized(client, serialized);
 }
 
-async function broadcastQuickSnapshot() {
-  if (!hub.stats || hub.clients.size === 0) return;
+// The stream is deliberately period-agnostic: it only pushes the live,
+// real-time slices (recent requests ring, active/pending requests, last error
+// provider). Period-scoped aggregates (totals, byModel, charts) are fetched by
+// the client via /api/usage/stats?period=... polling so every client gets data
+// for exactly the period it is viewing. A shared global snapshot would leak
+// one client's period into all others.
+async function broadcastLiveSnapshot() {
+  if (hub.clients.size === 0) return;
   const { activeRequests, recentRequests, errorProvider } = await getActiveRequests();
-  const quick = {
-    ...hub.stats,
-    activeRequests,
-    recentRequests,
-    errorProvider,
-  };
-  broadcastSerialized(JSON.stringify(quick));
+  broadcastSerialized(JSON.stringify({ activeRequests, recentRequests, errorProvider }));
 }
 
-async function loadInitialSnapshot() {
-  if (hub.stats) return hub.stats;
-  if (hub.refreshPromise) return hub.refreshPromise;
-
-  hub.refreshPromise = getUsageStats("all")
-    .then((stats) => {
-      hub.stats = stats;
-      hub.statsJson = JSON.stringify(stats);
-      return stats;
-    })
-    .finally(() => {
-      hub.refreshPromise = null;
-    });
-
-  return hub.refreshPromise;
-}
-
-function scheduleFullRefresh() {
-  if (hub.refreshPromise || hub.clients.size === 0) return hub.refreshPromise;
-
-  hub.refreshPromise = (async () => {
-    if (hub.stats) await broadcastQuickSnapshot();
-    const stats = await getUsageStats("all");
-    hub.stats = stats;
-    hub.statsJson = JSON.stringify(stats);
-    broadcastSerialized(hub.statsJson);
-    return stats;
-  })().finally(() => {
-    hub.refreshPromise = null;
-  });
-
-  return hub.refreshPromise;
-}
-
-function scheduleQuickRefresh() {
+function scheduleLiveRefresh() {
   if (hub.quickPromise || hub.clients.size === 0) return;
-  hub.quickPromise = broadcastQuickSnapshot()
+  hub.quickPromise = broadcastLiveSnapshot()
     .catch(() => {})
     .finally(() => {
       hub.quickPromise = null;
@@ -120,10 +83,8 @@ function scheduleQuickRefresh() {
 function ensureListeners() {
   if (hub.listenersAttached) return;
 
-  hub.onUpdate = () => {
-    void scheduleFullRefresh()?.catch?.(() => {});
-  };
-  hub.onPending = () => scheduleQuickRefresh();
+  hub.onUpdate = () => scheduleLiveRefresh();
+  hub.onPending = () => scheduleLiveRefresh();
   statsEmitter.on("update", hub.onUpdate);
   statsEmitter.on("pending", hub.onPending);
   hub.listenersAttached = true;
@@ -158,10 +119,8 @@ export async function GET(request) {
       ensureListeners();
 
       try {
-        await loadInitialSnapshot();
-        if (!state.closed && !client.closed && hub.statsJson) {
-          sendSerialized(client, hub.statsJson);
-        }
+        // Initial snapshot so the table fills immediately from the DB ring.
+        await broadcastLiveSnapshot();
         if (state.closed || client.closed) return;
 
         state.keepalive = setInterval(() => {

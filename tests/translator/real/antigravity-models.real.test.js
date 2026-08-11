@@ -13,6 +13,9 @@ const TIMEOUT_MS = 90000;
 
 // All antigravity models (from providers/registry/antigravity.js)
 const AG_MODELS = [
+  "ag/gemini-3.6-flash-high",
+  "ag/gemini-3.6-flash-medium",
+  "ag/gemini-3.6-flash-low",
   "ag/gemini-3-flash-agent",
   "ag/gemini-3.5-flash-low",
   "ag/gemini-3.5-flash-extra-low",

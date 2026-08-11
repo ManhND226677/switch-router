@@ -40,13 +40,6 @@ Main endpoints:
 POST /v1/chat/completions
 POST /v1/messages
 GET  /v1/models
-POST /v1/images/generations
-POST /v1/videos/generations
-POST /v1/audio/speech
-POST /v1/audio/transcriptions
-POST /v1/embeddings
-POST /v1/search
-POST /v1/web/fetch
 ```
 
 API-key enforcement is optional for trusted loopback use. When enabled, send `Authorization: Bearer <key>`.
@@ -71,12 +64,6 @@ HTTPS reverse-proxy and Claude for M365 manifest setup.
 
 ```bash
 curl http://127.0.0.1:28701/v1/models
-curl http://127.0.0.1:28701/v1/models/image
-curl http://127.0.0.1:28701/v1/models/video
-curl http://127.0.0.1:28701/v1/models/tts
-curl http://127.0.0.1:28701/v1/models/stt
-curl http://127.0.0.1:28701/v1/models/embedding
-curl http://127.0.0.1:28701/v1/models/web
 ```
 
 Use a returned model id in requests. Combos and model aliases are managed from the dashboard.
@@ -87,19 +74,6 @@ Use a returned model id in requests. Combos and model aliases are managed from t
 - Combos provide ordered model fallback or round-robin behavior.
 - Account-level fallback, provider selection, and token refresh are handled by the account selection core.
 - Streaming chat responses use SSE and preserve the selected client format.
-- Video jobs are asynchronous and account-bound.
-
-## Agent Skills
-
-Skills are local Markdown instructions for AI agents. They are bundled with the Web app and do not execute code.
-
-```text
-http://127.0.0.1:28701/api/skills/switch-router
-```
-
-Available capabilities include chat, image, video, TTS, STT, embeddings, web search, and web fetch. The Dashboard Skills page can copy either a local URL or the complete Markdown content for agents that cannot access localhost.
-
-The old `9router-*` skill ids and `NINEROUTER_URL`/`NINEROUTER_KEY` client variable names remain as compatibility aliases.
 
 ## CLI-tool integrations
 
@@ -140,12 +114,11 @@ State is stored in SQLite under `DATA_DIR/db/data.sqlite`. Provider API keys and
 ## Architecture
 
 - `src/app/api/v1/*`: compatibility API routes.
-- `src/sse/handlers/*`: request validation, combo orchestration, credential fallback, and media handlers.
+- `src/sse/handlers/*`: request validation, combo orchestration, credential fallback, and chat streaming.
 - `src/core/routing/*`: account fallback and provider selection policy.
 - `src/core/providers/*`: stable boundary to provider executors.
 - `open-sse/*`: provider adapters, translation, streaming, and response normalization.
 - `src/lib/*`: local database, credentials, usage, settings, and runtime paths.
-- `skills/*`: local agent skill documentation.
 
 See [docs/SWITCH-ROUTER.md](docs/SWITCH-ROUTER.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed request flow and model selection behavior.
 
@@ -156,7 +129,7 @@ npm run build
 npm start
 ```
 
-Then verify `http://127.0.0.1:28701/dashboard`, `/api/skills/switch-router`, `/v1/models`, and `/v1/models/video`.
+Then verify `http://127.0.0.1:28701/dashboard` and `/v1/models`.
 
 Windows launcher self-check (no UI, starts/stops nothing):
 

@@ -5,11 +5,25 @@ const mocks = vi.hoisted(() => ({
   testSingleConnection: vi.fn(),
 }));
 
-vi.mock("@/models", () => ({
+vi.mock("../../src/lib/localDb.js", () => ({
   getProviderConnections: mocks.getProviderConnections,
 }));
 
-vi.mock("@/app/api/providers/[id]/test/testUtils.js", () => ({
+vi.mock("../../src/shared/constants/providers.js", () => ({
+  AI_PROVIDERS: {
+    ollama: { serviceKinds: ["llm"] },
+    gemini: { serviceKinds: ["llm"] },
+    "media-tts": { serviceKinds: ["tts"] },
+    "media-search": { serviceKinds: ["search"] },
+  },
+  FREE_PROVIDERS: {},
+  OAUTH_PROVIDERS: {},
+  APIKEY_PROVIDERS: { ollama: true, gemini: true, "media-tts": true, "media-search": true },
+  OPENAI_COMPATIBLE_PREFIX: "custom-",
+  ANTHROPIC_COMPATIBLE_PREFIX: "anthropic-",
+}));
+
+vi.mock("../../src/app/api/providers/[id]/test/testUtils.js", () => ({
   testSingleConnection: mocks.testSingleConnection,
 }));
 
@@ -47,11 +61,11 @@ describe("provider batch test routing", () => {
     mocks.getProviderConnections.mockResolvedValue([
       { id: "ollama-key", provider: "ollama", authType: "apikey", name: "Ollama", isActive: true },
       { id: "gemini-key", provider: "gemini", authType: "apikey", name: "Gemini", isActive: true },
-      { id: "elevenlabs-key", provider: "elevenlabs", authType: "apikey", name: "ElevenLabs", isActive: true },
-      { id: "exa-key", provider: "exa", authType: "apikey", name: "Exa", isActive: true },
+      { id: "tts-key", provider: "media-tts", authType: "apikey", name: "Media TTS", isActive: true },
+      { id: "search-key", provider: "media-search", authType: "apikey", name: "Media Search", isActive: true },
     ]);
 
-    const { POST } = await import("@/app/api/providers/test-batch/route.js");
+    const { POST } = await import("../../src/app/api/providers/test-batch/route.js");
     const response = await POST(makeRequest("apikey"));
     const body = await response.json();
 

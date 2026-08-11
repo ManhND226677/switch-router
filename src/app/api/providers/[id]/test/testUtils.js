@@ -575,21 +575,7 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
         const valid = res.status !== 401 && res.status !== 403;
         return { valid, error: valid ? null : "Invalid SSO cookie" };
       }
-      case "perplexity-web": {
-        let sessionToken = connection.apiKey;
-        if (sessionToken.startsWith("__Secure-next-auth.session-token=")) sessionToken = sessionToken.slice("__Secure-next-auth.session-token=".length);
-        const res = await fetchWithConnectionProxy("https://www.perplexity.ai/api/auth/session", {
-          method: "GET",
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
-            Cookie: `__Secure-next-auth.session-token=${sessionToken}`,
-          },
-        }, effectiveProxy);
-        if (!res.ok) return { valid: false, error: "Invalid session cookie" };
-        const data = await res.json().catch(() => null);
-        const valid = !!(data && data.user);
-        return { valid, error: valid ? null : "Session expired — re-paste cookie" };
-      }
+
       case "opencode-go": {
         const res = await fetchWithConnectionProxy("https://opencode.ai/zen/go/v1/chat/completions", {
           method: "POST",

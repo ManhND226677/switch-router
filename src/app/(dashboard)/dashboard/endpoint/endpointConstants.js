@@ -26,11 +26,9 @@ export const ENDPOINT_GROUPS = [
     tone: "accent",
     path: "/v1",
     icon: "hub",
-    desc: "chat/completions, embeddings, images, audio, responses",
+    desc: "chat/completions, messages, responses",
     routes: [
       "POST /v1/chat/completions",
-      "POST /v1/embeddings",
-      "POST /v1/images/generations",
       "GET  /v1/models",
     ],
   },
@@ -175,9 +173,5 @@ export function buildSnippet(tab, origin, apiKey) {
     `# Claude Code / Anthropic SDKs`,
     `ANTHROPIC_BASE_URL=${origin}`,
     `ANTHROPIC_AUTH_TOKEN=${key}`,
-    ``,
-    `# Switch-Router agent skills`,
-    `SWITCH_ROUTER_URL=${origin}`,
-    `SWITCH_ROUTER_KEY=${key}`,
   ].join("\n");
 }

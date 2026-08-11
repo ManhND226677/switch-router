@@ -6,17 +6,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/shared/utils/cn";
 import { APP_CONFIG } from "@/shared/constants/config";
-import { MEDIA_PROVIDER_KINDS } from "@/shared/constants/providers";
-
-// const VISIBLE_MEDIA_KINDS = ["embedding", "image", "imageToText", "tts", "stt", "webSearch", "webFetch", "video", "music"];
-const VISIBLE_MEDIA_KINDS = ["embedding", "image", "video", "tts", "stt"];
-// Combined entry: webSearch + webFetch share one page at /dashboard/media-providers/web
-const COMBINED_WEB_ITEM = { id: "web", label: "Web Fetch & Search", icon: "travel_explore", href: "/dashboard/media-providers/web" };
 
 const providerModelItems = [
   { href: "/dashboard/endpoint", label: "Endpoint & Key", icon: "api" },
   { href: "/dashboard/providers", label: "Providers", icon: "dns" },
-  { href: "/dashboard/basic-chat", label: "Basic Chat", icon: "chat" },
   { href: "/dashboard/combos", label: "Combos", icon: "layers" },
   { href: "/dashboard/cli-tools", label: "CLI Tools", icon: "terminal" },
 ];
@@ -30,7 +23,6 @@ const observabilityItems = [
 
 const systemItems = [
   { href: "/dashboard/proxy-pools", label: "Proxy Pools", icon: "lan" },
-  { href: "/dashboard/skills", label: "Skills", icon: "extension" },
 ];
 
 function NavLink({ item, active, onClose, isMini }) {
@@ -77,7 +69,6 @@ function NavSection({ title, children, isMini }) {
 
 export default function Sidebar({ onClose, isMini = false }) {
   const pathname = usePathname();
-  const [mediaOpen, setMediaOpen] = useState(false);
   const [enableTranslator, setEnableTranslator] = useState(false);
   const [enableDebug, setEnableDebug] = useState(true);
 
@@ -150,64 +141,6 @@ export default function Sidebar({ onClose, isMini = false }) {
           </NavSection>
 
           <NavSection title="System" isMini={isMini}>
-            <button
-              onClick={() => !isMini && setMediaOpen((v) => !v)}
-              className={cn(
-                "w-full flex items-center gap-3 py-1 rounded-lg transition-all group",
-                isMini ? "justify-center px-0 mx-2" : "px-3",
-                pathname.startsWith("/dashboard/media-providers")
-                  ? "bg-primary/10 text-primary"
-                  : "text-text-muted hover:bg-surface-2 hover:text-text-main"
-              )}
-              title={isMini ? "Media Providers" : undefined}
-            >
-              <span className="material-symbols-outlined text-lg">perm_media</span>
-              {!isMini && (
-                <>
-                  <span className="text-sm font-medium flex-1 text-left">Media Providers</span>
-                  <span
-                    className="material-symbols-outlined text-sm transition-transform"
-                    style={{ transform: mediaOpen ? "rotate(180deg)" : "rotate(0deg)" }}
-                  >
-                    expand_more
-                  </span>
-                </>
-              )}
-            </button>
-            {mediaOpen && !isMini && (
-              <div className="pl-4">
-                {MEDIA_PROVIDER_KINDS.filter((k) => VISIBLE_MEDIA_KINDS.includes(k.id)).map((kind) => (
-                  <Link
-                    key={kind.id}
-                    href={`/dashboard/media-providers/${kind.id}`}
-                    onClick={onClose}
-                    className={cn(
-                      "flex items-center gap-3 px-4 py-1 rounded-lg transition-all group",
-                      pathname.startsWith(`/dashboard/media-providers/${kind.id}`)
-                        ? "bg-primary/10 text-primary"
-                        : "text-text-muted hover:bg-surface-2 hover:text-text-main"
-                    )}
-                  >
-                    <span className="material-symbols-outlined text-base">{kind.icon}</span>
-                    <span className="text-sm">{kind.label}</span>
-                  </Link>
-                ))}
-                <Link
-                  key={COMBINED_WEB_ITEM.id}
-                  href={COMBINED_WEB_ITEM.href}
-                  onClick={onClose}
-                  className={cn(
-                    "flex items-center gap-3 px-4 py-1 rounded-lg transition-all group",
-                    pathname.startsWith(COMBINED_WEB_ITEM.href)
-                      ? "bg-primary/10 text-primary"
-                      : "text-text-muted hover:bg-surface-2 hover:text-text-main"
-                  )}
-                >
-                  <span className="material-symbols-outlined text-base">{COMBINED_WEB_ITEM.icon}</span>
-                  <span className="text-sm">{COMBINED_WEB_ITEM.label}</span>
-                </Link>
-              </div>
-            )}
             {systemItems.map((item) => (
               <NavLink key={item.href} item={item} active={isActive(item.href)} onClose={onClose} isMini={isMini} />
             ))}

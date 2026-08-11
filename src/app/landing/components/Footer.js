@@ -29,7 +29,6 @@ export default function Footer() {
           {/* Resources */}
           <div className="flex flex-col gap-4">
             <h4 className="font-bold text-white">Resources</h4>
-            <a className="text-gray-400 hover:text-brand-500 text-sm transition-colors" href="/dashboard/skills">Skills</a>
             <a className="text-gray-400 hover:text-brand-500 text-sm transition-colors" href="/dashboard/endpoint">Endpoint</a>
           </div>
           

@@ -52,9 +52,8 @@ export default function UsageChart({ period = "7d" }) {
   const [viewMode, setViewMode] = useState("tokens");
 
   const fetchData = useCallback(async () => {
-    setLoading(true);
     try {
-      const res = await fetch(`/api/usage/chart?period=${period}`);
+      const res = await fetch(`/api/usage/chart?period=${period}&_t=${Date.now()}`);
       if (res.ok) {
         const json = await res.json();
         setData(json);
@@ -69,6 +68,9 @@ export default function UsageChart({ period = "7d" }) {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on mount; state updates only after the response resolves
     fetchData();
+
+    const poll = setInterval(fetchData, 15000);
+    return () => clearInterval(poll);
   }, [fetchData]);
 
   const hasData = data.some((d) => d.tokens > 0 || d.cost > 0);

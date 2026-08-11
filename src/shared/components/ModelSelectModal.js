@@ -33,7 +33,7 @@ export default function ModelSelectModal({
   addedModelValues = [],
   closeOnSelect = true,
 }) {
-  // Filter activeProviders by serviceKinds when kindFilter set (e.g. "webSearch", "webFetch")
+  // Filter activeProviders by serviceKinds when kindFilter set
   const filteredActiveProviders = useMemo(() => {
     if (!kindFilter) return activeProviders;
     return activeProviders.filter((p) => {
@@ -123,12 +123,8 @@ export default function ModelSelectModal({
   const groupedModels = useMemo(() => {
     const groups = {};
 
-    // Kinds where the provider IS the model (no per-model selection needed)
-    const PROVIDER_AS_MODEL_KINDS = new Set(["webSearch", "webFetch"]);
     // Kinds that map directly to model.type field
-    const TYPED_KINDS = new Set(["image", "tts", "stt", "embedding", "imageToText"]);
-    // For these kinds, providers without hardcoded models can still be picked (provider-as-model fallback)
-    const ALLOW_PROVIDER_FALLBACK_KINDS = new Set(["tts", "image", "webFetch"]);
+    const TYPED_KINDS = new Set(["imageToText"]);
 
     // Filter a models[] array by kindFilter (keep only matching kind)
     const filterByKind = (models) => {
@@ -166,17 +162,6 @@ export default function ModelSelectModal({
       const providerInfo = allProviders[providerId] || { name: providerId, color: "#666" };
       const isCustomProvider = isOpenAICompatibleProvider(providerId) || isAnthropicCompatibleProvider(providerId);
 
-      // For provider-as-model kinds (webSearch/webFetch): emit a single entry where value === providerId
-      if (kindFilter && PROVIDER_AS_MODEL_KINDS.has(kindFilter)) {
-        groups[providerId] = {
-          name: providerInfo.name,
-          alias,
-          color: providerInfo.color,
-          models: [{ id: providerId, name: providerInfo.name, value: providerId }],
-        };
-        return;
-      }
-
       if (providerInfo.passthroughModels) {
         const aliasModels = Object.entries(modelAliases)
           .filter(([, fullModel]) => fullModel.startsWith(`${alias}/`))
@@ -206,13 +191,8 @@ export default function ModelSelectModal({
             .map((m) => ({ id: m.id, name: m.name, value: `${alias}/${m.id}`, kind: getModelKind(m) }))
             .filter((m) => !registeredTyped.some((registered) => registered.value === m.value)),
           ];
-          // Fallback: provider-as-model when no hardcoded models match (tts/image/webFetch only)
-          if (combined.length === 0 && ALLOW_PROVIDER_FALLBACK_KINDS.has(kindFilter)) {
-            const supports = (providerInfo.serviceKinds || ["llm"]).includes(kindFilter);
-            if (supports) combined = [{ id: providerId, name: providerInfo.name, value: alias }];
-          }
         } else {
-          // LLM/null kind: merge hardcoded models (e.g. mimo-free → mimo-auto) with user-added models
+          // LLM/null kind: merge hardcoded models with user-added models
           const registeredLlms = customRegisteredModels.filter((m) => !getModelKind(m) || getModelKind(m) === "llm");
           const seen = new Set([...aliasModels, ...registeredLlms].map((m) => m.value));
           const hardcoded = getModelsByProviderId(providerId)
@@ -319,15 +299,6 @@ export default function ModelSelectModal({
           seen.add(m.value);
           return true;
         }));
-
-        // Provider-as-model fallback: providers that support the kind but have no hardcoded models
-        // can still be picked (value = providerAlias). Skips embedding (always needs model).
-        if (allModels.length === 0 && kindFilter && ALLOW_PROVIDER_FALLBACK_KINDS.has(kindFilter)) {
-          const supports = (providerInfo.serviceKinds || ["llm"]).includes(kindFilter);
-          if (supports) {
-            allModels = [{ id: providerId, name: providerInfo.name, value: alias }];
-          }
-        }
 
         if (allModels.length > 0) {
           groups[providerId] = {

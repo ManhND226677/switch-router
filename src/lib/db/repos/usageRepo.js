@@ -587,6 +587,7 @@ async function calculateUsageStats(period = "all") {
         promptTokens: t.prompt_tokens || t.input_tokens || 0,
         completionTokens: t.completion_tokens || t.output_tokens || 0,
         cachedTokens: t.cached_tokens || t.cache_read_input_tokens || 0,
+        estimated: t.estimated === true,
         status: r.status || "ok",
       };
     })
@@ -600,6 +601,38 @@ async function calculateUsageStats(period = "all") {
     })
     .slice(0, 20);
 
+  // avgLatencyMs — real latency from request details (latency.total) within the period window
+  const nowMs = Date.now();
+  const periodStartMs = (() => {
+    if (period === "today") {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    }
+    if (period === "24h") return nowMs - 24 * 3600000;
+    if (period === "7d") return nowMs - 7 * 86400000;
+    if (period === "30d") return nowMs - 30 * 86400000;
+    if (period === "60d") return nowMs - 60 * 86400000;
+    return 0;
+  })();
+  let avgLatencyMs = 0;
+  {
+    const latencyRows = periodStartMs > 0
+      ? db.all(`SELECT data FROM requestDetails WHERE timestamp >= ?`, [new Date(periodStartMs).toISOString()])
+      : db.all(`SELECT data FROM requestDetails`);
+    let totalLatency = 0;
+    let latencyCount = 0;
+    for (const row of latencyRows) {
+      const latency = parseJson(row.data, {})?.latency;
+      const ms = latency && typeof latency.total === "number" ? latency.total : 0;
+      if (ms > 0) {
+        totalLatency += ms;
+        latencyCount++;
+      }
+    }
+    if (latencyCount > 0) avgLatencyMs = Math.round(totalLatency / latencyCount);
+  }
+
   const stats = {
     totalRequests: 0,
     totalPromptTokens: 0, totalCompletionTokens: 0, totalCachedTokens: 0, totalCost: 0,
@@ -608,6 +641,7 @@ async function calculateUsageStats(period = "all") {
     pending: pendingRequests,
     activeRequests: [],
     recentRequests,
+    avgLatencyMs,
     errorProvider: (Date.now() - lastErrorProvider.ts < 10000) ? lastErrorProvider.provider : "",
   };
 

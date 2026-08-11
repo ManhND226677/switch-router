@@ -7,6 +7,7 @@ import { GET as opencodeGet } from "../opencode-settings/route";
 import { GET as openclawGet } from "../openclaw-settings/route";
 import { GET as hermesGet } from "../hermes-settings/route";
 import { GET as coworkGet } from "../cowork-settings/route";
+import { GET as aizenGet } from "../aizen-settings/route";
 
 const STATUS_GETTERS = {
   claude: claudeGet,
@@ -15,6 +16,7 @@ const STATUS_GETTERS = {
   openclaw: openclawGet,
   hermes: hermesGet,
   cowork: coworkGet,
+  aizen: aizenGet,
 };
 
 // Batch endpoint: gather all CLI tool statuses in one round-trip

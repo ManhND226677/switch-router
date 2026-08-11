@@ -26,7 +26,6 @@ export default function Navigation() {
         <div className="hidden md:flex items-center gap-8">
           <a className="text-gray-300 hover:text-white text-sm font-medium transition-colors" href="#features">Features</a>
           <a className="text-gray-300 hover:text-white text-sm font-medium transition-colors" href="#how-it-works">How it Works</a>
-          <a className="text-gray-300 hover:text-white text-sm font-medium transition-colors" href="/dashboard/skills">Skills</a>
           <a className="text-gray-300 hover:text-white text-sm font-medium transition-colors flex items-center gap-1" href="/dashboard/endpoint">
             Endpoint <span className="material-symbols-outlined text-sm">arrow_forward</span>
           </a>
@@ -55,7 +54,6 @@ export default function Navigation() {
           <div className="flex flex-col gap-4 p-6">
             <a className="text-gray-300 hover:text-white text-sm font-medium transition-colors" href="#features" onClick={() => setMobileMenuOpen(false)}>Features</a>
             <a className="text-gray-300 hover:text-white text-sm font-medium transition-colors" href="#how-it-works" onClick={() => setMobileMenuOpen(false)}>How it Works</a>
-            <a className="text-gray-300 hover:text-white text-sm font-medium transition-colors" href="/dashboard/skills">Skills</a>
             <a className="text-gray-300 hover:text-white text-sm font-medium transition-colors" href="/dashboard/endpoint">Endpoint</a>
             <button 
               onClick={() => router.push("/dashboard")}

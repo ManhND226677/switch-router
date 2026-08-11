@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getRequestDetails } from "@/lib/usageDb";
 
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/usage/request-details
  * Query parameters: page, pageSize (1-100), provider, model, connectionId, status, startDate, endDate
@@ -9,9 +11,9 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     
-    const pageRaw = parseInt(searchParams.get("page"));
+    const pageRaw = parseInt(searchParams.get("page"), 10);
     const page = Number.isNaN(pageRaw) ? 1 : pageRaw;
-    const pageSizeRaw = parseInt(searchParams.get("pageSize"));
+    const pageSizeRaw = parseInt(searchParams.get("pageSize"), 10);
     const pageSize = Number.isNaN(pageSizeRaw) ? 20 : pageSizeRaw;
     const provider = searchParams.get("provider");
     const model = searchParams.get("model");

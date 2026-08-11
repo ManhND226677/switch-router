@@ -7,7 +7,7 @@ import {
   getProxyPoolById,
 } from "@/models";
 import { APIKEY_PROVIDERS } from "@/shared/constants/config";
-import { AI_PROVIDERS, FREE_TIER_PROVIDERS, WEB_COOKIE_PROVIDERS, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, isCustomEmbeddingProvider } from "@/shared/constants/providers";
+import { AI_PROVIDERS, FREE_TIER_PROVIDERS, WEB_COOKIE_PROVIDERS, isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
 import { normalizeProviderId, normalizeProviderSpecificData } from "@/lib/providerNormalization";
 import { redactProviderConnection } from "@/core/credentials/credentialProjection.js";
 
@@ -121,8 +121,7 @@ export async function POST(request) {
       supportsApiKeyMode ||
       isWebCookieProvider ||
       isOpenAICompatibleProvider(provider) ||
-      isAnthropicCompatibleProvider(provider) ||
-      isCustomEmbeddingProvider(provider);
+      isAnthropicCompatibleProvider(provider);
 
     if (!provider || !isValidProvider) {
       return NextResponse.json({ error: "Invalid provider" }, { status: 400 });
@@ -154,16 +153,6 @@ export async function POST(request) {
       const node = await getProviderNodeById(provider);
       if (!node) {
         return NextResponse.json({ error: "Anthropic Compatible node not found" }, { status: 404 });
-      }
-      providerSpecificData = {
-        prefix: node.prefix,
-        baseUrl: node.baseUrl,
-        nodeName: node.name,
-      };
-    } else if (isCustomEmbeddingProvider(provider)) {
-      const node = await getProviderNodeById(provider);
-      if (!node) {
-        return NextResponse.json({ error: "Custom Embedding node not found" }, { status: 404 });
       }
       providerSpecificData = {
         prefix: node.prefix,

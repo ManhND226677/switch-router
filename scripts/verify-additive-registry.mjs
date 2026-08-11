@@ -64,7 +64,7 @@ for (const key of Object.keys(PROVIDER_MODELS)) {
 }
 
 // 5. No alias-token collision INTRODUCED by the new entries. Pre-existing
-// collisions (e.g. mimo-free/mmf both mapping to "mmf") are reported as notes.
+// collisions (e.g. providers sharing a display alias) are reported as notes.
 const newIds = new Set(Object.keys(PROVIDER_ID_TO_ALIAS).filter((id) => !(id in aliasBase.idToAlias)));
 const aliasCounts = new Map();
 for (const [id, alias] of Object.entries(PROVIDER_ID_TO_ALIAS)) {

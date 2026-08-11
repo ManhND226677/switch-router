@@ -10,42 +10,10 @@ import HeaderLanguage from "@/shared/components/HeaderLanguage";
 import ThemeToggle from "@/shared/components/ThemeToggle";
 import { useHeaderSearchStore } from "@/store/headerSearchStore";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS } from "@/shared/constants/config";
-import { MEDIA_PROVIDER_KINDS, AI_PROVIDERS } from "@/shared/constants/providers";
 import { translate } from "@/i18n/runtime";
 
 const getPageInfo = (pathname) => {
   if (!pathname) return { title: "", description: "", breadcrumbs: [] };
-
-  // Media provider detail: /dashboard/media-providers/[kind]/[id]
-  const mediaDetailMatch = pathname.match(/\/media-providers\/([^/]+)\/([^/]+)$/);
-  if (mediaDetailMatch) {
-    const kindId = mediaDetailMatch[1];
-    const providerId = mediaDetailMatch[2];
-    const kindConfig = MEDIA_PROVIDER_KINDS.find((k) => k.id === kindId);
-    const provider = AI_PROVIDERS[providerId];
-    return {
-      title: provider?.name || providerId,
-      description: "",
-      breadcrumbs: [
-        { label: "Media Providers", href: `/dashboard/media-providers/${kindId}` },
-        { label: kindConfig?.label || kindId, href: `/dashboard/media-providers/${kindId}` },
-        { label: provider?.name || providerId, image: `/providers/${providerId}.png` },
-      ],
-    };
-  }
-
-  // Media provider kind: /dashboard/media-providers/[kind]
-  const mediaKindMatch = pathname.match(/\/media-providers\/([^/]+)$/);
-  if (mediaKindMatch) {
-    const kindId = mediaKindMatch[1];
-    const kindConfig = MEDIA_PROVIDER_KINDS.find((k) => k.id === kindId);
-    return {
-      title: kindConfig?.label || kindId,
-      description: `Manage your ${kindConfig?.label || kindId} providers`,
-      icon: kindConfig?.icon || "perm_media",
-      breadcrumbs: [],
-    };
-  }
 
   // Provider detail page: /dashboard/providers/[id]
   const providerMatch = pathname.match(/\/providers\/([^/]+)$/);
@@ -68,7 +36,7 @@ const getPageInfo = (pathname) => {
     }
   }
 
-  if (pathname.includes("/providers") && !pathname.includes("/media-providers"))
+  if (pathname.includes("/providers"))
     return {
       title: "Providers",
       description: "Manage your AI provider connections",
@@ -123,13 +91,6 @@ const getPageInfo = (pathname) => {
       title: "Proxy Pools",
       description: "Manage your proxy pool configurations",
       icon: "lan",
-      breadcrumbs: [],
-    };
-  if (pathname.includes("/skills"))
-    return {
-      title: "Agent Skills",
-      description: "Copy a link and paste to your AI to use Switch-Router — no install needed",
-      icon: "extension",
       breadcrumbs: [],
     };
   if (pathname.includes("/endpoint"))

@@ -77,6 +77,7 @@ export default function ProviderDetailPage() {
   const [oneByOneSummary, setOneByOneSummary] = useState(null);
   const stopOneByOneRef = useRef(false);
   const [importingQoderModels, setImportingQoderModels] = useState(false);
+  const [importingFreeModels, setImportingFreeModels] = useState(false);
   const { copied, copy } = useCopyToClipboard();
 
   const AG_RISK_STORAGE_KEY = "ag_risk_confirmed";
@@ -574,6 +575,48 @@ export default function ProviderDetailPage() {
     }
   };
 
+  // Fetch free models from the provider's public API and add them all at once
+  // (used by no-auth free providers: opencode)
+  const handleImportFreeModels = async () => {
+    if (importingFreeModels) return;
+    const fetcher = (FREE_PROVIDERS[providerId] || FREE_TIER_PROVIDERS[providerId])?.modelsFetcher;
+    if (!fetcher) return;
+
+    setImportingFreeModels(true);
+    try {
+      const fetched = await fetchSuggestedModels(fetcher, { force: true });
+      if (fetched.length === 0) {
+        alert(translate("No models returned"));
+        return;
+      }
+
+      const addedFullModels = new Set([
+        ...Object.values(modelAliases),
+        ...customModels.map((m) => `${providerStorageAlias}/${m.id}`),
+      ]);
+      const hardcodedIds = new Set(models.map((m) => m.id));
+      const notAdded = fetched.filter(
+        (m) => !addedFullModels.has(`${providerStorageAlias}/${m.id}`) && !hardcodedIds.has(m.id)
+      );
+      if (notAdded.length === 0) {
+        alert(translate("All models already exist, no new models added"));
+        return;
+      }
+
+      let importedCount = 0;
+      for (const model of notAdded) {
+        await handleAddCustomModel(model.id, "llm", providerStorageAlias);
+        importedCount += 1;
+      }
+      alert(translate("Successfully added") + ` ${importedCount} ` + translate("models"));
+    } catch (error) {
+      console.log("Error importing free models:", error);
+      alert(translate("Error fetching models") + ": " + error.message);
+    } finally {
+      setImportingFreeModels(false);
+    }
+  };
+
   const handleRunOneByOneTest = async () => {
     if (oneByOneRunning || connections.length === 0) return;
 
@@ -1049,7 +1092,6 @@ export default function ProviderDetailPage() {
       );
     }
     // Combine hardcoded models with Kilo free models (deduplicated)
-    // Exclude non-llm models (embedding, tts, etc.) — they have dedicated pages under media-providers
     const allModels = [
       ...models,
       ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
@@ -1141,6 +1183,20 @@ export default function ProviderDetailPage() {
               {importingQoderModels ? "progress_activity" : "download"}
             </span>
             {importingQoderModels ? translate("Fetching...") : translate("Fetch Qoder Models")}
+          </button>
+        )}
+
+        {/* Load free models button — only show for no-auth free providers with a public models API */}
+        {(providerId === "opencode") && (
+          <button
+            onClick={handleImportFreeModels}
+            disabled={importingFreeModels}
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-blue-500/40 px-3 py-2 text-xs text-blue-600 dark:text-blue-400 transition-colors hover:border-blue-500 hover:bg-blue-500/5 sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span className="material-symbols-outlined text-sm" style={importingFreeModels ? { animation: "spin 1s linear infinite" } : undefined}>
+              {importingFreeModels ? "progress_activity" : "download"}
+            </span>
+            {importingFreeModels ? translate("Fetching...") : translate("Load Free Models")}
           </button>
         )}
 

@@ -6,12 +6,12 @@ const mocks = vi.hoisted(() => ({
   getConsistentMachineId: vi.fn(),
 }));
 
-vi.mock("@/lib/localDb", () => ({
+vi.mock("../../src/lib/localDb.js", () => ({
   getApiKeys: mocks.getApiKeys,
   getProviderConnections: mocks.getProviderConnections,
 }));
 
-vi.mock("@/shared/utils/machineId", () => ({
+vi.mock("../../src/shared/utils/machineId.js", () => ({
   getConsistentMachineId: mocks.getConsistentMachineId,
 }));
 
@@ -34,9 +34,8 @@ describe("model test route kind routing", () => {
     mocks.getApiKeys.mockResolvedValue([{ key: "sk-internal", isActive: true }]);
     mocks.getProviderConnections.mockResolvedValue([]);
     mocks.getConsistentMachineId.mockResolvedValue("cli-token");
-    global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      created: 1,
-      data: [{ b64_json: "abc" }],
+    global.fetch = vi.fn(async () => new Response(JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "hi" } }],
     }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -47,15 +46,15 @@ describe("model test route kind routing", () => {
     global.fetch = originalFetch;
   });
 
-  it("routes image model tests to /api/v1/images/generations", async () => {
+  it("routes llm model tests to /api/v1/chat/completions", async () => {
     const { POST } = await import("../../src/app/api/models/test/route.js");
 
     const req = new Request("http://localhost/api/models/test", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "hf/black-forest-labs/FLUX.1-schnell",
-        kind: "image",
+        model: "openai/gpt-5",
+        kind: "llm",
       }),
     });
 
@@ -64,111 +63,39 @@ describe("model test route kind routing", () => {
 
     expect(body.ok).toBe(true);
     expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/v1/images/generations"),
+      expect.stringContaining("/api/v1/chat/completions"),
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
-          model: "hf/black-forest-labs/FLUX.1-schnell",
-          prompt: "test",
+          model: "openai/gpt-5",
+          max_tokens: 16,
+          stream: false,
+          messages: [{ role: "user", content: "hi" }],
         }),
       })
     );
   });
 
-  it("routes embedding model tests to /api/v1/embeddings", async () => {
-    global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      data: [{ embedding: [0.1, 0.2] }],
-    }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    }));
-
+  it("routes every model kind through /api/v1/chat/completions", async () => {
     const { POST } = await import("../../src/app/api/models/test/route.js");
 
-    const req = new Request("http://localhost/api/models/test", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "voyage/voyage-3-large",
-        kind: "embedding",
-      }),
-    });
-
-    const res = await POST(req);
-    const body = await res.json();
-
-    expect(body.ok).toBe(true);
-    expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/v1/embeddings"),
-      expect.objectContaining({
+    for (const kind of ["llm", "imageToText"]) {
+      const req = new Request("http://localhost/api/models/test", {
         method: "POST",
-        body: JSON.stringify({
-          model: "voyage/voyage-3-large",
-          input: "test",
-        }),
-      })
-    );
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "openai/gpt-5", kind }),
+      });
+
+      const res = await POST(req);
+      expect((await res.json()).ok).toBe(true);
+      expect(global.fetch).toHaveBeenLastCalledWith(
+        expect.stringContaining("/api/v1/chat/completions"),
+        expect.any(Object)
+      );
+    }
   });
 
-  it("fails embedding model tests when provider returns no embedding data", async () => {
-    global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      data: [{ embedding: null }],
-    }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    }));
-
-    const { POST } = await import("../../src/app/api/models/test/route.js");
-
-    const req = new Request("http://localhost/api/models/test", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "voyage/voyage-3-large",
-        kind: "embedding",
-      }),
-    });
-
-    const res = await POST(req);
-    const body = await res.json();
-
-    expect(body.ok).toBe(false);
-    expect(body.error).toBe("Provider returned no embedding data");
-  });
-
-  it("routes stt model tests to /api/v1/audio/transcriptions", async () => {
-    global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      text: "test",
-    }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    }));
-
-    const { POST } = await import("../../src/app/api/models/test/route.js");
-
-    const req = new Request("http://localhost/api/models/test", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "hf/openai/whisper-small",
-        kind: "stt",
-      }),
-    });
-
-    const res = await POST(req);
-    const body = await res.json();
-
-    expect(body.ok).toBe(true);
-    expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/v1/audio/transcriptions"),
-      expect.objectContaining({
-        method: "POST",
-        body: expect.any(FormData),
-      })
-    );
-  });
-
-  it("returns formatted HTTP errors for non-2xx embedding responses", async () => {
+  it("returns formatted HTTP errors for non-2xx responses", async () => {
     global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       error: { message: "bad upstream" },
     }), {
@@ -181,10 +108,7 @@ describe("model test route kind routing", () => {
     const req = new Request("http://localhost/api/models/test", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "voyage/voyage-3-large",
-        kind: "embedding",
-      }),
+      body: JSON.stringify({ model: "openai/gpt-5", kind: "llm" }),
     });
 
     const res = await POST(req);
@@ -193,5 +117,28 @@ describe("model test route kind routing", () => {
     expect(body.ok).toBe(false);
     expect(body.status).toBe(502);
     expect(body.error).toBe("HTTP 502: bad upstream");
+  });
+
+  it("fails when provider returns no completion choices", async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      choices: [],
+    }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
+
+    const { POST } = await import("../../src/app/api/models/test/route.js");
+
+    const req = new Request("http://localhost/api/models/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "openai/gpt-5", kind: "llm" }),
+    });
+
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(body.ok).toBe(false);
+    expect(body.error).toBe("Provider returned no completion choices for this model");
   });
 });

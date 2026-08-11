@@ -4,16 +4,8 @@ import { getModelKind } from "@/shared/constants/models";
 
 const KIND_ENDPOINT = {
   llm: "/v1/chat/completions",
-  image: "/v1/images/generations",
-  tts: "/v1/audio/speech",
-  stt: "/v1/audio/transcriptions",
-  embedding: "/v1/embeddings",
   imageToText: "/v1/chat/completions",
-  webSearch: "/v1/search",
-  webFetch: "/v1/web/fetch",
 };
-
-const TTS_VOICES_API = new Set(["elevenlabs", "edge-tts", "deepgram", "inworld", "local-device"]);
 
 function buildInfo({ alias, providerId, model, kind, providerInfo }) {
   const out = {
@@ -28,15 +20,6 @@ function buildInfo({ alias, providerId, model, kind, providerInfo }) {
   if (model.options) out.options = model.options;
   if (model.dimensions) out.dimensions = model.dimensions;
   if (model.contextWindow) out.contextWindow = model.contextWindow;
-  if (kind === "tts" && TTS_VOICES_API.has(providerId)) {
-    out.voicesUrl = `/v1/audio/voices?provider=${providerId}`;
-  }
-  if (kind === "webSearch" && providerInfo?.searchConfig) {
-    const cfg = providerInfo.searchConfig;
-    if (cfg.searchTypes) out.searchTypes = cfg.searchTypes;
-    if (cfg.maxMaxResults) out.maxResults = cfg.maxMaxResults;
-    if (cfg.requiredOptions) out.required = cfg.requiredOptions;
-  }
   return out;
 }
 
@@ -59,20 +42,6 @@ function lookup(fullId, requestedKind) {
     const kind = getModelKind(m, "llm");
     return buildInfo({ alias, providerId, model: m, kind, providerInfo });
   }
-
-  // Web search/fetch — virtual model id "search" / "fetch"
-  if (modelId === "search" && providerInfo?.searchConfig) {
-    return buildInfo({
-      alias, providerId, kind: "webSearch", providerInfo,
-      model: { id: "search", name: `${providerInfo.name} Search`, params: ["query", "max_results", "country", "language", "time_range", "domain_filter", "search_type"] },
-    });
-  }
-  if (modelId === "fetch" && providerInfo?.fetchConfig) {
-    return buildInfo({
-      alias, providerId, kind: "webFetch", providerInfo,
-      model: { id: "fetch", name: `${providerInfo.name} Fetch`, params: ["url", "format", "max_characters"] },
-    });
-  }
   return null;
 }
 
@@ -89,7 +58,7 @@ export async function GET(request) {
   const kind = searchParams.get("kind");
   if (!id) {
     return Response.json(
-      { error: { message: "Missing required query param: id (e.g. ?id=openai/dall-e-3)", type: "invalid_request_error" } },
+      { error: { message: "Missing required query param: id (e.g. ?id=openai/gpt-5)", type: "invalid_request_error" } },
       { status: 400, headers: { "Access-Control-Allow-Origin": "*" } },
     );
   }

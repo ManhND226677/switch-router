@@ -90,7 +90,7 @@ vi.mock("../../open-sse/handlers/chatCore/requestDetail.js", () => ({
   extractRequestConfig: vi.fn((body, stream) => ({ body, stream })),
 }));
 
-vi.mock("@/lib/usageDb.js", () => ({
+vi.mock("../../src/lib/usageDb.js", () => ({
   trackPendingRequest: vi.fn(),
   appendRequestLog: vi.fn(() => Promise.resolve()),
   saveRequestDetail: vi.fn(() => Promise.resolve()),

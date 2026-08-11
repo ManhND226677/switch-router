@@ -12,8 +12,8 @@ import { PROVIDERS } from "../config/providers.js";
 import { createErrorResult, parseUpstreamError, formatProviderError } from "../utils/error.js";
 import { HTTP_STATUS, TOKEN_SAVER_HEADER, LEGACY_TOKEN_SAVER_HEADER } from "../config/runtimeConfig.js";
 import { handleBypassRequest } from "../utils/bypassHandler.js";
-import { trackPendingRequest, appendRequestLog, saveRequestDetail } from "@/lib/usageDb.js";
-import { getProviderAdapter } from "@/core/providers/providerAdapter.js";
+import { trackPendingRequest, appendRequestLog, saveRequestDetail } from "../../src/lib/usageDb.js";
+import { getProviderAdapter } from "../../src/core/providers/providerAdapter.js";
 import { supportsGrokCliReasoningEffort } from "../config/grokCli.js";
 import { buildRequestDetail, extractRequestConfig } from "./chatCore/requestDetail.js";
 import { handleForcedSSEToJson } from "./chatCore/sseToJsonHandler.js";
@@ -188,12 +188,6 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     if (think) parts.push(`THINK:${think}`);
     parts.push(`ACC:${acc}`);
     log.line(reqTag, "▶", parts.join(" · "));
-  }
-
-  // TTS models don't support tool messages/function calling
-  if (getModelType(alias, model) === "tts" && translatedBody.messages) {
-    translatedBody.messages = translatedBody.messages.filter(msg => msg.role !== "tool");
-    delete translatedBody.tools;
   }
 
   // Per-request opt-out: client can bypass all token savers via header
