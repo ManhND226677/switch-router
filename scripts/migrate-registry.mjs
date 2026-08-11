@@ -24,7 +24,6 @@ const CFG_KIND = {
   embeddingConfig:    "embedding",
   imageConfig:        "image",
   imageToTextConfig:  "imageToText",
-  videoConfig:        "video",
   musicConfig:        "music",
 };
 
@@ -37,7 +36,7 @@ const MODEL_ONLY_KEY = "models";
 const MEDIA_WHITELIST = new Set([
   "serviceKinds",
   "ttsConfig", "sttConfig", "embeddingConfig",
-  "imageConfig", "imageToTextConfig", "videoConfig", "musicConfig",
+  "imageConfig", "imageToTextConfig", "musicConfig",
   "searchViaChat", "searchConfig", "fetchConfig",
   "modelsFetcher", "hasProviderSpecificData", "passthroughModels",
   "mediaPriority", "hiddenKinds",
@@ -175,7 +174,7 @@ function formatEntry(entry, imports = "") {
     // media fields
     "serviceKinds",
     "ttsConfig", "sttConfig", "embeddingConfig",
-    "imageConfig", "imageToTextConfig", "videoConfig", "musicConfig",
+    "imageConfig", "imageToTextConfig", "musicConfig",
     "searchViaChat", "searchConfig", "fetchConfig", "modelsFetcher",
     "passthroughModels", "mediaPriority",
     // other

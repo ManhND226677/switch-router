@@ -42,24 +42,5 @@ export default {
     { format: "openai-responses", baseUrl: STEPFUN_ENDPOINTS.responses, auth: BEARER_AUTH },
   ],
   models: STEPFUN_STATIC_MODEL_CATALOG,
-  serviceKinds: ["llm", "image", "tts", "stt", "realtime"],
-  ttsConfig: {
-    baseUrl: STEPFUN_ENDPOINTS.speech,
-    authType: "apikey",
-    authHeader: "bearer",
-    format: "stepfun",
-    defaultModel: "step-tts-2",
-  },
-  sttConfig: {
-    baseUrl: STEPFUN_ENDPOINTS.asr,
-    authType: "apikey",
-    authHeader: "bearer",
-    format: "stepfun-asr-sse",
-  },
-  imageConfig: {
-    baseUrl: STEPFUN_ENDPOINTS.images,
-    editBaseUrl: STEPFUN_ENDPOINTS.imageEdits,
-    defaultModel: "step-image-edit-2",
-  },
   modelsFetcher: { url: STEPFUN_ENDPOINTS.models, type: "openai" },
 };

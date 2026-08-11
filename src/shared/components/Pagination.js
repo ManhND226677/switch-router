@@ -83,7 +83,7 @@ export default function Pagination({
               disabled={currentPage === 1}
               className="w-9 px-0"
             >
-              <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+              <span className="material-symbols-outlined text-lg">chevron_left</span>
             </Button>
 
             {pageNumbers[0] > 1 && (
@@ -140,7 +140,7 @@ export default function Pagination({
               disabled={currentPage === totalPages}
               className="w-9 px-0"
             >
-              <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+              <span className="material-symbols-outlined text-lg">chevron_right</span>
             </Button>
           </div>
         )}

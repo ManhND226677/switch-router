@@ -1,6 +1,6 @@
 import { translateResponse, initState } from "../translator/index.js";
 import { FORMATS } from "../translator/formats.js";
-import { trackPendingRequest, appendRequestLog } from "@/lib/usageDb.js";
+import { trackPendingRequest, appendRequestLog } from "../../src/lib/usageDb.js";
 import { extractUsage, mergeUsage, hasValidUsage, estimateUsage, logUsage, addBufferToUsage, filterUsageForFormat, COLORS } from "./usageTracking.js";
 import { parseSSELine, hasValuableContent, fixInvalidId, formatSSE } from "./streamHelpers.js";
 import { getOpenAIResponsesEventName, isOpenAIResponsesTerminalEvent, formatIncompleteOpenAIResponsesStreamFailure } from "./responsesStreamHelpers.js";
@@ -48,7 +48,8 @@ export function createSSEStream(options = {}) {
     connectionId = null,
     body = null,
     onStreamComplete = null,
-    apiKey = null
+    apiKey = null,
+    clientEndpoint = null
   } = options;
 
   let buffer = "";
@@ -57,7 +58,9 @@ export function createSSEStream(options = {}) {
   // Per-stream decoder with stream:true to correctly handle multi-byte chars split across chunks
   const decoder = new TextDecoder("utf-8", { fatal: false });
 
-  const state = mode === STREAM_MODE.TRANSLATE ? { ...initState(sourceFormat), provider, toolNameMap, model } : null;
+  const state = mode === STREAM_MODE.TRANSLATE
+    ? { ...initState(sourceFormat), provider, toolNameMap, model, clientEndpoint }
+    : null;
 
   let totalContentLength = 0;
   let accumulatedContent = "";
@@ -103,6 +106,37 @@ export function createSSEStream(options = {}) {
       await reqLogger?.close?.();
     } catch {
       // Logging errors are intentionally isolated from the response stream.
+    }
+  }
+
+  // Usage finalization must ALSO run when the client disconnects before the
+  // transform reaches flush() — a cancelled TransformStream never calls flush,
+  // so onStreamComplete would never fire and the request detail would stay at
+  // the 0/0 placeholder. Guarded so exactly one terminal path wins.
+  let finalized = false;
+  function finalizeUsage() {
+    if (finalized) return;
+    finalized = true;
+
+    const isPassthrough = mode === STREAM_MODE.PASSTHROUGH;
+    const currentUsage = isPassthrough ? usage : state?.usage;
+    if (!hasValidUsage(currentUsage) && totalContentLength > 0) {
+      if (isPassthrough) {
+        usage = estimateUsage(body, totalContentLength, FORMATS.OPENAI);
+      } else {
+        state.usage = estimateUsage(body, totalContentLength, sourceFormat);
+      }
+    }
+
+    const finalUsage = isPassthrough ? usage : state?.usage;
+    if (hasValidUsage(finalUsage)) {
+      logUsage(isPassthrough ? provider : state.provider || targetFormat, finalUsage, model, connectionId, apiKey);
+    } else {
+      appendRequestLog({ model, provider, connectionId, tokens: null, status: "200 OK" }).catch(() => { });
+    }
+
+    if (onStreamComplete) {
+      onStreamComplete({ content: accumulatedContent, thinking: accumulatedThinking }, finalUsage, ttftAt);
     }
   }
 
@@ -375,15 +409,7 @@ export function createSSEStream(options = {}) {
             controller.enqueue(sharedEncoder.encode(output));
           }
 
-          if (!hasValidUsage(usage) && totalContentLength > 0) {
-            usage = estimateUsage(body, totalContentLength, FORMATS.OPENAI);
-          }
-
-          if (hasValidUsage(usage)) {
-            logUsage(provider, usage, model, connectionId, apiKey);
-          } else {
-            appendRequestLog({ model, provider, connectionId, tokens: null, status: "200 OK" }).catch(() => { });
-          }
+          finalizeUsage();
           
           // IMPORTANT: In passthrough mode we still must terminate the SSE stream.
           // Some clients (e.g. OpenClaw) expect the OpenAI-style sentinel:
@@ -397,12 +423,6 @@ export function createSSEStream(options = {}) {
             controller.enqueue(sharedEncoder.encode(doneOutput));
           }
 
-          if (onStreamComplete) {
-            onStreamComplete({
-              content: accumulatedContent,
-              thinking: accumulatedThinking
-            }, usage, ttftAt);
-          }
           await closeLogger();
           return;
         }
@@ -465,22 +485,7 @@ export function createSSEStream(options = {}) {
           streamDoneSent = true;
         }
 
-        if (!hasValidUsage(state?.usage) && totalContentLength > 0) {
-          state.usage = estimateUsage(body, totalContentLength, sourceFormat);
-        }
-
-        if (hasValidUsage(state?.usage)) {
-          logUsage(state.provider || targetFormat, state.usage, model, connectionId, apiKey);
-        } else {
-          appendRequestLog({ model, provider, connectionId, tokens: null, status: "200 OK" }).catch(() => { });
-        }
-        
-        if (onStreamComplete) {
-          onStreamComplete({
-            content: accumulatedContent,
-            thinking: accumulatedThinking
-          }, state?.usage, ttftAt);
-        }
+        finalizeUsage();
         await closeLogger();
       } catch (error) {
         console.log("Error in flush:", error);
@@ -489,12 +494,13 @@ export function createSSEStream(options = {}) {
     }
   });
   // Disconnect handling lives outside this transformer. Expose the cleanup
-  // hook without changing the standard TransformStream interface.
+  // hooks without changing the standard TransformStream interface.
   transformStream.closeLogger = closeLogger;
+  transformStream.finalizeUsage = finalizeUsage;
   return transformStream;
 }
 
-export function createSSETransformStreamWithLogger(targetFormat, sourceFormat, provider = null, reqLogger = null, toolNameMap = null, model = null, connectionId = null, body = null, onStreamComplete = null, apiKey = null) {
+export function createSSETransformStreamWithLogger(targetFormat, sourceFormat, provider = null, reqLogger = null, toolNameMap = null, model = null, connectionId = null, body = null, onStreamComplete = null, apiKey = null, clientEndpoint = null) {
   return createSSEStream({
     mode: STREAM_MODE.TRANSLATE,
     targetFormat,
@@ -506,7 +512,8 @@ export function createSSETransformStreamWithLogger(targetFormat, sourceFormat, p
     connectionId,
     body,
     onStreamComplete,
-    apiKey
+    apiKey,
+    clientEndpoint
   });
 }
 

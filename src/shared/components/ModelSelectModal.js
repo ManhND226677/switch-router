@@ -33,7 +33,7 @@ export default function ModelSelectModal({
   addedModelValues = [],
   closeOnSelect = true,
 }) {
-  // Filter activeProviders by serviceKinds when kindFilter set (e.g. "webSearch", "webFetch")
+  // Filter activeProviders by serviceKinds when kindFilter set
   const filteredActiveProviders = useMemo(() => {
     if (!kindFilter) return activeProviders;
     return activeProviders.filter((p) => {
@@ -123,12 +123,8 @@ export default function ModelSelectModal({
   const groupedModels = useMemo(() => {
     const groups = {};
 
-    // Kinds where the provider IS the model (no per-model selection needed)
-    const PROVIDER_AS_MODEL_KINDS = new Set(["webSearch", "webFetch"]);
     // Kinds that map directly to model.type field
-    const TYPED_KINDS = new Set(["image", "tts", "stt", "embedding", "imageToText"]);
-    // For these kinds, providers without hardcoded models can still be picked (provider-as-model fallback)
-    const ALLOW_PROVIDER_FALLBACK_KINDS = new Set(["tts", "image", "webFetch"]);
+    const TYPED_KINDS = new Set(["imageToText"]);
 
     // Filter a models[] array by kindFilter (keep only matching kind)
     const filterByKind = (models) => {
@@ -166,17 +162,6 @@ export default function ModelSelectModal({
       const providerInfo = allProviders[providerId] || { name: providerId, color: "#666" };
       const isCustomProvider = isOpenAICompatibleProvider(providerId) || isAnthropicCompatibleProvider(providerId);
 
-      // For provider-as-model kinds (webSearch/webFetch): emit a single entry where value === providerId
-      if (kindFilter && PROVIDER_AS_MODEL_KINDS.has(kindFilter)) {
-        groups[providerId] = {
-          name: providerInfo.name,
-          alias,
-          color: providerInfo.color,
-          models: [{ id: providerId, name: providerInfo.name, value: providerId }],
-        };
-        return;
-      }
-
       if (providerInfo.passthroughModels) {
         const aliasModels = Object.entries(modelAliases)
           .filter(([, fullModel]) => fullModel.startsWith(`${alias}/`))
@@ -206,13 +191,8 @@ export default function ModelSelectModal({
             .map((m) => ({ id: m.id, name: m.name, value: `${alias}/${m.id}`, kind: getModelKind(m) }))
             .filter((m) => !registeredTyped.some((registered) => registered.value === m.value)),
           ];
-          // Fallback: provider-as-model when no hardcoded models match (tts/image/webFetch only)
-          if (combined.length === 0 && ALLOW_PROVIDER_FALLBACK_KINDS.has(kindFilter)) {
-            const supports = (providerInfo.serviceKinds || ["llm"]).includes(kindFilter);
-            if (supports) combined = [{ id: providerId, name: providerInfo.name, value: alias }];
-          }
         } else {
-          // LLM/null kind: merge hardcoded models (e.g. mimo-free → mimo-auto) with user-added models
+          // LLM/null kind: merge hardcoded models with user-added models
           const registeredLlms = customRegisteredModels.filter((m) => !getModelKind(m) || getModelKind(m) === "llm");
           const seen = new Set([...aliasModels, ...registeredLlms].map((m) => m.value));
           const hardcoded = getModelsByProviderId(providerId)
@@ -320,15 +300,6 @@ export default function ModelSelectModal({
           return true;
         }));
 
-        // Provider-as-model fallback: providers that support the kind but have no hardcoded models
-        // can still be picked (value = providerAlias). Skips embedding (always needs model).
-        if (allModels.length === 0 && kindFilter && ALLOW_PROVIDER_FALLBACK_KINDS.has(kindFilter)) {
-          const supports = (providerInfo.serviceKinds || ["llm"]).includes(kindFilter);
-          if (supports) {
-            allModels = [{ id: providerId, name: providerInfo.name, value: alias }];
-          }
-        }
-
         if (allModels.length > 0) {
           groups[providerId] = {
             name: providerInfo.name,
@@ -432,7 +403,7 @@ export default function ModelSelectModal({
       {/* Search - compact */}
       <div className="mb-3">
         <div className="relative">
-          <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted text-[16px]">
+          <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted text-base">
             search
           </span>
           <input
@@ -451,9 +422,9 @@ export default function ModelSelectModal({
         {filteredCombos.length > 0 && (
           <div>
             <div className="flex items-center gap-1.5 mb-1.5 sticky top-0 bg-surface py-0.5">
-              <span className="material-symbols-outlined text-primary text-[14px]">layers</span>
+              <span className="material-symbols-outlined text-primary text-sm">layers</span>
               <span className="text-xs font-medium text-primary">Combos</span>
-              <span className="text-[10px] text-text-muted">({filteredCombos.length})</span>
+              <span className="text-xs text-text-muted">({filteredCombos.length})</span>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {filteredCombos.map((combo) => {
@@ -498,7 +469,7 @@ export default function ModelSelectModal({
               <span className="text-xs font-medium text-primary">
                 {group.name}
               </span>
-              <span className="text-[10px] text-text-muted">
+              <span className="text-xs text-text-muted">
                 ({group.models.length})
               </span>
             </div>
@@ -530,13 +501,13 @@ export default function ModelSelectModal({
                       )}
                       {isPlaceholder ? (
                         <>
-                          <span className="material-symbols-outlined text-[11px]">edit</span>
+                          <span className="material-symbols-outlined text-xs">edit</span>
                           {model.name}
                         </>
                       ) : model.isCustom ? (
                         <>
                           {model.name}
-                          <span className="text-[9px] opacity-60 font-normal">custom</span>
+                          <span className="text-xs opacity-60 font-normal">custom</span>
                           <CapacityBadges caps={getCaps(model.value)} />
                         </>
                       ) : (

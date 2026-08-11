@@ -41,14 +41,7 @@ export default {
       "429": 2,
     },
   },
-  serviceKinds: ["llm","embedding"],
-  embeddingConfig: {
-    // Verified reachable; requires an embedding model subscribed to the key
-    // (an unsubscribed model answers 403 FORBIDDEN "Please subscribe to model").
-    baseUrl: "https://api.vilao.ai/v1/embeddings",
-    authType: "apikey",
-    authHeader: "bearer",
-  },
+  serviceKinds: ["llm"],
   modelsFetcher: { url: "https://api.vilao.ai/v1/models", type: "openai" },
   passthroughModels: true,
 };

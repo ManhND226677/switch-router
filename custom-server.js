@@ -22,6 +22,9 @@ const origCreate = http.createServer.bind(http);
 
 const realtimeServer = new WebSocketServer({ noServer: true, clientTracking: false });
 
+// High-water mark for the realtime relay buffer; above this we pause the slow peer.
+const REALTIME_HIGH_WATER = 1 << 20;
+
 function sendUpgradeError(socket, status, message) {
   if (!socket || socket.destroyed || !socket.writable) return;
   socket.write(`HTTP/1.1 ${status} Error\r\nConnection: close\r\nContent-Type: text/plain\r\nContent-Length: ${Buffer.byteLength(message)}\r\n\r\n${message}`);
@@ -39,7 +42,7 @@ function getRealtimeSelector(request) {
   };
 }
 
-async function resolveRealtimeToken(request, selector) {
+async function resolveRealtimeToken(request, selector, signal) {
   const authorization = request.headers.authorization;
   if (authorization?.startsWith("Bearer ")) return { token: authorization.slice(7), apiMode: selector.apiMode };
 
@@ -53,6 +56,7 @@ async function resolveRealtimeToken(request, selector) {
       "x-switch-router-internal-secret": process.env.SWITCH_ROUTER_INTERNAL_SECRET,
     },
     body: JSON.stringify({ provider: selector.provider, connectionId: selector.connectionId }),
+    signal,
   });
   if (!response.ok) return null;
   const body = await response.json();
@@ -71,7 +75,9 @@ function handleRealtimeUpgrade(request, socket, head) {
     sendUpgradeError(socket, status, message);
   };
 
-  resolveRealtimeToken(request, selector).then((auth) => {
+  const tokenAc = new AbortController();
+  request.socket.once("close", () => tokenAc.abort());
+  resolveRealtimeToken(request, selector, tokenAc.signal).then((auth) => {
     if (!auth?.token) return failUpgrade(401, "No active StepFun credentials");
     const realtimeBase = auth.apiMode === "payg"
       ? "wss://api.stepfun.ai/v1/realtime"
@@ -86,15 +92,23 @@ function handleRealtimeUpgrade(request, socket, head) {
       upgradeSettled = true;
       realtimeServer.handleUpgrade(request, socket, head, (client) => {
         client.on("message", (data, isBinary) => {
-          if (upstream.readyState === WebSocket.OPEN) upstream.send(data, { binary: isBinary });
+          if (upstream.readyState === WebSocket.OPEN) {
+            upstream.send(data, { binary: isBinary });
+            if (upstream.bufferedAmount > REALTIME_HIGH_WATER) client.pause();
+          }
         });
+        client.on("drain", () => upstream.resume());
         client.on("close", () => {
           if (upstream.readyState === WebSocket.OPEN || upstream.readyState === WebSocket.CONNECTING) upstream.close();
         });
         client.on("error", () => upstream.close());
         upstream.on("message", (data, isBinary) => {
-          if (client.readyState === WebSocket.OPEN) client.send(data, { binary: isBinary });
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(data, { binary: isBinary });
+            if (client.bufferedAmount > REALTIME_HIGH_WATER) upstream.pause();
+          }
         });
+        upstream.on("drain", () => client.resume());
         upstream.on("close", (code, reason) => {
           if (client.readyState === WebSocket.OPEN) client.close(code, reason);
         });

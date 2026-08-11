@@ -10,7 +10,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
 import Card from "@/shared/components/Card";
 
@@ -22,15 +21,39 @@ const fmtTokens = (n) => {
 
 const fmtCost = (n) => `$${(n || 0).toFixed(4)}`;
 
+const CustomTooltip = ({ active, payload, label, formatter }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-surface border border-border shadow-md rounded-lg p-3">
+        <p className="text-text-muted text-xs mb-2 font-medium">{label}</p>
+        {payload.map((entry, index) => {
+          const [formattedValue, name] = formatter(entry.value, entry.name);
+          return (
+            <div key={index} className="flex items-center gap-2">
+              <div 
+                className="w-2 h-2 rounded-full" 
+                style={{ backgroundColor: entry.color }}
+              />
+              <span className="text-sm font-semibold text-text-main">
+                {name}: {formattedValue}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+  return null;
+};
+
 export default function UsageChart({ period = "7d" }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState("tokens");
 
   const fetchData = useCallback(async () => {
-    setLoading(true);
     try {
-      const res = await fetch(`/api/usage/chart?period=${period}`);
+      const res = await fetch(`/api/usage/chart?period=${period}&_t=${Date.now()}`);
       if (res.ok) {
         const json = await res.json();
         setData(json);
@@ -45,12 +68,15 @@ export default function UsageChart({ period = "7d" }) {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on mount; state updates only after the response resolves
     fetchData();
+
+    const poll = setInterval(fetchData, 15000);
+    return () => clearInterval(poll);
   }, [fetchData]);
 
   const hasData = data.some((d) => d.tokens > 0 || d.cost > 0);
 
   return (
-    <Card className="flex min-w-0 flex-col gap-3 p-3 sm:p-4">
+    <Card className="flex min-w-0 flex-col gap-3 p-3 sm:p-4 h-full min-h-[300px]">
       <div className="grid w-full grid-cols-2 items-center gap-1 rounded-lg border border-border bg-bg-subtle p-1 sm:w-auto sm:self-start">
         <button
           onClick={() => setViewMode("tokens")}
@@ -74,37 +100,31 @@ export default function UsageChart({ period = "7d" }) {
         <ResponsiveContainer width="100%" height={220}>
           <AreaChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <defs>
-              <linearGradient id="gradTokens" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="gradCost" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+              <linearGradient id="gradPrimary" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#E56A4A" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#E56A4A" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" strokeOpacity={0.4} />
             <XAxis
               dataKey="label"
-              tick={{ fontSize: 10, fill: "currentColor", fillOpacity: 0.5 }}
+              tick={{ fontSize: 11, fill: "var(--color-text-muted)" }}
               tickLine={false}
               axisLine={false}
+              tickMargin={12}
               interval="preserveStartEnd"
             />
             <YAxis
-              tick={{ fontSize: 10, fill: "currentColor", fillOpacity: 0.5 }}
+              tick={{ fontSize: 11, fill: "var(--color-text-muted)" }}
               tickLine={false}
               axisLine={false}
+              tickMargin={12}
               tickFormatter={viewMode === "tokens" ? fmtTokens : fmtCost}
               width={50}
             />
             <Tooltip
-              contentStyle={{
-                backgroundColor: "var(--color-bg)",
-                border: "1px solid var(--color-border)",
-                borderRadius: "8px",
-                fontSize: "12px",
-              }}
+              content={<CustomTooltip />}
+              cursor={{ stroke: 'var(--color-border)', strokeWidth: 1, strokeDasharray: '4 4' }}
               formatter={(value, name) =>
                 name === "tokens" ? [fmtTokens(value), "Tokens"] : [fmtCost(value), "Cost"]
               }
@@ -113,21 +133,21 @@ export default function UsageChart({ period = "7d" }) {
               <Area
                 type="monotone"
                 dataKey="tokens"
-                stroke="#6366f1"
+                stroke="#E56A4A"
                 strokeWidth={2}
-                fill="url(#gradTokens)"
+                fill="url(#gradPrimary)"
                 dot={false}
-                activeDot={{ r: 4 }}
+                activeDot={{ r: 4, strokeWidth: 0, fill: "#E56A4A" }}
               />
             ) : (
               <Area
                 type="monotone"
                 dataKey="cost"
-                stroke="#f59e0b"
+                stroke="#E56A4A"
                 strokeWidth={2}
-                fill="url(#gradCost)"
+                fill="url(#gradPrimary)"
                 dot={false}
-                activeDot={{ r: 4 }}
+                activeDot={{ r: 4, strokeWidth: 0, fill: "#E56A4A" }}
               />
             )}
           </AreaChart>

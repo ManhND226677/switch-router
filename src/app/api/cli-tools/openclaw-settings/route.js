@@ -25,19 +25,16 @@ const resolveAgentModel = (m) => {
 const getOpenClawDir = () => path.join(getRuntimeHomeDir(), ".openclaw");
 const getOpenClawSettingsPath = () => path.join(getOpenClawDir(), "openclaw.json");
 
-// Detect Open Claw: PATH/global-bin lookup (the binary ships as `openclaw` or
-// `claw`), else a marker the tool creates (~/.openclaw, or the clawhub registry
-// config written by the installer/desktop build).
+// Detect Open Claw strictly: only a real `openclaw`/`claw` binary (PATH/global
+// bin lookup) or the tool's actual config file (~/.openclaw/openclaw.json)
+// counts as installed. Weaker markers (%APPDATA%\clawhub registry stub,
+// bare ~/.openclaw / ~/.claw / %APPDATA%\openclaw dirs) are deliberately not
+// probed — they are left behind by installer/desktop runs and cause false
+// positives for machines that never installed the CLI.
 const checkOpenClawInstalled = async () =>
   (await detectCli({
     commands: ["openclaw", "claw"],
-    markers: [
-      getOpenClawSettingsPath(),
-      getOpenClawDir(),
-      path.join(getRuntimeHomeDir(), ".claw"),
-      process.env.APPDATA ? path.join(process.env.APPDATA, "clawhub") : null,
-      process.env.APPDATA ? path.join(process.env.APPDATA, "openclaw") : null,
-    ],
+    markers: [getOpenClawSettingsPath()],
   })).installed;
 
 // Read current settings.json

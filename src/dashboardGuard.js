@@ -66,6 +66,17 @@ function isLoopbackHostname(h) {
   return LOOPBACK_HOSTS.has(name);
 }
 
+let warnedMissingLocalStamp = false;
+function warnMissingLocalStamp() {
+  if (warnedMissingLocalStamp) return;
+  warnedMissingLocalStamp = true;
+  console.error(
+    "[SECURITY] local-only routes are NOT protected: requests are not passing through " +
+    "custom-server.js (x-9r-real-ip header missing) while NODE_ENV=production. " +
+    "Run via `npm start` (custom-server.js). The client-supplied Host header is NOT trusted as a local indicator."
+  );
+}
+
 export function isLocalRequest(request) {
   // Stamped by custom-server.js when forwarding headers exist: request came through
   // a reverse proxy, so the loopback socket is the proxy hop, not the end-user.
@@ -74,8 +85,14 @@ export function isLocalRequest(request) {
   const realIp = request.headers.get("x-9r-real-ip");
   if (realIp) {
     if (!isLoopbackHostname(realIp)) return false;
+  } else if (process.env.NODE_ENV === "production") {
+    // Production without custom-server stamping (x-9r-real-ip missing): the
+    // "local-only" guarantee is not enforceable, so never trust the client-supplied
+    // Host header as a local indicator. Dev/test keep the legacy Host check.
+    warnMissingLocalStamp();
+    return false;
   } else if (!isLoopbackHostname(request.headers.get("host"))) {
-    // Fallback for bare server.js (dev) without custom-server: legacy Host-based check.
+    // Fallback for bare server.js (dev/test) without custom-server: legacy Host-based check.
     return false;
   }
   const origin = request.headers.get("origin");

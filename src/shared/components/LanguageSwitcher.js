@@ -85,7 +85,7 @@ export default function LanguageSwitcher({ className = "", isOpen: controlledOpe
           title="Language"
           data-i18n-skip="true"
         >
-          <span className="material-symbols-outlined text-[20px]">language</span>
+          <span className="material-symbols-outlined text-xl">language</span>
           <span className="text-sm font-medium">{getLocaleInfo(locale).name}</span>
           <span className="text-lg">{getLocaleInfo(locale).flag}</span>
         </button>
@@ -113,7 +113,7 @@ export default function LanguageSwitcher({ className = "", isOpen: controlledOpe
                 className="p-1.5 rounded-lg text-text-muted hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                 aria-label="Close"
               >
-                <span className="material-symbols-outlined text-[20px]">close</span>
+                <span className="material-symbols-outlined text-xl">close</span>
               </button>
             </div>
 

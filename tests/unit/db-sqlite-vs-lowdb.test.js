@@ -13,7 +13,7 @@ beforeAll(async () => {
   tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "9router-db-compare-"));
   process.env.DATA_DIR = tempDir;
   vi.resetModules();
-  sqliteDb = await import("@/lib/db/index.js");
+  sqliteDb = await import("../../src/lib/db/index.js");
   await sqliteDb.initDb();
 });
 

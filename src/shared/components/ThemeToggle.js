@@ -31,7 +31,7 @@ export default function ThemeToggle({ className, variant = "default" }) {
     >
       <span
         className={cn(
-          "material-symbols-outlined text-[22px]",
+          "material-symbols-outlined text-xl",
           variant === "card" && "transition-transform duration-300 group-hover:rotate-12"
         )}
       >

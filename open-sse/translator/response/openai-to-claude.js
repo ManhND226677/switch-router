@@ -9,19 +9,181 @@ import { extractReasoningText } from "../concerns/reasoning.js";
 // for arg sanitization). Current request translator emits no prefix ("") — strip
 // is then a no-op. Kept intentionally; do NOT couple to request's empty prefix.
 const CLAUDE_OAUTH_TOOL_PREFIX = "proxy_";
+const OFFICE_MESSAGES_ENDPOINT = "/office/v1/messages";
+
+function safeLogToken(value) {
+  return String(value || "unknown").replace(/[^A-Za-z0-9_.:/-]/g, "_").slice(0, 80);
+}
+
+function utf8ByteLength(value) {
+  return new TextEncoder().encode(String(value || "")).byteLength;
+}
+
+function summarizeJsonShape(value) {
+  try {
+    const parsed = JSON.parse(value);
+    if (!isPlainObject(parsed)) return "non-object";
+    const entries = Object.entries(parsed).map(([key, item]) => {
+      const type = Array.isArray(item) ? "array" : (item === null ? "null" : typeof item);
+      return `${safeLogToken(key)}:${type}`;
+    });
+    return entries.join(",") || "empty";
+  } catch {
+    return "invalid";
+  }
+}
 
 // Sanitize tool call arguments to fix bad params from non-Anthropic models
 function sanitizeToolArgs(toolName, argsJson) {
-  try {
-    const args = JSON.parse(argsJson);
-    const name = toolName.startsWith(CLAUDE_OAUTH_TOOL_PREFIX)
-      ? toolName.slice(CLAUDE_OAUTH_TOOL_PREFIX.length)
-      : toolName;
-    if (name === "Read") sanitizeReadArgs(args);
-    return JSON.stringify(args);
-  } catch {
-    return argsJson;
+  const name = toolName.startsWith(CLAUDE_OAUTH_TOOL_PREFIX)
+    ? toolName.slice(CLAUDE_OAUTH_TOOL_PREFIX.length)
+    : toolName;
+  const normalized = normalizeToolArgumentPayload(argsJson);
+
+  if (!isPlainObject(normalized.args)) {
+    // Claude tool input must be a JSON object. Do not let a malformed upstream
+    // delta crash the entire client stream while it is parsing input_json_delta.
+    console.warn(`[TOOLJSON] invalid arguments for ${name || "unknown"}; emitted empty object (bytes=${normalized.inputLength})`);
+    return "{}";
   }
+
+  if (normalized.recovered) {
+    console.warn(`[TOOLJSON] recovered arguments for ${name || "unknown"} (bytes=${normalized.inputLength})`);
+  }
+
+  if (name === "Read") sanitizeReadArgs(normalized.args);
+  return JSON.stringify(normalized.args);
+}
+
+function normalizeToolArgumentChunk(value) {
+  if (typeof value === "string") return value;
+  if (value === undefined || value === null) return "";
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return "";
+    }
+  }
+  return String(value);
+}
+
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function mergeJsonObjects(previous, incoming) {
+  const merged = { ...previous };
+  for (const [key, value] of Object.entries(incoming)) {
+    merged[key] = isPlainObject(merged[key]) && isPlainObject(value)
+      ? mergeJsonObjects(merged[key], value)
+      : value;
+  }
+  return merged;
+}
+
+function tryParseJsonObject(value) {
+  try {
+    const parsed = JSON.parse(value);
+    return isPlainObject(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+// Some OpenAI-compatible streams repeat a complete arguments object on every
+// chunk instead of emitting only the suffix. Keep one valid object rather than
+// producing two adjacent JSON objects, which Claude clients reject.
+function mergeToolArgumentChunks(previousValue, incomingValue) {
+  const previous = normalizeToolArgumentChunk(previousValue);
+  const incoming = normalizeToolArgumentChunk(incomingValue);
+  if (!previous) return incoming;
+  if (!incoming || previous === incoming) return previous;
+
+  if (incoming.startsWith(previous)) return incoming;
+  if (previous.startsWith(incoming)) return previous;
+
+  const previousObject = tryParseJsonObject(previous);
+  const incomingObject = tryParseJsonObject(incoming);
+  if (previousObject && incomingObject) {
+    return JSON.stringify(mergeJsonObjects(previousObject, incomingObject));
+  }
+
+  // Standard OpenAI streams send an object prefix followed by its suffix.
+  return previous + incoming;
+}
+
+function findJsonObjectEnd(source, start) {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let cursor = start; cursor < source.length; cursor++) {
+    const char = source[cursor];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === "\"") inString = false;
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+    } else if (char === "{") {
+      depth++;
+    } else if (char === "}") {
+      depth--;
+      if (depth === 0) return cursor;
+      if (depth < 0) return -1;
+    }
+  }
+
+  return -1;
+}
+
+function extractJsonObjectSnapshots(value) {
+  const source = normalizeToolArgumentChunk(value);
+  const candidates = [];
+
+  // A provider can send a partial object and then restart from a complete
+  // snapshot. Scan for complete objects rather than only from byte zero so a
+  // valid restarted snapshot can still be recovered at stream completion.
+  for (let start = 0; start < source.length; start++) {
+    if (source[start] !== "{") continue;
+    const end = findJsonObjectEnd(source, start);
+    if (end < 0) continue;
+
+    const raw = source.slice(start, end + 1);
+    const args = tryParseJsonObject(raw);
+    if (args) candidates.push({ start, end, raw, args });
+  }
+
+  if (!candidates.length) return null;
+
+  // Nested objects are also syntactically valid JSON. Keep only maximal
+  // objects, which correspond to independent tool-argument snapshots.
+  const snapshots = candidates.filter((candidate) => !candidates.some((other) =>
+    other !== candidate && other.start <= candidate.start && other.end >= candidate.end
+  ));
+
+  return snapshots.length > 0 ? snapshots : null;
+}
+
+function normalizeToolArgumentPayload(value) {
+  const source = normalizeToolArgumentChunk(value);
+  const direct = tryParseJsonObject(source);
+  if (direct) return { args: direct, inputLength: source.length, recovered: false };
+
+  const snapshots = extractJsonObjectSnapshots(source);
+  if (snapshots) {
+    return {
+      args: snapshots.reduce((merged, snapshot) => mergeJsonObjects(merged, snapshot.args), {}),
+      inputLength: source.length,
+      recovered: true,
+    };
+  }
+
+  return { args: null, inputLength: source.length, recovered: false };
 }
 
 function sanitizeReadArgs(args) {
@@ -69,7 +231,7 @@ function stopTextBlock(state, results) {
 
 // Convert OpenAI stream chunk to Claude format
 export function openaiToClaudeResponse(chunk, state) {
-  if (!chunk || !chunk.choices?.[0]) return null;
+  if (!chunk || !chunk.choices?.[0] || state.responseFinished) return null;
 
   const results = [];
   const choice = chunk.choices[0];
@@ -215,7 +377,7 @@ export function openaiToClaudeResponse(chunk, state) {
         if (toolInfo) {
           // Buffer args instead of streaming — sanitize at finish to fix bad params
           if (!state.toolArgBuffers) state.toolArgBuffers = new Map();
-          state.toolArgBuffers.set(idx, (state.toolArgBuffers.get(idx) || "") + tc.function.arguments);
+          state.toolArgBuffers.set(idx, mergeToolArgumentChunks(state.toolArgBuffers.get(idx), tc.function.arguments));
         }
       }
     }
@@ -223,24 +385,45 @@ export function openaiToClaudeResponse(chunk, state) {
 
   // Finish
   if (choice.finish_reason) {
+    // Some OpenAI-compatible streams emit a duplicate terminal chunk. Claude
+    // clients concatenate input_json_delta strings for a content block, so
+    // replaying a completed tool block would turn `{...}` into `{...}{...}`.
+    state.responseFinished = true;
     stopThinkingBlock(state, results);
     stopTextBlock(state, results);
 
+    const isOfficeStream = state.clientEndpoint === OFFICE_MESSAGES_ENDPOINT;
     for (const [idx, toolInfo] of state.toolCalls) {
       // Emit buffered + sanitized args as single delta before stop
       const buffered = state.toolArgBuffers?.get(idx);
       if (buffered) {
         const sanitized = sanitizeToolArgs(toolInfo.name, buffered);
+        if (isOfficeStream) {
+          console.log(
+            `[OFFICE-SSE] tool=${safeLogToken(toolInfo.name)} index=${toolInfo.blockIndex} ` +
+            `inputBytes=${utf8ByteLength(buffered)} outputBytes=${utf8ByteLength(sanitized)} ` +
+            `shape=${summarizeJsonShape(sanitized)}`
+          );
+        }
         results.push({
           type: "content_block_delta",
           index: toolInfo.blockIndex,
           delta: { type: "input_json_delta", partial_json: sanitized }
         });
+      } else if (isOfficeStream) {
+        console.log(`[OFFICE-SSE] tool=${safeLogToken(toolInfo.name)} index=${toolInfo.blockIndex} inputBytes=0 shape=empty`);
       }
       results.push({
         type: "content_block_stop",
         index: toolInfo.blockIndex
       });
+    }
+
+    if (isOfficeStream) {
+      console.log(
+        `[OFFICE-SSE] complete model=${safeLogToken(state.model)} blocks=${state.nextBlockIndex || 0} ` +
+        `tools=${state.toolCalls.size} finish=${safeLogToken(choice.finish_reason)}`
+      );
     }
 
     // Mark finish for later usage injection in stream.js

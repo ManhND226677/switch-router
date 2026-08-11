@@ -24,16 +24,9 @@ function buildEndpoints(baseUrl) {
     messages: `${baseUrl}/messages`,
     responses: `${baseUrl}/responses`,
     models: `${baseUrl}/models`,
-    images: `${baseUrl}/images/generations`,
-    imageEdits: `${baseUrl}/images/edits`,
-    speech: `${baseUrl}/audio/speech`,
-    asr: `${baseUrl}/audio/asr/sse`,
-    voices: `${baseUrl}/audio/voices`,
-    systemVoices: `${baseUrl}/audio/system_voices`,
     accounts: `${baseUrl}/accounts`,
     files: `${baseUrl}/files`,
     tokenCount: `${baseUrl}/token/count`,
-    realtime: `${baseUrl.replace(/^https:/, "wss:")}/realtime`,
   });
 }
 
@@ -77,17 +70,6 @@ export const STEPFUN_STATIC_MODEL_CATALOG = Object.freeze([
   Object.freeze({ id: "step-3.5-flash", name: "Step 3.5 Flash", kind: "llm" }),
   Object.freeze({ id: "step-3.5-flash-2603", name: "Step 3.5 Flash 2603", kind: "llm" }),
   Object.freeze({ id: "stepaudio-2.5-chat", name: "StepAudio 2.5 Chat", kind: "llm" }),
-  Object.freeze({ id: "step-tts-2", name: "Step TTS 2", kind: "tts" }),
-  Object.freeze({ id: "stepaudio-2.5-tts", name: "StepAudio 2.5 TTS", kind: "tts" }),
-  Object.freeze({ id: "stepaudio-2.5-asr", name: "StepAudio 2.5 ASR", kind: "stt" }),
-  Object.freeze({
-    id: "step-image-edit-2",
-    name: "Step Image Edit 2",
-    kind: "image",
-    capabilities: ["edit"],
-    params: ["size", "response_format", "seed", "steps", "cfg_scale", "negative_prompt", "text_mode"],
-  }),
-  Object.freeze({ id: "stepaudio-2.5-realtime", name: "StepAudio 2.5 Realtime", kind: "realtime" }),
 ]);
 
 export const STEPFUN_MODEL_KIND_BY_ID = Object.freeze(

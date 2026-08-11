@@ -10,7 +10,7 @@ import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
  * - Localhost: Auto callback via popup message
  * - Remote: Manual paste callback URL
  */
-export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, onClose, oauthMeta, idcConfig }) {
+export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, onClose, oauthMeta }) {
   const [step, setStep] = useState("waiting"); // waiting | input | success | error
   const [authData, setAuthData] = useState(null);
   const [callbackUrl, setCallbackUrl] = useState("");
@@ -164,7 +164,6 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       const deviceCodeProviders = [
         "github",
         "qwen",
-        "kiro",
         "kimi-coding",
         "kilocode",
         "qoder",
@@ -175,13 +174,6 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         setStep("waiting");
 
         const deviceCodeUrl = new URL(`/api/oauth/${provider}/device-code`, window.location.origin);
-        if (provider === "kiro" && idcConfig?.startUrl) {
-          deviceCodeUrl.searchParams.set("start_url", idcConfig.startUrl);
-          if (idcConfig.region) {
-            deviceCodeUrl.searchParams.set("region", idcConfig.region);
-          }
-          deviceCodeUrl.searchParams.set("auth_method", "idc");
-        }
         const res = await fetch(deviceCodeUrl.toString());
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
@@ -192,18 +184,8 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         const verifyUrl = data.verification_uri_complete || data.verification_uri;
         if (verifyUrl) window.open(verifyUrl, "_blank", "noopener,noreferrer");
 
-        // Pass extraData for Kiro (contains _clientId, _clientSecret) and
-        // Qoder (contains _qoderMachineId / _qoderNonce — needed so mapTokens
-        // can persist the machine id alongside the token).
-        const extraData = provider === "kiro"
-          ? {
-              _clientId: data._clientId,
-              _clientSecret: data._clientSecret,
-              _region: data._region,
-              _authMethod: data._authMethod,
-              _startUrl: data._startUrl,
-            }
-          : provider === "qoder"
+        // Qoder persists its device-code machine identity alongside the token.
+        const extraData = provider === "qoder"
           ? {
               _qoderNonce: data._qoderNonce,
               _qoderMachineId: data._qoderMachineId,
@@ -329,7 +311,7 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       setError(err.message);
       setStep("error");
     }
-  }, [provider, isLocalhost, startPolling, oauthMeta, idcConfig]);
+  }, [provider, isLocalhost, startPolling, oauthMeta]);
 
   // Reset state and start OAuth when modal opens
   useEffect(() => {
@@ -582,13 +564,11 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
 
               <div>
                 <p className="text-sm font-medium mb-2">
-                  Step 2: Paste the {provider === "xai" ? "callback URL or copied code" : isKimchiProvider ? "callback URL or copied token" : "callback URL"} here
+                  Step 2: Paste the {isXaiProvider ? "callback URL or copied code" : "callback URL"} here
                 </p>
                 <p className="text-xs text-text-muted mb-2">
-                  {provider === "xai"
+                  {isXaiProvider
                     ? "If xAI shows a code instead of redirecting, paste that code here."
-                    : isKimchiProvider
-                      ? "After authorization, copy the full callback URL or token from your browser."
                     : "After authorization, copy the full URL from your browser."}
                 </p>
                 <Input
@@ -709,9 +689,5 @@ OAuthModal.propTypes = {
   onClose: PropTypes.func.isRequired,
   /** Extra metadata passed to /authorize and /exchange (e.g. gitlab clientId/baseUrl) */
   oauthMeta: PropTypes.object,
-  /** Optional Kiro IDC config for AWS IAM Identity Center device flow */
-  idcConfig: PropTypes.shape({
-    startUrl: PropTypes.string,
-    region: PropTypes.string,
-  }),
+
 };

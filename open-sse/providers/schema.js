@@ -18,7 +18,8 @@ import { DEFAULT_RETRY_CONFIG, FETCH_CONNECT_TIMEOUT_MS } from "../config/runtim
  * @property {Object}  [display]      UI: {name,icon,color,textIcon,website,notice,deprecated,deprecationNotice,kindNotice,mediaPriority}.
  * @property {Object}  [transport]    Runtime HTTP config (see TransportConfig below). Builds PROVIDERS[id].
  * @property {Object}  [oauth]        OAuth flow config (see OAuthConfig). Builds PROVIDER_OAUTH[id].
- * @property {Object}  [media]        Non-LLM services (see MediaConfig). Builds PROVIDER_MEDIA[id].
+ * @property {Object}  [media]        Service-kind metadata: {serviceKinds:["llm"], hiddenKinds:[...]}.
+ *                                    Builds PROVIDER_MEDIA[id].
  * @property {Array}   [models]       Model list; omit = no model key, [] = explicit empty.
  * @property {Object}  [features]     Feature flags, e.g. {usage:true}.
  * @property {Object}  [thinkingConfig] Reasoning UI: {options:[...],defaultMode}.
@@ -33,9 +34,8 @@ import { DEFAULT_RETRY_CONFIG, FETCH_CONNECT_TIMEOUT_MS } from "../config/runtim
  *   callbackPath, fixedPort, codeChallengeMethod, extraParams, refresh:{encoding,scope}, refreshLeadMs,
  *   userInfoUrl }.
  *
- * MediaConfig: { serviceKinds:[...], ttsConfig, sttConfig, embeddingConfig, imageConfig,
- *   searchViaChat:{defaultModel,pricingUrl}, hiddenKinds } — each *Config: {baseUrl,authType,authHeader,
- *   format,defaultModel,models:[{id,name,dimensions?}]}.
+ * MediaConfig: { serviceKinds:["llm"], hiddenKinds:[...] } — the gateway is chat/LLM-only; media
+ *   capability configs (tts/stt/embedding/image/search) are no longer supported.
  */
 
 // Shared transport defaults — provider only overrides fields that differ.

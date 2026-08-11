@@ -7,7 +7,7 @@ import { CLI_TOOLS } from "@/shared/constants/cliTools";
 import { getModelsByProviderId, PROVIDER_ID_TO_ALIAS } from "@/shared/constants/models";
 import {
   ClaudeToolCard, CodexToolCard, OpenClawToolCard,
-  HermesToolCard, OpenCodeToolCard, CoworkToolCard,
+  HermesToolCard, OpenCodeToolCard, CoworkToolCard, AizenToolCard,
 } from "../components";
 
 export default function ToolDetailClient({ toolId }) {
@@ -99,6 +99,8 @@ export default function ToolDetailClient({ toolId }) {
         return <OpenClawToolCard {...commonProps} activeProviders={getActiveProviders()} hasActiveProviders={hasActiveProviders} />;
       case "hermes":
         return <HermesToolCard {...commonProps} activeProviders={getActiveProviders()} hasActiveProviders={hasActiveProviders} />;
+      case "aizen":
+        return <AizenToolCard {...commonProps} activeProviders={getActiveProviders()} hasActiveProviders={hasActiveProviders} />;
       default:
         return null;
     }
@@ -109,7 +111,7 @@ export default function ToolDetailClient({ toolId }) {
     return (
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-1 sm:px-0">
         <Link href="/dashboard/cli-tools" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-primary w-fit">
-          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+          <span className="material-symbols-outlined text-lg">arrow_back</span>
           Back to CLI Tools
         </Link>
         <p className="text-sm text-text-muted">Tool not found or disabled.</p>
@@ -120,7 +122,7 @@ export default function ToolDetailClient({ toolId }) {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-1 sm:px-0">
       <Link href="/dashboard/cli-tools" className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-primary w-fit">
-        <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+        <span className="material-symbols-outlined text-lg">arrow_back</span>
         Back to CLI Tools
       </Link>
       <div className="flex flex-col gap-1">

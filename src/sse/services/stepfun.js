@@ -18,9 +18,6 @@ function modelIdFromPayload(model) {
 function inferKind(modelId) {
   const lower = modelId.toLowerCase();
   if (STEPFUN_MODEL_KIND_BY_ID[modelId]) return STEPFUN_MODEL_KIND_BY_ID[modelId];
-  if (/tts|speech|voice/.test(lower)) return "tts";
-  if (/asr|transcrib|whisper/.test(lower)) return "stt";
-  if (/image|edit/.test(lower)) return "image";
   if (/realtime/.test(lower)) return "realtime";
   return "llm";
 }

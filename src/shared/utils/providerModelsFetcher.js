@@ -10,11 +10,11 @@ const cache = new Map(); // key: fetcher.url → { data, expiresAt }
  * @param {{ url: string, type: string }} fetcher
  * @returns {Promise<Array<{ id: string, name: string, contextLength?: number }>>}
  */
-export async function fetchSuggestedModels(fetcher) {
+export async function fetchSuggestedModels(fetcher, { force = false } = {}) {
   if (!fetcher?.url || !fetcher?.type) return [];
 
   const cached = cache.get(fetcher.url);
-  if (cached && Date.now() < cached.expiresAt) return cached.data;
+  if (!force && cached && Date.now() < cached.expiresAt) return cached.data;
 
   try {
     const params = new URLSearchParams({ url: fetcher.url, type: fetcher.type });

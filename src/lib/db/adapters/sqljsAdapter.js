@@ -13,6 +13,22 @@ async function loadSql() {
 export async function createSqlJsAdapter(filePath) {
   const SQLLib = await loadSql();
   const buf = fs.existsSync(filePath) ? fs.readFileSync(filePath) : null;
+
+  // sql.js is a pure in-memory WASM SQLite: it CANNOT replay a native-driver
+  // -wal/-shm sidecar. If one is left behind by a previous better-sqlite3 /
+  // node:sqlite / bun:sqlite run that subsequently fell back to this adapter,
+  // the on-disk main file is already stale relative to the WAL (un-checkpointed
+  // writes are silently dropped by sql.js). Worse, leaving the sidecar around
+  // would later confuse a native driver, which could try to apply a stale WAL
+  // against sql.js's exported main file. So: warn loudly, and remove the orphan
+  // sidecars so we start from a self-consistent on-disk state.
+  for (const sidecar of [filePath + "-wal", filePath + "-shm"]) {
+    if (fs.existsSync(sidecar)) {
+      console.warn(`[sqljs] orphan WAL sidecar detected (${sidecar}) — sql.js cannot replay it; dropping un-checkpointed writes and removing sidecar.`);
+      try { fs.unlinkSync(sidecar); } catch (e) { console.error(`[sqljs] failed to remove sidecar ${sidecar}:`, e); }
+    }
+  }
+
   const db = new SQLLib.Database(buf);
   db.exec(PRAGMA_SQL);
   // Schema is created/synced by migrate.js after adapter init
@@ -23,7 +39,11 @@ export async function createSqlJsAdapter(filePath) {
 
   function persist() {
     const data = db.export();
-    fs.writeFileSync(filePath, Buffer.from(data));
+    // Atomic replace: write to a temp file then rename, so a kill -9 mid-write
+    // cannot leave a truncated/corrupt DB file.
+    const tmp = filePath + ".tmp";
+    fs.writeFileSync(tmp, Buffer.from(data));
+    fs.renameSync(tmp, filePath);
     dirty = false;
   }
 

@@ -77,6 +77,7 @@ export default function ProviderDetailPage() {
   const [oneByOneSummary, setOneByOneSummary] = useState(null);
   const stopOneByOneRef = useRef(false);
   const [importingQoderModels, setImportingQoderModels] = useState(false);
+  const [importingFreeModels, setImportingFreeModels] = useState(false);
   const { copied, copy } = useCopyToClipboard();
 
   const AG_RISK_STORAGE_KEY = "ag_risk_confirmed";
@@ -574,6 +575,48 @@ export default function ProviderDetailPage() {
     }
   };
 
+  // Fetch free models from the provider's public API and add them all at once
+  // (used by no-auth free providers: opencode)
+  const handleImportFreeModels = async () => {
+    if (importingFreeModels) return;
+    const fetcher = (FREE_PROVIDERS[providerId] || FREE_TIER_PROVIDERS[providerId])?.modelsFetcher;
+    if (!fetcher) return;
+
+    setImportingFreeModels(true);
+    try {
+      const fetched = await fetchSuggestedModels(fetcher, { force: true });
+      if (fetched.length === 0) {
+        alert(translate("No models returned"));
+        return;
+      }
+
+      const addedFullModels = new Set([
+        ...Object.values(modelAliases),
+        ...customModels.map((m) => `${providerStorageAlias}/${m.id}`),
+      ]);
+      const hardcodedIds = new Set(models.map((m) => m.id));
+      const notAdded = fetched.filter(
+        (m) => !addedFullModels.has(`${providerStorageAlias}/${m.id}`) && !hardcodedIds.has(m.id)
+      );
+      if (notAdded.length === 0) {
+        alert(translate("All models already exist, no new models added"));
+        return;
+      }
+
+      let importedCount = 0;
+      for (const model of notAdded) {
+        await handleAddCustomModel(model.id, "llm", providerStorageAlias);
+        importedCount += 1;
+      }
+      alert(translate("Successfully added") + ` ${importedCount} ` + translate("models"));
+    } catch (error) {
+      console.log("Error importing free models:", error);
+      alert(translate("Error fetching models") + ": " + error.message);
+    } finally {
+      setImportingFreeModels(false);
+    }
+  };
+
   const handleRunOneByOneTest = async () => {
     if (oneByOneRunning || connections.length === 0) return;
 
@@ -973,7 +1016,7 @@ export default function ProviderDetailPage() {
             disabled={bulkUpdatingProxy || activePools.length === 0}
             className="flex items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors hover:bg-black/[0.04] dark:hover:bg-white/[0.04] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <span className="material-symbols-outlined text-text-muted text-[18px]">sync_alt</span>
+            <span className="material-symbols-outlined text-text-muted text-lg">sync_alt</span>
             <span className="text-sm text-text-main">One-to-one (rotate)</span>
           </button>
           <button
@@ -981,7 +1024,7 @@ export default function ProviderDetailPage() {
             disabled={bulkUpdatingProxy}
             className="flex items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors hover:bg-black/[0.04] dark:hover:bg-white/[0.04] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <span className="material-symbols-outlined text-text-muted text-[18px]">link_off</span>
+            <span className="material-symbols-outlined text-text-muted text-lg">link_off</span>
             <span className="text-sm text-text-main">None (unbind all)</span>
           </button>
           {proxyPools.map((pool) => (
@@ -991,10 +1034,10 @@ export default function ProviderDetailPage() {
               disabled={bulkUpdatingProxy || pool.isActive !== true}
               className="flex items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors hover:bg-black/[0.04] dark:hover:bg-white/[0.04] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <span className="material-symbols-outlined text-text-muted text-[18px]">lan</span>
+              <span className="material-symbols-outlined text-text-muted text-lg">lan</span>
               <span className="truncate text-sm text-text-main">{pool.name}</span>
               {pool.isActive !== true && (
-                <span className="text-[10px] text-text-muted">(inactive)</span>
+                <span className="text-xs text-text-muted">(inactive)</span>
               )}
             </button>
           ))}
@@ -1049,7 +1092,6 @@ export default function ProviderDetailPage() {
       );
     }
     // Combine hardcoded models with Kilo free models (deduplicated)
-    // Exclude non-llm models (embedding, tts, etc.) — they have dedicated pages under media-providers
     const allModels = [
       ...models,
       ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
@@ -1144,6 +1186,20 @@ export default function ProviderDetailPage() {
           </button>
         )}
 
+        {/* Load free models button — only show for no-auth free providers with a public models API */}
+        {(providerId === "opencode") && (
+          <button
+            onClick={handleImportFreeModels}
+            disabled={importingFreeModels}
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-blue-500/40 px-3 py-2 text-xs text-blue-600 dark:text-blue-400 transition-colors hover:border-blue-500 hover:bg-blue-500/5 sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span className="material-symbols-outlined text-sm" style={importingFreeModels ? { animation: "spin 1s linear infinite" } : undefined}>
+              {importingFreeModels ? "progress_activity" : "download"}
+            </span>
+            {importingFreeModels ? translate("Fetching...") : translate("Load Free Models")}
+          </button>
+        )}
+
         {/* Suggested models from provider API — show only models not yet added */}
         {suggestedModels.length > 0 && (() => {
           const addedFullModels = new Set([
@@ -1168,7 +1224,7 @@ export default function ProviderDetailPage() {
                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-black/10 dark:border-white/10 text-xs text-text-muted hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-colors"
                     title={`${m.name} · ${(m.contextLength / 1000).toFixed(0)}k ctx`}
                   >
-                    <span className="material-symbols-outlined text-[13px]">add</span>
+                    <span className="material-symbols-outlined text-sm">add</span>
                     {m.id.split("/").pop()}
                   </button>
                 ))}
@@ -1189,7 +1245,7 @@ export default function ProviderDetailPage() {
                   className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-dashed border-black/10 dark:border-white/10 text-xs text-text-muted hover:text-primary hover:border-primary/40 hover:bg-primary/5 transition-colors"
                   title="Restore model"
                 >
-                  <span className="material-symbols-outlined text-[13px]">add</span>
+                  <span className="material-symbols-outlined text-sm">add</span>
                   {m.id}
                 </button>
               ))}
@@ -1287,14 +1343,14 @@ export default function ProviderDetailPage() {
 
       {providerInfo.deprecated && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
-          <span className="material-symbols-outlined text-[16px] text-yellow-500 mt-0.5 shrink-0">warning</span>
+          <span className="material-symbols-outlined text-base text-yellow-500 mt-0.5 shrink-0">warning</span>
           <p className="text-xs text-red-600 dark:text-yellow-400 leading-relaxed">{providerInfo.deprecationNotice}</p>
         </div>
       )}
 
       {providerInfo.notice?.text && !providerInfo.deprecated && (
         <div className="flex flex-col gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 sm:flex-row sm:items-center">
-          <span className="material-symbols-outlined text-[16px] text-blue-500 shrink-0">info</span>
+          <span className="material-symbols-outlined text-base text-blue-500 shrink-0">info</span>
           <p className="min-w-0 flex-1 text-xs leading-relaxed text-blue-600 dark:text-blue-400">{providerInfo.notice.text}</p>
           {providerInfo.notice.apiKeyUrl && (
             <a
@@ -1450,7 +1506,7 @@ export default function ProviderDetailPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 <div className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-primary/10 text-primary shrink-0">
-                  <span className="material-symbols-outlined text-[18px]">{isOAuth ? "lock" : "key"}</span>
+                  <span className="material-symbols-outlined text-lg">{isOAuth ? "lock" : "key"}</span>
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm text-text-muted">No connections yet</p>

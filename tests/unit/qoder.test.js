@@ -32,11 +32,11 @@ const parseExpiry = QoderService.parseExpiry;
 
 describe("QODER_MODEL_MAP", () => {
   it("allows Qoder's latest model key", () => {
-    expect(QODER_MODEL_MAP.qmodel_latest).toBe("qmodel_latest");
+    expect(QODER_MODEL_MAP.qmodel_38max).toBe("qmodel_38max");
   });
 
-  it("exposes Qoder's latest model in the static provider catalog", () => {
-    expect(PROVIDER_MODELS.qd.some((model) => model.id === "qmodel_latest")).toBe(true);
+  it("exposes Qoder's recommended model in the static provider catalog", () => {
+    expect(PROVIDER_MODELS.qd.some((model) => model.id === "qmodel_38max")).toBe(true);
   });
 });
 

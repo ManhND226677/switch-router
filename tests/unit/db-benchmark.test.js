@@ -29,7 +29,7 @@ beforeAll(async () => {
   tempSqlite = fs.mkdtempSync(path.join(os.tmpdir(), "9router-bench-sqlite-"));
   process.env.DATA_DIR = tempSqlite;
   vi.resetModules();
-  sqliteDb = await import("@/lib/db/index.js");
+  sqliteDb = await import("../../src/lib/db/index.js");
   await sqliteDb.initDb();
 
   // Lowdb setup — direct lowdb usage (mimics legacy behavior)

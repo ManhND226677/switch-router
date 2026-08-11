@@ -24,7 +24,7 @@ function ModelItem({ index, model, isFirst, isLast, onEdit, onMoveUp, onMoveDown
   };
   return (
     <div className="group flex min-w-0 items-center gap-1.5 rounded-md bg-black/[0.02] px-2 py-1 transition-colors hover:bg-black/[0.04] dark:bg-white/[0.02] dark:hover:bg-white/[0.04]">
-      <span className="text-[10px] font-medium text-text-muted w-3 text-center shrink-0">{index + 1}</span>
+      <span className="text-xs font-medium text-text-muted w-3 text-center shrink-0">{index + 1}</span>
       {editing ? (
         <input autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={handleKeyDown}
           className="min-w-0 flex-1 rounded border border-primary/40 bg-white px-1.5 py-0.5 font-mono text-xs text-text-main outline-none dark:bg-black/20" />
@@ -35,15 +35,15 @@ function ModelItem({ index, model, isFirst, isLast, onEdit, onMoveUp, onMoveDown
       <div className="flex shrink-0 items-center gap-0.5">
         <button onClick={onMoveUp} disabled={isFirst}
           className={`p-0.5 rounded ${isFirst ? "text-text-muted/20 cursor-not-allowed" : "text-text-muted hover:text-primary hover:bg-black/5 dark:hover:bg-white/5"}`} title="Move up">
-          <span className="material-symbols-outlined text-[12px]">arrow_upward</span>
+          <span className="material-symbols-outlined text-xs">arrow_upward</span>
         </button>
         <button onClick={onMoveDown} disabled={isLast}
           className={`p-0.5 rounded ${isLast ? "text-text-muted/20 cursor-not-allowed" : "text-text-muted hover:text-primary hover:bg-black/5 dark:hover:bg-white/5"}`} title="Move down">
-          <span className="material-symbols-outlined text-[12px]">arrow_downward</span>
+          <span className="material-symbols-outlined text-xs">arrow_downward</span>
         </button>
       </div>
       <button onClick={onRemove} className="p-0.5 hover:bg-red-500/10 rounded text-text-muted hover:text-red-500 transition-all" title="Remove">
-        <span className="material-symbols-outlined text-[12px]">close</span>
+        <span className="material-symbols-outlined text-xs">close</span>
       </button>
     </div>
   );
@@ -121,12 +121,12 @@ export default function ComboFormModal({ isOpen, combo, onClose, onSave, activeP
                   <input value={name} onChange={handleNameChange} placeholder="my-combo"
                     className="flex-1 min-w-0 rounded-r border border-black/10 dark:border-white/10 bg-white dark:bg-black/20 px-2 py-1.5 font-mono text-sm outline-none focus:border-primary" />
                 </div>
-                {nameError && <p className="text-[11px] text-red-500 mt-0.5">{nameError}</p>}
+                {nameError && <p className="text-xs text-red-500 mt-0.5">{nameError}</p>}
               </>
             ) : (
               <Input label="Combo Name" value={name} onChange={handleNameChange} placeholder="my-combo" error={nameError} />
             )}
-            <p className="text-[10px] text-text-muted mt-0.5">
+            <p className="text-xs text-text-muted mt-0.5">
               {forcePrefix ? `Auto-prefixed with "${forcePrefix}". ` : ""}Only letters, numbers, -, _ and . allowed
             </p>
           </div>
@@ -152,7 +152,7 @@ export default function ComboFormModal({ isOpen, combo, onClose, onSave, activeP
             )}
             <button onClick={() => setShowModelSelect(true)}
               className="w-full mt-2 py-2 border border-dashed border-black/10 dark:border-white/10 rounded-lg text-xs text-primary font-medium hover:text-primary hover:border-primary/50 transition-colors flex items-center justify-center gap-1">
-              <span className="material-symbols-outlined text-[16px]">add</span>
+              <span className="material-symbols-outlined text-base">add</span>
               Add Model
             </button>
           </div>

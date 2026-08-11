@@ -7,9 +7,9 @@ describe("capabilitiesFromServiceKind", () => {
     expect(capabilitiesFromServiceKind("imageToText")).toMatchObject({ vision: true });
   });
 
-  it("maps media output/input custom model kinds to runtime capabilities", () => {
-    expect(capabilitiesFromServiceKind("image")).toMatchObject({ imageOutput: true });
-    expect(capabilitiesFromServiceKind("stt")).toMatchObject({ audioInput: true });
-    expect(capabilitiesFromServiceKind("tts")).toMatchObject({ audioOutput: true });
+  it("returns null for unsupported media kinds", () => {
+    expect(capabilitiesFromServiceKind("image")).toBeNull();
+    expect(capabilitiesFromServiceKind("stt")).toBeNull();
+    expect(capabilitiesFromServiceKind("tts")).toBeNull();
   });
 });

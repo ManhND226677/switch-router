@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { ensureDirs, DATA_FILE } from "./paths.js";
 
 // Use global to survive Next.js dev hot-reload (module state resets on reload)
@@ -70,6 +72,22 @@ async function initAdapter() {
 
   const { runMigrationOnce } = await import("./migrate.js");
   await runMigrationOnce(adapter);
+
+  // Driver lock: record which driver is active and warn if it changed, since switching
+  // (e.g. into sql.js) can silently lose uncheckpointed WAL transactions.
+  try {
+    const markerPath = path.join(path.dirname(DATA_FILE), ".db-driver");
+    const prev = fs.existsSync(markerPath) ? fs.readFileSync(markerPath, "utf8").trim() : null;
+    if (prev && prev !== adapter.driver) {
+      console.warn(
+        `[DB] Driver changed from '${prev}' to '${adapter.driver}'. ` +
+        `If '${prev}' left uncheckpointed WAL transactions, they are not visible to ` +
+        `'${adapter.driver}' (sql.js ignores -wal/-shm) and may be lost.`
+      );
+    }
+    fs.writeFileSync(markerPath, adapter.driver);
+  } catch {}
+
   return adapter;
 }
 

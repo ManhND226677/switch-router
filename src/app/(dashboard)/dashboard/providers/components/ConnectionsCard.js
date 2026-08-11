@@ -127,9 +127,9 @@ function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMov
           </div>
           {hasAnyProxy && (
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <span className="text-[11px] text-text-muted truncate max-w-[420px]" title={proxyDisplayText}>{proxyDisplayText}</span>
-              {maskedProxyUrl && <code className="text-[10px] font-mono bg-black/5 dark:bg-white/5 px-1 py-0.5 rounded text-text-muted">{maskedProxyUrl}</code>}
-              {noProxyText && <span className="text-[11px] text-text-muted truncate max-w-[320px]" title={noProxyText}>no_proxy: {noProxyText}</span>}
+              <span className="text-xs text-text-muted truncate max-w-[420px]" title={proxyDisplayText}>{proxyDisplayText}</span>
+              {maskedProxyUrl && <code className="text-xs font-mono bg-black/5 dark:bg-white/5 px-1 py-0.5 rounded text-text-muted">{maskedProxyUrl}</code>}
+              {noProxyText && <span className="text-xs text-text-muted truncate max-w-[320px]" title={noProxyText}>no_proxy: {noProxyText}</span>}
             </div>
           )}
         </div>
@@ -143,8 +143,8 @@ function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMov
                 className={`flex flex-col items-center px-2 py-1 rounded hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${hasAnyProxy ? "text-primary" : "text-text-muted hover:text-primary"}`}
                 disabled={updatingProxy}
               >
-                <span className="material-symbols-outlined text-[18px]">{updatingProxy ? "progress_activity" : "lan"}</span>
-                <span className="text-[10px] leading-tight">Proxy</span>
+                <span className="material-symbols-outlined text-lg">{updatingProxy ? "progress_activity" : "lan"}</span>
+                <span className="text-xs leading-tight">Proxy</span>
               </button>
               {showProxyDropdown && (
                 <div className="absolute right-0 top-full mt-1 z-50 bg-bg border border-border rounded-lg shadow-lg py-1 min-w-[160px]">
@@ -157,12 +157,12 @@ function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMov
             </div>
           )}
           <button onClick={onEdit} className="flex flex-col items-center px-2 py-1 rounded hover:bg-black/5 dark:hover:bg-white/5 text-text-muted hover:text-primary">
-            <span className="material-symbols-outlined text-[18px]">edit</span>
-            <span className="text-[10px] leading-tight">Edit</span>
+            <span className="material-symbols-outlined text-lg">edit</span>
+            <span className="text-xs leading-tight">Edit</span>
           </button>
           <button onClick={onDelete} className="flex flex-col items-center px-2 py-1 rounded hover:bg-red-500/10 text-red-500">
-            <span className="material-symbols-outlined text-[18px]">delete</span>
-            <span className="text-[10px] leading-tight">Delete</span>
+            <span className="material-symbols-outlined text-lg">delete</span>
+            <span className="text-xs leading-tight">Delete</span>
           </button>
         </div>
         <Toggle size="sm" checked={connection.isActive ?? true} onChange={onToggleActive} title={(connection.isActive ?? true) ? "Disable" : "Enable"} />

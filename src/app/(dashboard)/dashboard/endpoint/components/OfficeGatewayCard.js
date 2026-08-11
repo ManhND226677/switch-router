@@ -46,36 +46,6 @@ export default function OfficeGatewayCard({ origin, enabled, allowlistCount, cop
           />
         </div>
       )}
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border border-border-subtle bg-surface-2 p-3">
-          <p className="text-xs uppercase tracking-wide text-text-muted">Authentication</p>
-          <p className="mt-1 text-sm leading-6 text-text-main">
-            Always requires a Switch-Router API key, even when <code className="font-mono text-xs">Require API key</code> is off.
-            Send it as <code className="font-mono text-xs">x-api-key</code>.
-          </p>
-        </div>
-        <div className="rounded-lg border border-border-subtle bg-surface-2 p-3">
-          <p className="text-xs uppercase tracking-wide text-text-muted">Allowed origin</p>
-          <p className="mt-1 font-mono text-sm text-text-main">https://pivot.claude.ai</p>
-          <p className="mt-1 text-xs text-text-muted">
-            {allowlistCount > 0
-              ? `Model catalog restricted to ${allowlistCount} explicit ID(s) via OFFICE_MODEL_IDS.`
-              : "No OFFICE_MODEL_IDS allowlist — Claude-named models from the catalog are exposed."}
-          </p>
-        </div>
-      </div>
-
-      <div className="rounded-lg border border-border-subtle bg-surface-2 p-4">
-        <p className="text-sm font-medium text-text-main">Reachable from Microsoft 365?</p>
-        <p className="mt-1 text-sm leading-6 text-text-muted">
-          Claude for M365 calls the gateway from the internet, so a loopback URL is not enough.
-          Terminate HTTPS on a reverse proxy and map <code className="font-mono text-xs">/v1/models</code> and{" "}
-          <code className="font-mono text-xs">/v1/messages</code> onto the <code className="font-mono text-xs">/office/v1</code> paths above,
-          with response buffering disabled so streaming works. Setup steps live in{" "}
-          <code className="font-mono text-xs">docs/CLAUDE-OFFICE.vi.md</code>.
-        </p>
-      </div>
     </div>
   );
 }

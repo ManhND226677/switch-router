@@ -240,14 +240,14 @@ export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, 
           <div className="min-w-0">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <h3 className="font-medium text-sm">{tool.name}</h3>
-              {configStatus === "configured" && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-green-500/10 text-green-600 dark:text-green-400 rounded-full">Connected</span>}
-              {configStatus === "not_configured" && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 rounded-full">Not configured</span>}
-              {configStatus === "other" && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-full">Other</span>}
+              {configStatus === "configured" && <span className="px-1.5 py-0.5 text-xs font-medium bg-green-500/10 text-green-600 dark:text-green-400 rounded-full">Connected</span>}
+              {configStatus === "not_configured" && <span className="px-1.5 py-0.5 text-xs font-medium bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 rounded-full">Not configured</span>}
+              {configStatus === "other" && <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-full">Other</span>}
             </div>
             <p className="text-xs text-text-muted truncate">{tool.description}</p>
           </div>
         </div>
-        <span className={`material-symbols-outlined text-text-muted text-[20px] transition-transform ${isExpanded ? "rotate-180" : ""}`}>expand_more</span>
+        <span className={`material-symbols-outlined text-text-muted text-xl transition-transform ${isExpanded ? "rotate-180" : ""}`}>expand_more</span>
       </div>
 
       {isExpanded && (
@@ -271,11 +271,11 @@ export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, 
                 </div>
                 <div className="flex items-center gap-2 pl-9">
                   <Button variant="secondary" size="sm" onClick={() => setShowManualConfigModal(true)} className="!bg-yellow-500/20 !border-yellow-500/40 !text-yellow-700 dark:!text-yellow-300 hover:!bg-yellow-500/30">
-                    <span className="material-symbols-outlined text-[18px] mr-1">content_copy</span>
+                    <span className="material-symbols-outlined text-lg mr-1">content_copy</span>
                     Manual Config
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => setShowInstallGuide(!showInstallGuide)}>
-                    <span className="material-symbols-outlined text-[18px] mr-1">{showInstallGuide ? "expand_less" : "help"}</span>
+                    <span className="material-symbols-outlined text-lg mr-1">{showInstallGuide ? "expand_less" : "help"}</span>
                     {showInstallGuide ? "Hide" : "How to Install"}
                   </Button>
                 </div>
@@ -302,7 +302,7 @@ export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, 
                 {/* Endpoint (selector) */}
                 <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr] sm:items-center sm:gap-2">
                   <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">Select Endpoint</span>
-                  <span className="material-symbols-outlined hidden text-text-muted text-[14px] sm:inline">arrow_forward</span>
+                  <span className="material-symbols-outlined hidden text-text-muted text-sm sm:inline">arrow_forward</span>
                   <BaseUrlSelect
                     value={customBaseUrl || getDisplayUrl()}
                     onChange={setCustomBaseUrl}
@@ -313,7 +313,7 @@ export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, 
                 {configuredProvider?.options?.baseURL && (
                   <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr_auto] sm:items-center sm:gap-2">
                     <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">Current</span>
-                    <span className="material-symbols-outlined hidden text-text-muted text-[14px] sm:inline">arrow_forward</span>
+                    <span className="material-symbols-outlined hidden text-text-muted text-sm sm:inline">arrow_forward</span>
                     <span className="min-w-0 truncate rounded bg-surface/40 px-2 py-2 text-xs text-text-muted sm:py-1.5">
                       {configuredProvider.options.baseURL}
                     </span>
@@ -323,14 +323,14 @@ export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, 
                 {/* API Key */}
                 <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr_auto] sm:items-center sm:gap-2">
                   <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">API Key</span>
-                  <span className="material-symbols-outlined hidden text-text-muted text-[14px] sm:inline">arrow_forward</span>
+                  <span className="material-symbols-outlined hidden text-text-muted text-sm sm:inline">arrow_forward</span>
                   <ApiKeySelect value={selectedApiKey} onChange={setSelectedApiKey} apiKeys={apiKeys} />
                 </div>
 
                 {/* Models */}
                 <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr] sm:items-start sm:gap-2">
                   <span className="w-32 shrink-0 text-sm font-semibold text-text-main text-right pt-1">Models</span>
-                  <span className="material-symbols-outlined text-text-muted text-[14px] mt-1.5">arrow_forward</span>
+                  <span className="material-symbols-outlined text-text-muted text-sm mt-1.5">arrow_forward</span>
                   <div className="flex-1 flex flex-col gap-2">
                     <div className="flex flex-wrap gap-1.5 min-h-[28px] px-2 py-1.5 bg-surface rounded border border-border">
                       {selectedModels.length === 0 ? (
@@ -365,7 +365,7 @@ export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, 
                             }`}
                             title={model === activeModel ? "Click to clear active model" : "Click to set as active"}
                           >
-                            {model === activeModel && <span className="material-symbols-outlined text-[10px]">star</span>}
+                            {model === activeModel && <span className="material-symbols-outlined text-xs">star</span>}
                             {model}
                             <button
                               onClick={async (e) => {
@@ -386,7 +386,7 @@ export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, 
                               }}
                               className="ml-0.5 hover:text-red-500"
                             >
-                              <span className="material-symbols-outlined text-[12px]">close</span>
+                              <span className="material-symbols-outlined text-xs">close</span>
                             </button>
                           </span>
                         ))
@@ -410,7 +410,7 @@ export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, 
                 {/* Subagent Model */}
                 <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr_auto] sm:items-center sm:gap-2">
                   <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">Subagent Model</span>
-                  <span className="material-symbols-outlined hidden text-text-muted text-[14px] sm:inline">arrow_forward</span>
+                  <span className="material-symbols-outlined hidden text-text-muted text-sm sm:inline">arrow_forward</span>
                   <input
                     type="text"
                     value={subagentModel}
@@ -431,7 +431,7 @@ export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, 
                       className="p-1 text-text-muted hover:text-red-500 rounded transition-colors"
                       title="Clear (will use main model)"
                     >
-                      <span className="material-symbols-outlined text-[14px]">close</span>
+                      <span className="material-symbols-outlined text-sm">close</span>
                     </button>
                   )}
                 </div>
@@ -439,20 +439,20 @@ export default function OpenCodeToolCard({ tool, isExpanded, onToggle, baseUrl, 
 
               {message && (
                 <div className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs ${message.type === "success" ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-600"}`}>
-                  <span className="material-symbols-outlined text-[14px]">{message.type === "success" ? "check_circle" : "error"}</span>
+                  <span className="material-symbols-outlined text-sm">{message.type === "success" ? "check_circle" : "error"}</span>
                   <span>{message.text}</span>
                 </div>
               )}
 
               <div className="grid grid-cols-1 gap-2 sm:flex sm:items-center">
                 <Button variant="primary" size="sm" onClick={handleApply} disabled={selectedModels.length === 0} loading={applying}>
-                  <span className="material-symbols-outlined text-[14px] mr-1">save</span>Apply
+                  <span className="material-symbols-outlined text-sm mr-1">save</span>Apply
                 </Button>
                 <Button variant="outline" size="sm" onClick={handleReset} disabled={!status.hasSwitchRouter} loading={restoring}>
-                  <span className="material-symbols-outlined text-[14px] mr-1">restore</span>Reset
+                  <span className="material-symbols-outlined text-sm mr-1">restore</span>Reset
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setShowManualConfigModal(true)}>
-                  <span className="material-symbols-outlined text-[14px] mr-1">content_copy</span>Manual Config
+                  <span className="material-symbols-outlined text-sm mr-1">content_copy</span>Manual Config
                 </Button>
               </div>
             </>

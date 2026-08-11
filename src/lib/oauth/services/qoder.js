@@ -18,7 +18,7 @@ import { v4 as uuidv4 } from "uuid";
  * Tokens live ~30 days; refresh is a no-op (the upstream refresh endpoint
  * returns 403 for our flow). Users re-run login when expired.
  *
- * Mirrors the structure of KiroService — the COSY signing / WAF-bypass body
+ * Mirrors the structure of standard OAuth services — the COSY signing / WAF-bypass body
  * encoding / chat protocol live separately in src/lib/qoder/ because they're
  * used by every signed request, not just OAuth.
  */

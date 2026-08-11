@@ -4,6 +4,7 @@ import { stripThinkingSuffix } from "../translator/concerns/thinkingUnified.js";
 import { FORMATS } from "../translator/formats.js";
 import { normalizeClaudePassthrough } from "../translator/formats/claude.js";
 import { createStreamController } from "../utils/streamHandler.js";
+import { acquireUpstreamSlot, releaseUpstreamSlot, getUpstreamInFlight, getUpstreamConcurrencyLimit } from "../utils/upstreamConcurrency.js";
 import { refreshWithRetry } from "../services/tokenRefresh.js";
 import { createRequestLogger } from "../utils/requestLogger.js";
 import { getModelTargetFormat, getModelStrip, getModelUpstreamId, getModelType, PROVIDER_ID_TO_ALIAS } from "../config/providerModels.js";
@@ -11,8 +12,8 @@ import { PROVIDERS } from "../config/providers.js";
 import { createErrorResult, parseUpstreamError, formatProviderError } from "../utils/error.js";
 import { HTTP_STATUS, TOKEN_SAVER_HEADER, LEGACY_TOKEN_SAVER_HEADER } from "../config/runtimeConfig.js";
 import { handleBypassRequest } from "../utils/bypassHandler.js";
-import { trackPendingRequest, appendRequestLog, saveRequestDetail } from "@/lib/usageDb.js";
-import { getProviderAdapter } from "@/core/providers/providerAdapter.js";
+import { trackPendingRequest, appendRequestLog, saveRequestDetail } from "../../src/lib/usageDb.js";
+import { getProviderAdapter } from "../../src/core/providers/providerAdapter.js";
 import { supportsGrokCliReasoningEffort } from "../config/grokCli.js";
 import { buildRequestDetail, extractRequestConfig } from "./chatCore/requestDetail.js";
 import { handleForcedSSEToJson } from "./chatCore/sseToJsonHandler.js";
@@ -37,7 +38,7 @@ import { resolveSessionId } from "../utils/sessionManager.js";
  * @param {object} options.credentials - Provider credentials
  * @param {string} options.sourceFormatOverride - Override detected source format (e.g. "openai-responses")
  */
-export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled, pxpipeMinChars, pxpipeTimeoutMs, pxpipeTransform, onPxpipeEvent, sourceFormatOverride, providerThinking }) {
+export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled, pxpipeMinChars, pxpipeTimeoutMs, pxpipeTransform, onPxpipeEvent, sourceFormatOverride, providerThinking, preserveClientPayload = false }) {
   const { provider, model } = modelInfo;
   const requestStartTime = Date.now();
   // Stable per-session color so all lines of one CLI conversation share a tag
@@ -62,12 +63,14 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   const runtimeTransport = resolveTransport(provider, sourceFormat);
   const targetFormat = modelTargetFormat || runtimeTransport?.format || getTargetFormat(provider);
   if (runtimeTransport && credentials) credentials.runtimeTransport = runtimeTransport;
-  const stripList = getModelStrip(alias, model);
+  // The Office gateway receives already-curated task-pane context. Protocol
+  // conversion remains necessary, but optional content removal is forbidden.
+  const stripList = preserveClientPayload ? [] : getModelStrip(alias, model);
   const upstreamModel = getModelUpstreamId(alias, model);
 
   // Inject provider-level thinking config override (only if client hasn't set)
   // on/off → extended type (body.thinking), none/low/medium/high → effort type (body.reasoning_effort)
-  if (providerThinking?.mode && providerThinking.mode !== "auto") {
+  if (!preserveClientPayload && providerThinking?.mode && providerThinking.mode !== "auto") {
     const mode = providerThinking.mode;
     if (mode === "on" && !body.thinking) {
       console.log("Injecting provider-level thinking config override: on");
@@ -105,7 +108,11 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     stream = false;
   }
 
-  const reqLogger = await createRequestLogger(sourceFormat, targetFormat, model);
+  // Office requests may contain document and slide content. Never write their
+  // raw request/provider/response bodies even if global request logging is on.
+  const reqLogger = await createRequestLogger(sourceFormat, targetFormat, model, {
+    disableContent: preserveClientPayload,
+  });
   if (clientRawRequest) reqLogger.logClientRawRequest(clientRawRequest.endpoint, clientRawRequest.body, clientRawRequest.headers);
   reqLogger.logRawRequest(body);
   log?.debug?.("FORMAT", `${sourceFormat} → ${targetFormat} | stream=${stream}`);
@@ -119,7 +126,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   if (credentials) credentials.rawHeaders = clientRawRequest?.headers || {};
 
   // Auto-strip media blocks the model can't read (vision/audio/pdf) before translation.
-  if (!passthrough) {
+  if (!passthrough && !preserveClientPayload) {
     const caps = getCapabilitiesForModel(provider, model);
     if (stripUnsupportedModalities(body, sourceFormat, caps)) {
       log?.debug?.("MODALITY", `stripped unsupported media for ${provider}/${model}`);
@@ -150,7 +157,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   }
 
   // Dedupe duplicate built-in tools when equivalent MCP tools are present (Claude clients only).
-  if (clientTool === "claude" && Array.isArray(translatedBody.tools)) {
+  if (!preserveClientPayload && clientTool === "claude" && Array.isArray(translatedBody.tools)) {
     const { tools: deduped, stripped } = dedupeTools(translatedBody.tools);
     if (stripped.length > 0) {
       translatedBody.tools = deduped;
@@ -183,19 +190,15 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     log.line(reqTag, "▶", parts.join(" · "));
   }
 
-  // TTS models don't support tool messages/function calling
-  if (getModelType(alias, model) === "tts" && translatedBody.messages) {
-    translatedBody.messages = translatedBody.messages.filter(msg => msg.role !== "tool");
-    delete translatedBody.tools;
-  }
-
   // Per-request opt-out: client can bypass all token savers via header
   const tokenSaverHeader = clientRawRequest?.headers?.[TOKEN_SAVER_HEADER]
     ?? clientRawRequest?.headers?.[LEGACY_TOKEN_SAVER_HEADER];
   const tokenSaverEnabled = tokenSaverHeader?.toLowerCase() !== "off";
 
   // RTK: compress tool_result content
-  const rtkStats = compressMessages(translatedBody, tokenSaverEnabled && rtkEnabled);
+  const rtkStats = !preserveClientPayload && tokenSaverEnabled && rtkEnabled
+    ? compressMessages(translatedBody, true)
+    : null;
   const rtkLine = formatRtkLog(rtkStats);
   if (rtkLine) console.log(rtkLine);
 
@@ -203,20 +206,20 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   const xf = [];
 
   // Caveman: inject terse-style system prompt
-  if (tokenSaverEnabled && cavemanEnabled && cavemanLevel) {
+  if (!preserveClientPayload && tokenSaverEnabled && cavemanEnabled && cavemanLevel) {
     injectCaveman(translatedBody, finalFormat, cavemanLevel);
     xf.push(`CAVEMAN:${cavemanLevel}`);
   }
 
   // Ponytail: inject lazy-senior-dev system prompt
-  if (tokenSaverEnabled && ponytailEnabled && ponytailLevel) {
+  if (!preserveClientPayload && tokenSaverEnabled && ponytailEnabled && ponytailLevel) {
     injectPonytail(translatedBody, finalFormat, ponytailLevel);
     xf.push(`PONYTAIL:${ponytailLevel}`);
   }
 
   // PXPIPE: image bulky context (Claude-format bodies only), last saver before dispatch
   let pxpipeSummary = null;
-  if (pxpipeEnabled) {
+  if (!preserveClientPayload && pxpipeEnabled) {
     const pxpipeResult = await compressWithPxpipe(translatedBody, {
       enabled: true, format: finalFormat, model: upstreamModel,
       minChars: pxpipeMinChars, timeoutMs: pxpipeTimeoutMs, transform: pxpipeTransform,
@@ -275,6 +278,12 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   // Execute request
   let providerResponse, providerUrl, providerHeaders, finalBody;
+  // C5: optional hard cap on concurrent upstream requests (default off).
+  if (!acquireUpstreamSlot()) {
+    const msg = `Upstream concurrency limit reached (${getUpstreamInFlight()}/${getUpstreamConcurrencyLimit()})`;
+    log?.warn?.("CONCURRENCY", msg);
+    return createErrorResult(HTTP_STATUS.RATE_LIMITED, msg);
+  }
   try {
     const result = await providerAdapter.execute({ model, body: translatedBody, stream, credentials, signal: streamController.signal, log, proxyOptions });
     providerResponse = result.response;
@@ -305,6 +314,10 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       log.errorLine(reqTag, "✗", `ERROR 502 · ${provider}/${model} · ${Date.now() - requestStartTime}ms\n    ${errMsg}${error.stack ? `\n    ${error.stack}` : ""}`);
     }
     return createErrorResult(HTTP_STATUS.BAD_GATEWAY, errMsg);
+  } finally {
+    // Release the concurrency slot once the upstream request is settled
+    // (initiated). Kept intentionally simple — see upstreamConcurrency.js.
+    releaseUpstreamSlot();
   }
 
   // Handle 401/403 - try token refresh (skip for noAuth providers)

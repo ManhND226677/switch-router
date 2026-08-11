@@ -24,7 +24,10 @@ export default function ModelAvailabilityBadge() {
   const [expanded, setExpanded] = useState(false);
   const [clearing, setClearing] = useState(null);
   const ref = useRef(null);
-  const notify = useNotificationStore();
+  // Selector từng action — subscribe cả store sẽ khiến component re-render
+  // mỗi khi có toast bất kỳ trên trang.
+  const notifySuccess = useNotificationStore((s) => s.success);
+  const notifyError = useNotificationStore((s) => s.error);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -65,13 +68,13 @@ export default function ModelAvailabilityBadge() {
         body: JSON.stringify({ action: "clearCooldown", provider, model }),
       });
       if (res.ok) {
-        notify.success(`Cooldown cleared for ${model}`);
+        notifySuccess(`Cooldown cleared for ${model}`);
         await fetchStatus();
       } else {
-        notify.error("Failed to clear cooldown");
+        notifyError("Failed to clear cooldown");
       }
     } catch {
-      notify.error("Failed to clear cooldown");
+      notifyError("Failed to clear cooldown");
     } finally {
       setClearing(null);
     }
@@ -94,28 +97,30 @@ export default function ModelAvailabilityBadge() {
 
   return (
     <div className="relative" ref={ref}>
-      {/* <button
-        onClick={() => setExpanded(!expanded)}
-        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+      <button
+        type="button"
+        onClick={() => setExpanded((value) => !value)}
+        className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
           isHealthy
-            ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500 hover:bg-emerald-500/15"
-            : "bg-amber-500/10 border-amber-500/20 text-amber-500 hover:bg-amber-500/15"
+            ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/15"
+            : "border-amber-500/20 bg-amber-500/10 text-amber-500 hover:bg-amber-500/15"
         }`}
+        aria-expanded={expanded}
       >
-        <span className="material-symbols-outlined text-[14px]">
+        <span className="material-symbols-outlined text-sm">
           {isHealthy ? "verified" : "warning"}
         </span>
         {isHealthy
           ? "All models operational"
           : `${unavailableCount} model${unavailableCount !== 1 ? "s" : ""} with issues`}
-      </button> */}
+      </button>
 
       {expanded && (
         <div className="absolute top-full right-0 mt-2 w-80 bg-surface border border-border rounded-xl shadow-2xl z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-bg">
             <div className="flex items-center gap-2">
               <span
-                className="material-symbols-outlined text-[16px]"
+                className="material-symbols-outlined text-base"
                 style={{ color: isHealthy ? "#22c55e" : "#f59e0b" }}
               >
                 {isHealthy ? "verified" : "warning"}
@@ -127,7 +132,7 @@ export default function ModelAvailabilityBadge() {
               className="p-1 rounded-lg hover:bg-surface text-text-muted hover:text-text-main transition-colors"
               title="Refresh"
             >
-              <span className="material-symbols-outlined text-[14px]">refresh</span>
+              <span className="material-symbols-outlined text-sm">refresh</span>
             </button>
           </div>
 
@@ -152,7 +157,7 @@ export default function ModelAvailabilityBadge() {
                           >
                             <div className="flex items-center gap-1.5 min-w-0">
                               <span
-                                className="material-symbols-outlined text-[14px] shrink-0"
+                                className="material-symbols-outlined text-sm shrink-0"
                                 style={{ color: status.color }}
                               >
                                 {status.icon}
@@ -165,7 +170,7 @@ export default function ModelAvailabilityBadge() {
                                 variant="ghost"
                                 onClick={() => handleClearCooldown(m.provider, m.model)}
                                 disabled={isClearing}
-                                className="text-[10px] px-1.5! py-0.5! ml-2"
+                                className="text-xs px-1.5! py-0.5! ml-2"
                               >
                                 {isClearing ? "..." : "Clear"}
                               </Button>

@@ -3,16 +3,22 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Unit tests for the Switch-Router embeddings endpoint",
+  "description": "Test suite for Switch-Router (translator, providers, db, handlers)",
   "scripts": {
-    "test": "NODE_PATH=/tmp/node_modules /tmp/node_modules/.bin/vitest run --reporter=verbose",
-    "test:watch": "NODE_PATH=/tmp/node_modules /tmp/node_modules/.bin/vitest --reporter=verbose"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:fast": "vitest run --exclude=\"**/node_modules/**\" --exclude=\"**/db-benchmark.test.js\" --exclude=\"**/db-concurrent.test.js\" --exclude=\"**/performance-observability.test.js\" --exclude=\"**/*.live.test.js\" --exclude=\"**/*.real.test.js\"",
+    "test:live": "vitest run --reporter=verbose tests/translator/real",
+    "test:bench": "vitest run --reporter=verbose unit/db-benchmark.test.js unit/db-concurrent.test.js unit/performance-observability.test.js",
+    "test:report": "vitest run --exclude=\"**/node_modules/**\" --exclude=\"**/db-benchmark.test.js\" --exclude=\"**/db-concurrent.test.js\" --exclude=\"**/performance-observability.test.js\" --exclude=\"**/*.live.test.js\" --exclude=\"**/*.real.test.js\" --reporter=dot --reporter=json --outputFile=.vitest-reports/current-results.json",
+    "gate": "node ../scripts/qa-gate.mjs",
+    "profile": "node ../scripts/qa-profile.mjs .vitest-reports/current-results.json"
   },
   "devDependencies": {
     "lowdb": "^7.0.1",
     "vitest": "^4.0.0"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=24"
   }
 }

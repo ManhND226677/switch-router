@@ -67,11 +67,7 @@ export default {
     { id: "grok-code-fast-1", name: "Grok Code Fast 1" },
     { id: "oswe-vscode-prime", name: "Raptor Mini" },
     { id: "goldeneye-free-auto", name: "GoldenEye" },
-    { id: "text-embedding-3-small", name: "Text Embedding 3 Small (GitHub)", kind: "embedding" },
-    { id: "text-embedding-3-large", name: "Text Embedding 3 Large (GitHub)", kind: "embedding" },
   ],
-  serviceKinds: ["llm","embedding"],
-  embeddingConfig: { baseUrl: "https://models.github.ai/inference/embeddings", authType: "apikey", authHeader: "bearer" },
   oauth: {
     clientId: "Iv1.b507a08c87ecfe98",
     authorizeUrl: "https://github.com/login/oauth/authorize",

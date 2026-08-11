@@ -43,7 +43,6 @@ export default function ProviderLimitCard({
       github: "#000000",
       antigravity: "#4285F4",
       codex: "#10A37F",
-      kiro: "#FF9900",
       qoder: "#EC4899",
       claude: "#D97757",
     };
@@ -96,7 +95,7 @@ export default function ProviderLimitCard({
           title="Refresh quota"
         >
           <span
-            className={`material-symbols-outlined text-[20px] text-text-muted ${
+            className={`material-symbols-outlined text-xl text-text-muted ${
               refreshing || loading ? "animate-spin" : ""
             }`}
           >
@@ -123,7 +122,7 @@ export default function ProviderLimitCard({
       {!loading && error && (
         <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20">
           <div className="flex items-start gap-2">
-            <span className="material-symbols-outlined text-red-500 text-[20px]">
+            <span className="material-symbols-outlined text-red-500 text-xl">
               error
             </span>
             <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
@@ -135,7 +134,7 @@ export default function ProviderLimitCard({
       {!loading && !error && message && (
         <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
           <div className="flex items-start gap-2">
-            <span className="material-symbols-outlined text-blue-500 text-[20px]">
+            <span className="material-symbols-outlined text-blue-500 text-xl">
               info
             </span>
             <p className="text-sm text-blue-600 dark:text-blue-400">
@@ -175,7 +174,7 @@ export default function ProviderLimitCard({
       {/* Empty State */}
       {!loading && !error && !message && quotas?.length === 0 && (
         <div className="text-center py-8 text-text-muted">
-          <span className="material-symbols-outlined text-[48px] opacity-20">
+          <span className="material-symbols-outlined text-5xl opacity-20">
             data_usage
           </span>
           <p className="text-sm mt-2">No quota data available</p>

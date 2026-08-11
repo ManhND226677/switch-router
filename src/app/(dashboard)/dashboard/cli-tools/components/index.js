@@ -4,4 +4,5 @@ export { default as OpenClawToolCard } from "./OpenClawToolCard";
 export { default as HermesToolCard } from "./HermesToolCard";
 export { default as OpenCodeToolCard } from "./OpenCodeToolCard";
 export { default as CoworkToolCard } from "./CoworkToolCard";
+export { default as AizenToolCard } from "./AizenToolCard";
 export { default as BaseUrlSelect } from "./BaseUrlSelect";

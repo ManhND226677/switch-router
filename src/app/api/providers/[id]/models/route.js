@@ -6,11 +6,10 @@ import { refreshGoogleToken, updateProviderCredentials } from "@/sse/services/to
 import { PROVIDERS, resolveOllamaLocalHost } from "open-sse/config/providers.js";
 import { getModelsByProviderId } from "open-sse/config/providerModels.js";
 import { ANTIGRAVITY_IDE_USER_AGENT, ANTIGRAVITY_IDE_VERSION, ANTIGRAVITY_OAUTH_CLIENT } from "open-sse/providers/shared.js";
-import { resolveKimchiModels } from "open-sse/services/kimchiModels.js";
+
 import { resolveQoderModels } from "open-sse/services/qoderModels.js";
 import { resolveGrokCliModels } from "open-sse/services/grokCliModels.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
-import { fetchCavotiModels, getCavotiStaticCatalog } from "open-sse/services/cavoti.js";
 import { fetchStepFunModels } from "@/sse/services/stepfun.js";
 import { resolveVilaoConnectionEndpoint, VILAO_MODELS_PATH } from "open-sse/providers/vilao.js";
 
@@ -237,22 +236,6 @@ const PROVIDER_MODELS_CONFIG = {
   },
   openai: createOpenAIModelsConfig("https://api.openai.com/v1/models"),
   openrouter: createOpenAIModelsConfig("https://openrouter.ai/api/v1/models"),
-  cavoti: {
-    customResolver: async (connection) => {
-      try {
-        const result = await fetchCavotiModels(connection);
-        return {
-          models: result.models?.length ? result.models : getCavotiStaticCatalog(),
-          ...(result.warning ? { warning: result.warning } : {}),
-        };
-      } catch (error) {
-        return {
-          models: getCavotiStaticCatalog(),
-          warning: `Failed to fetch Cavoti models: ${error.message}`,
-        };
-      }
-    },
-  },
   stepfun: {
     customResolver: async (connection) => {
       const result = await fetchStepFunModels(connection);

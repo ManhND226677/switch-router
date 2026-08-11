@@ -13,19 +13,12 @@ import { resolveGrokCliModels } from "open-sse/services/grokCliModels.js";
 import { updateProviderCredentials } from "@/sse/services/tokenRefresh";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { capabilitiesFromServiceKind, getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
-import { fetchCavotiModels } from "open-sse/services/cavoti.js";
 import { fetchStepFunModels } from "@/sse/services/stepfun.js";
 
 // Per-provider live model resolvers. Each receives a connection record and
 // returns { models: [{ id, name? }, ...] } | null on failure.
 // Adding a provider here makes /v1/models prefer the live catalog for it.
 const LIVE_MODEL_RESOLVERS = {
-  cavoti: async (conn) => {
-    const result = await fetchCavotiModels(conn);
-    return result?.models?.length
-      ? { models: result.models, warning: result.warning }
-      : null;
-  },
   stepfun: async (conn) => {
     const result = await fetchStepFunModels(conn);
     return result?.models?.length
@@ -107,8 +100,6 @@ const MODEL_TYPE_TO_KIND = {
   embedding: "embedding",
   stt: "stt",
   imageToText: "imageToText",
-  video: "video",
-  realtime: "realtime",
 };
 
 function modelKind(model) {
@@ -354,9 +345,8 @@ export async function buildModelsList(kindFilter, options = {}) {
         rawModelIds = await fetchCompatibleModelIds(conn);
       }
 
-      // Config-driven live catalog override (e.g. Kiro returns dynamic
-      // -thinking/-agentic variants per account). On failure, fall back to
-      // whatever rawModelIds already holds.
+      // Config-driven live catalog override. On failure, fall back to whatever
+      // rawModelIds already holds.
       const liveResolver = LIVE_MODEL_RESOLVERS[providerId];
       if (liveResolver && !hasExplicitEnabledModels) {
         try {
@@ -457,7 +447,7 @@ export async function buildModelsList(kindFilter, options = {}) {
           object: "model",
           owned_by: outputAlias,
         };
-        // Live-catalog resolvers (kiro/qoder/github/clinepass) mostly only return
+        // Live-catalog resolvers (qoder/github/...) mostly only return
         // { id, name } — no per-model capability data. Fall back to the same
         // pattern-matched capabilities the dashboard uses (useModelCaps.js) so
         // dynamically-discovered LLM models still surface vision/reasoning/search/tools.
@@ -471,25 +461,6 @@ export async function buildModelsList(kindFilter, options = {}) {
         if (liveMetadata?.availability) model.availability = liveMetadata.availability;
         if (liveMetadata?.pricing) model.pricing = liveMetadata.pricing;
         models.push(model);
-      }
-
-      // Web search/fetch — provider IS the model, expose as {alias}/search and/or {alias}/fetch with explicit kind
-      const providerInfo = AI_PROVIDERS[providerId];
-      if (kindFilter.includes("webSearch") && providerInfo?.searchConfig) {
-        models.push({
-          id: `${outputAlias}/search`,
-          object: "model",
-          kind: "webSearch",
-          owned_by: outputAlias,
-        });
-      }
-      if (kindFilter.includes("webFetch") && providerInfo?.fetchConfig) {
-        models.push({
-          id: `${outputAlias}/fetch`,
-          object: "model",
-          kind: "webFetch",
-          owned_by: outputAlias,
-        });
       }
     }
   }
@@ -519,8 +490,7 @@ export async function OPTIONS() {
 }
 
 /**
- * GET /v1/models - OpenAI compatible models list (LLM/chat models only by default).
- * For other capabilities use /v1/models/{kind} (image, tts, stt, embedding, image-to-text, web).
+ * GET /v1/models - OpenAI compatible models list (LLM/chat models).
  */
 export async function GET(request) {
   try {
