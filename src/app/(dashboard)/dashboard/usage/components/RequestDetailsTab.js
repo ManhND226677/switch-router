@@ -7,6 +7,7 @@ import Drawer from "@/shared/components/Drawer";
 import Pagination from "@/shared/components/Pagination";
 import { cn } from "@/shared/utils/cn";
 import { AI_PROVIDERS, getProviderByAlias } from "@/shared/constants/providers";
+import { fetchModelNames, getModelName } from "@/shared/utils/modelNames";
 
 let providerNameCache = null;
 let providerNodesCache = null;
@@ -62,11 +63,11 @@ function CollapsibleSection({ title, children, defaultOpen = false, icon = null 
         className="w-full flex items-center justify-between p-3 bg-black/[0.02] dark:bg-white/[0.02] hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition-colors"
       >
         <div className="flex items-center gap-2">
-          {icon && <span className="material-symbols-outlined text-[18px] text-text-muted">{icon}</span>}
+          {icon && <span className="material-symbols-outlined text-lg text-text-muted">{icon}</span>}
           <span className="font-semibold text-sm text-text-main">{title}</span>
         </div>
         <span className={cn(
-          "material-symbols-outlined text-[20px] text-text-muted transition-transform duration-200",
+          "material-symbols-outlined text-xl text-text-muted transition-transform duration-200",
           isOpen ? "rotate-90" : ""
         )}>
           chevron_right
@@ -112,6 +113,7 @@ export default function RequestDetailsTab() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [providers, setProviders] = useState([]);
   const [providerNameCache, setProviderNameCache] = useState(null);
+  const [modelNameCache, setModelNameCache] = useState(null);
   const [filters, setFilters] = useState({
     provider: "",
     startDate: "",
@@ -126,17 +128,22 @@ export default function RequestDetailsTab() {
 
       const cache = await fetchProviderNames();
       setProviderNameCache(cache.providerNameCache);
+
+      const modelCache = await fetchModelNames();
+      setModelNameCache(modelCache);
     } catch (error) {
       console.error("Failed to fetch providers:", error);
     }
   }, []);
 
-  const fetchDetails = useCallback(async () => {
-    setLoading(true);
+  const fetchDetails = useCallback(async (options = {}) => {
+    const silent = options.silent === true;
+    if (!silent) setLoading(true);
     try {
       const params = new URLSearchParams({
         page: pagination.page.toString(),
-        pageSize: pagination.pageSize.toString()
+        pageSize: pagination.pageSize.toString(),
+        _t: Date.now().toString() // Thêm timestamp để bypass hoàn toàn cache trình duyệt / proxy
       });
       if (filters.provider) params.append("provider", filters.provider);
       if (filters.startDate) params.append("startDate", filters.startDate);
@@ -150,7 +157,7 @@ export default function RequestDetailsTab() {
     } catch (error) {
       console.error("Failed to fetch request details:", error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [pagination.page, pagination.pageSize, filters]);
 
@@ -162,6 +169,14 @@ export default function RequestDetailsTab() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on mount; state updates only after the response resolves
     fetchDetails();
+  }, [fetchDetails]);
+
+  // Poll so newly logged requests appear while the tab stays open.
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      fetchDetails({ silent: true });
+    }, 15000);
+    return () => clearInterval(intervalId);
   }, [fetchDetails]);
 
   const handleViewDetail = (detail) => {
@@ -268,16 +283,16 @@ export default function RequestDetailsTab() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="7" className="p-8 text-center text-text-muted">
+                  <td colSpan="9" className="p-8 text-center text-text-muted">
                     <div className="flex items-center justify-center gap-2">
-                      <span className="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>
+                      <span className="material-symbols-outlined animate-spin text-xl">progress_activity</span>
                       Loading...
                     </div>
                   </td>
                 </tr>
               ) : details.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="p-8 text-center text-text-muted">
+                  <td colSpan="9" className="p-8 text-center text-text-muted">
                     No request details found
                   </td>
                 </tr>
@@ -290,8 +305,8 @@ export default function RequestDetailsTab() {
                     <td className="whitespace-nowrap p-4 text-sm text-text-main">
                       {new Date(detail.timestamp).toLocaleString()}
                     </td>
-                    <td className="max-w-[260px] truncate p-4 font-mono text-sm text-text-main">
-                      {detail.model}
+                    <td className="max-w-[260px] truncate p-4 font-mono text-sm text-text-main" title={detail.model}>
+                      {getModelName(detail.model, modelNameCache)}
                     </td>
                     <td className="max-w-[180px] truncate p-4 text-sm text-text-main">
                        <span className="font-medium">
@@ -299,7 +314,7 @@ export default function RequestDetailsTab() {
                        </span>
                      </td>
                     <td className="p-4 text-sm text-text-main text-right font-mono">
-                      {getInputTokens(detail.tokens).toLocaleString()}
+                      {detail.tokens?.estimated ? "~" : ""}{getInputTokens(detail.tokens).toLocaleString()}
                     </td>
                     <td className="p-4 text-sm text-text-main text-right font-mono">
                       {getCachedTokens(detail.tokens) > 0 ? getCachedTokens(detail.tokens).toLocaleString() : "—"}
@@ -308,7 +323,7 @@ export default function RequestDetailsTab() {
                       {getCacheCreationTokens(detail.tokens) > 0 ? getCacheCreationTokens(detail.tokens).toLocaleString() : "—"}
                     </td>
                     <td className="p-4 text-sm text-text-main text-right font-mono">
-                      {detail.tokens?.completion_tokens?.toLocaleString() || 0}
+                      {detail.tokens?.estimated ? "~" : ""}{detail.tokens?.completion_tokens?.toLocaleString() || 0}
                     </td>
                     <td className="p-4 text-sm text-text-muted">
                       <div className="flex flex-col gap-0.5">
@@ -368,7 +383,9 @@ export default function RequestDetailsTab() {
                </div>
               <div>
                 <span className="text-text-muted">Model:</span>{" "}
-                <span className="text-text-main font-mono">{selectedDetail.model}</span>
+                <span className="text-text-main font-mono" title={selectedDetail.model}>
+                  {getModelName(selectedDetail.model, modelNameCache)}
+                </span>
               </div>
               <div>
                 <span className="text-text-muted">Status:</span>{" "}
@@ -388,7 +405,7 @@ export default function RequestDetailsTab() {
               <div>
                 <span className="text-text-muted">Input Tokens:</span>{" "}
                 <span className="text-text-main font-mono">
-                  {getInputTokens(selectedDetail.tokens).toLocaleString()}
+                  {selectedDetail.tokens?.estimated ? "~" : ""}{getInputTokens(selectedDetail.tokens).toLocaleString()}
                 </span>
               </div>
               {getCachedTokens(selectedDetail.tokens) > 0 && (
@@ -410,7 +427,7 @@ export default function RequestDetailsTab() {
               <div>
                 <span className="text-text-muted">Output Tokens:</span>{" "}
                 <span className="text-text-main font-mono">
-                  {selectedDetail.tokens?.completion_tokens?.toLocaleString() || 0}
+                  {selectedDetail.tokens?.estimated ? "~" : ""}{selectedDetail.tokens?.completion_tokens?.toLocaleString() || 0}
                 </span>
               </div>
             </div>
@@ -418,7 +435,7 @@ export default function RequestDetailsTab() {
             {selectedDetail.pxpipe && (
               <div className="rounded-lg border border-black/5 dark:border-white/5 p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="material-symbols-outlined text-[18px] text-text-muted">image</span>
+                  <span className="material-symbols-outlined text-lg text-text-muted">image</span>
                   <span className="font-semibold text-sm text-text-main">PXPIPE</span>
                   <span className={cn(
                     "text-xs px-2 py-0.5 rounded",
@@ -487,7 +504,7 @@ export default function RequestDetailsTab() {
                 {selectedDetail.response?.thinking && (
                   <div className="mb-4">
                     <h4 className="font-semibold text-text-main mb-2 flex items-center gap-2 text-xs uppercase tracking-wide opacity-70">
-                      <span className="material-symbols-outlined text-[16px]">psychology</span>
+                      <span className="material-symbols-outlined text-base">psychology</span>
                       Thinking Process
                     </h4>
                     <pre className="max-h-[200px] max-w-full overflow-auto rounded-lg border border-amber-200 bg-amber-50 p-3 font-mono text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100 sm:p-4">

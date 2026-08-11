@@ -8,7 +8,7 @@ import { FORMATS } from "../formats.js";
 /**
  * Convert Cursor response to OpenAI format
  * Since CursorExecutor.transformProtobufToSSE/JSON already emits OpenAI chunks,
- * this is a passthrough translator (similar to Kiro pattern)
+ * this is a passthrough translator.
  */
 export function cursorToOpenAIResponse(chunk, state) {
   if (!chunk) return null;

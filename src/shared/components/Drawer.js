@@ -68,7 +68,7 @@ export default function Drawer({
             onClick={onClose}
             className="p-1.5 rounded-[10px] text-text-muted hover:bg-surface-2 hover:text-text-main transition-colors"
           >
-            <span className="material-symbols-outlined text-[20px]">close</span>
+            <span className="material-symbols-outlined text-xl">close</span>
           </button>
         </div>
 

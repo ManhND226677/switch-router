@@ -48,7 +48,7 @@ export default function DashboardLayout({ children }) {
               className={`rounded-lg border px-3 py-2 shadow-lg backdrop-blur-sm ${style.wrapper}`}
             >
               <div className="flex items-start gap-2">
-                <span className="material-symbols-outlined text-[18px] leading-5">{style.icon}</span>
+                <span className="material-symbols-outlined text-lg leading-5">{style.icon}</span>
                 <div className="min-w-0 flex-1">
                   {n.title ? <p className="text-xs font-semibold mb-0.5">{n.title}</p> : null}
                   <p className="text-xs whitespace-pre-wrap break-words">{n.message}</p>
@@ -60,7 +60,7 @@ export default function DashboardLayout({ children }) {
                     className="text-current/70 hover:text-current"
                     aria-label="Dismiss notification"
                   >
-                    <span className="material-symbols-outlined text-[16px]">close</span>
+                    <span className="material-symbols-outlined text-base">close</span>
                   </button>
                 ) : null}
               </div>
@@ -71,8 +71,16 @@ export default function DashboardLayout({ children }) {
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/20 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/20 md:hidden"
           onClick={() => setSidebarOpen(false)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
+              setSidebarOpen(false);
+            }
+          }}
+          aria-label="Close sidebar"
         />
       )}
 
@@ -80,10 +88,15 @@ export default function DashboardLayout({ children }) {
       <div className="hidden lg:flex">
         <Sidebar />
       </div>
+      
+      {/* Sidebar - Mini (Tablet) */}
+      <div className="hidden md:flex lg:hidden">
+        <Sidebar isMini={true} />
+      </div>
 
       {/* Sidebar - Mobile */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 transform lg:hidden transition-transform duration-300 ease-in-out ${
+        className={`fixed inset-y-0 left-0 z-50 transform md:hidden transition-transform duration-300 ease-in-out ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -95,8 +108,8 @@ export default function DashboardLayout({ children }) {
         {/* Faint grid background */}
         <div className="landing-grid absolute inset-0 pointer-events-none -z-10" aria-hidden="true" />
         <Header key={pathname} onMenuClick={() => setSidebarOpen(true)} />
-        <div className={`flex-1 overflow-y-auto custom-scrollbar ${pathname === "/dashboard/basic-chat" ? "" : "p-6 lg:p-10"} ${pathname === "/dashboard/basic-chat" ? "flex flex-col overflow-hidden" : ""}`}>
-          <div className={`${pathname === "/dashboard/basic-chat" ? "flex-1 w-full h-full flex flex-col" : "max-w-7xl mx-auto"}`}>{children}</div>
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 lg:p-10">
+          <div className="max-w-7xl mx-auto">{children}</div>
         </div>
       </main>
     </div>

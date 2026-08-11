@@ -47,10 +47,4 @@ export default {
     { id: "kimi-k2.5-thinking", name: "Kimi K2.5 Thinking" },
     { id: "kimi-latest", name: "Kimi Latest" },
   ],
-  serviceKinds: ["llm","webSearch"],
-  searchViaChat: {
-    defaultModel: "kimi-k2.5",
-    endpoint: "https://api.kimi.com/coding/v1/chat/completions",
-    pricingUrl: "https://platform.moonshot.ai/docs/pricing/chat",
-  },
 };

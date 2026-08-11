@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, memo } from "react";
 import PropTypes from "prop-types";
 import {
   Card,
@@ -94,9 +94,35 @@ function getConnectionErrorTag(connection) {
 
 const APIKEY_INITIAL_VISIBLE = 20;
 
+const EMPTY_STATS = {
+  connected: 0,
+  error: 0,
+  total: 0,
+  errorCode: null,
+  errorTime: null,
+  allDisabled: false,
+};
+
+// Chuyển bản tổng hợp thô thành object stats mà các card đang dùng.
+function finalizeStats(agg) {
+  const { latestError } = agg;
+  return {
+    connected: agg.connected,
+    error: agg.error,
+    total: agg.total,
+    errorCode: latestError ? getConnectionErrorTag(latestError) : null,
+    errorTime: latestError?.lastErrorAt
+      ? getRelativeTime(latestError.lastErrorAt)
+      : null,
+    allDisabled: agg.total > 0 && agg.allActiveFalse,
+  };
+}
+
 export default function ProvidersPage() {
   const [connections, setConnections] = useState([]);
+  const connectionsRef = useRef([]);
   const [providerNodes, setProviderNodes] = useState([]);
+  const [statusNow, setStatusNow] = useState(() => Date.now());
   const [loading, setLoading] = useState(true);
   const [showAllApikey, setShowAllApikey] = useState(false);
   const [showAddCompatibleModal, setShowAddCompatibleModal] = useState(false);
@@ -104,7 +130,12 @@ export default function ProvidersPage() {
     useState(false);
   const [testingMode, setTestingMode] = useState(null);
   const [testResults, setTestResults] = useState(null);
-  const notify = useNotificationStore();
+  // Lấy từng action qua selector thay vì subscribe cả store: các action này
+  // được tạo một lần lúc create() nên không bao giờ đổi, còn `notifications`
+  // thì đổi mỗi lần có toast (thêm + tự tắt) và sẽ kéo theo re-render vô ích.
+  const notifySuccess = useNotificationStore((s) => s.success);
+  const notifyError = useNotificationStore((s) => s.error);
+  const notifyWarning = useNotificationStore((s) => s.warning);
   const searchQuery = useHeaderSearchStore((s) => s.query);
   const registerSearch = useHeaderSearchStore((s) => s.register);
   const unregisterSearch = useHeaderSearchStore((s) => s.unregister);
@@ -114,35 +145,21 @@ export default function ProvidersPage() {
     return () => unregisterSearch();
   }, [registerSearch, unregisterSearch]);
 
-  const matchSearch = (name) =>
-    !searchQuery.trim() ||
-    name.toLowerCase().includes(searchQuery.trim().toLowerCase());
+  // Hoãn 200ms trước khi lọc/sort lại toàn bộ danh sách provider.
+  // Ô input trong Header vẫn phản hồi tức thì (nó giữ state riêng) — chỉ phần
+  // tính toán nặng ở trang này mới bị hoãn, nên gõ nhanh không còn giật.
+  const [deferredQuery, setDeferredQuery] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDeferredQuery(searchQuery), 200);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
-  const sortByPriority = (entries, authType) =>
-    [...entries].sort(([ka, a], [kb, b]) => {
-      const pa = a.priority ?? 999;
-      const pb = b.priority ?? 999;
-      if (pa !== pb) return pa - pb;
-      const sa = getProviderStats(ka, authType);
-      const sb = getProviderStats(kb, authType);
-      const ca = sa.connected > 0 ? 1 : 0;
-      const cb = sb.connected > 0 ? 1 : 0;
-      if (ca !== cb) return cb - ca;
-      return (a.name || "").localeCompare(b.name || "");
-    });
-
-  const sortItemsByPriority = (items, authType) =>
-    [...items].sort((a, b) => {
-      const pa = a.priority ?? 999;
-      const pb = b.priority ?? 999;
-      if (pa !== pb) return pa - pb;
-      const sa = getProviderStats(a.id, authType);
-      const sb = getProviderStats(b.id, authType);
-      const ca = sa.connected > 0 ? 1 : 0;
-      const cb = sb.connected > 0 ? 1 : 0;
-      if (ca !== cb) return cb - ca;
-      return (a.name || "").localeCompare(b.name || "");
-    });
+  const matchSearch = useCallback(
+    (name) =>
+      !deferredQuery.trim() ||
+      name.toLowerCase().includes(deferredQuery.trim().toLowerCase()),
+    [deferredQuery],
+  );
 
   useEffect(() => {
     const fetchData = async () => {
@@ -153,8 +170,11 @@ export default function ProvidersPage() {
         ]);
         const connectionsData = await connectionsRes.json();
         const nodesData = await nodesRes.json();
-        if (connectionsRes.ok)
-          setConnections(connectionsData.connections || []);
+        if (connectionsRes.ok) {
+          const nextConnections = connectionsData.connections || [];
+          connectionsRef.current = nextConnections;
+          setConnections(nextConnections);
+        }
         if (nodesRes.ok) setProviderNodes(nodesData.nodes || []);
       } catch (error) {
         console.log("Error fetching data:", error);
@@ -165,71 +185,170 @@ export default function ProvidersPage() {
     fetchData();
   }, []);
 
-  const getProviderStats = (providerId, authType) => {
-    const authTypes = Array.isArray(authType) ? authType : [authType];
-    const providerConnections = connections.filter(
-      (c) => c.provider === providerId && authTypes.includes(c.authType),
-    );
+  // Recompute as soon as the nearest cooldown expires, even when no API fetch
+  // changes the connection list in the meantime.
+  useEffect(() => {
+    let nearestExpiry = Infinity;
+    for (const conn of connections) {
+      for (const key in conn) {
+        if (!key.startsWith("modelLock_")) continue;
+        const expiry = new Date(conn[key]).getTime();
+        if (expiry > Date.now() && expiry < nearestExpiry) nearestExpiry = expiry;
+      }
+    }
+    if (!Number.isFinite(nearestExpiry)) return undefined;
+    const timer = setTimeout(() => setStatusNow(Date.now()), Math.max(0, nearestExpiry - Date.now()) + 1);
+    return () => clearTimeout(timer);
+  }, [connections, statusNow]);
 
-    const getEffectiveStatus = (conn) => {
-      const isCooldown = Object.entries(conn).some(
-        ([k, v]) =>
-          k.startsWith("modelLock_") && v && new Date(v).getTime() > Date.now(),
-      );
-      return conn.testStatus === "unavailable" && !isCooldown
-        ? "active"
-        : conn.testStatus;
-    };
+  // Tính sẵn stats cho mọi cặp (provider, authType) có thật trong connections,
+  // chỉ bằng MỘT lượt duyệt.
+  //
+  // Trước đây getProviderStats() filter lại toàn mảng `connections` ở mỗi lần
+  // gọi, mà nó lại được gọi ngay trong comparator của sort → ~158 lần/render.
+  //
+  // Duyệt theo đúng thứ tự mảng gốc nên tie-break khi chọn latestError khớp hệt
+  // bản .filter().sort() cũ. Kết quả được tính SẴN (không cache lazy) nên
+  // không có mutation nào sau khi render kết thúc, và mỗi object stats giữ
+  // nguyên reference → memo() trên các card mới có tác dụng.
+  const providerStatsMap = useMemo(() => {
+    const now = statusNow;
+    const partials = new Map();
 
-    const connected = providerConnections.filter((c) => {
-      const status = getEffectiveStatus(c);
-      return status === "active" || status === "success";
-    }).length;
+    for (const conn of connections) {
+      const key = `${conn.provider}\u0000${conn.authType}`;
+      let agg = partials.get(key);
+      if (!agg) {
+        agg = {
+          connected: 0,
+          error: 0,
+          total: 0,
+          allActiveFalse: true,
+          latestError: null,
+          latestTs: -Infinity,
+        };
+        partials.set(key, agg);
+      }
 
-    const errorConns = providerConnections.filter((c) => {
-      const status = getEffectiveStatus(c);
-      return (
-        status === "error" || status === "expired" || status === "unavailable"
-      );
-    });
+      agg.total++;
+      if (conn.isActive !== false) agg.allActiveFalse = false;
 
-    const error = errorConns.length;
-    const total = providerConnections.length;
-    const allDisabled =
-      total > 0 && providerConnections.every((c) => c.isActive === false);
+      let isCooldown = false;
+      for (const k in conn) {
+        if (k.startsWith("modelLock_")) {
+          const v = conn[k];
+          if (v && new Date(v).getTime() > now) {
+            isCooldown = true;
+            break;
+          }
+        }
+      }
 
-    const latestError = errorConns.sort(
-      (a, b) => new Date(b.lastErrorAt || 0) - new Date(a.lastErrorAt || 0),
-    )[0];
-    const errorCode = latestError ? getConnectionErrorTag(latestError) : null;
-    const errorTime = latestError?.lastErrorAt
-      ? getRelativeTime(latestError.lastErrorAt)
-      : null;
+      const status =
+        conn.testStatus === "unavailable" && !isCooldown
+          ? "active"
+          : conn.testStatus;
 
-    return { connected, error, total, errorCode, errorTime, allDisabled };
-  };
+      if (status === "active" || status === "success") {
+        agg.connected++;
+      } else if (
+        status === "error" ||
+        status === "expired" ||
+        status === "unavailable"
+      ) {
+        agg.error++;
+        const ts = new Date(conn.lastErrorAt || 0).getTime();
+        if (ts > agg.latestTs) {
+          agg.latestTs = ts;
+          agg.latestError = conn;
+        }
+      }
+    }
+
+    return partials;
+  }, [connections, statusNow]);
+
+  const getProviderStats = useCallback(
+    (providerId, authType) => {
+      const authTypes = Array.isArray(authType) ? authType : [authType];
+
+      // Trường hợp phổ biến: đúng 1 authType → trả thẳng object đã tính sẵn,
+      // reference ổn định giữa các lần render.
+      if (authTypes.length === 1) {
+        const agg = providerStatsMap.get(`${providerId}\u0000${authTypes[0]}`);
+        return agg ? finalizeStats(agg) : EMPTY_STATS;
+      }
+
+      // Nhiều authType: gộp các partial lại (thuần tuý, không sửa dữ liệu gốc).
+      let connected = 0;
+      let error = 0;
+      let total = 0;
+      let allActiveFalse = true;
+      let latestError = null;
+      let latestTs = -Infinity;
+
+      for (const at of authTypes) {
+        const agg = providerStatsMap.get(`${providerId}\u0000${at}`);
+        if (!agg) continue;
+        connected += agg.connected;
+        error += agg.error;
+        total += agg.total;
+        if (!agg.allActiveFalse) allActiveFalse = false;
+        if (agg.latestTs > latestTs) {
+          latestTs = agg.latestTs;
+          latestError = agg.latestError;
+        }
+      }
+
+      if (total === 0) return EMPTY_STATS;
+      return finalizeStats({ connected, error, total, allActiveFalse, latestError });
+    },
+    [providerStatsMap],
+  );
+
+
+  const sortByPriority = useCallback(
+    (entries, authType) =>
+      [...entries].sort(([ka, a], [kb, b]) => {
+        const pa = a.priority ?? 999;
+        const pb = b.priority ?? 999;
+        if (pa !== pb) return pa - pb;
+        const sa = getProviderStats(ka, authType);
+        const sb = getProviderStats(kb, authType);
+        const ca = sa.connected > 0 ? 1 : 0;
+        const cb = sb.connected > 0 ? 1 : 0;
+        if (ca !== cb) return cb - ca;
+        return (a.name || "").localeCompare(b.name || "");
+      }),
+    [getProviderStats],
+  );
 
   // Toggle all connections for a provider on/off. authType may be a single
-  // string or an array (kiro counts oauth + api_key/apikey together).
+  // string or an array.
+  const handleToggleProvider = useCallback(
+    async (providerId, authType, newActive) => {
+      const authTypes = Array.isArray(authType) ? authType : [authType];
+      const matches = (connection) =>
+        connection.provider === providerId && authTypes.includes(connection.authType);
+      const providerConns = connectionsRef.current.filter(matches);
+      const nextConnections = connectionsRef.current.map((connection) =>
+        matches(connection) ? { ...connection, isActive: newActive } : connection,
+      );
+      connectionsRef.current = nextConnections;
+      setConnections(nextConnections);
 
-  const handleToggleProvider = async (providerId, authType, newActive) => {
-    const authTypes = Array.isArray(authType) ? authType : [authType];
-    const matches = (c) =>
-      c.provider === providerId && authTypes.includes(c.authType);
-    const providerConns = connections.filter(matches);
-    setConnections((prev) =>
-      prev.map((c) => (matches(c) ? { ...c, isActive: newActive } : c)),
-    );
-    await Promise.allSettled(
-      providerConns.map((c) =>
-        fetch(`/api/providers/${c.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ isActive: newActive }),
-        }),
-      ),
-    );
-  };
+      await Promise.allSettled(
+        providerConns.map((connection) =>
+          fetch(`/api/providers/${connection.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ isActive: newActive }),
+          }),
+        ),
+      );
+    },
+    [],
+  );
 
   const handleBatchTest = async (mode, providerId = null) => {
     if (testingMode) return;
@@ -245,69 +364,101 @@ export default function ProvidersPage() {
       setTestResults(data);
       if (data.summary) {
         const { passed, failed, total } = data.summary;
-        if (failed === 0) notify.success(`All ${total} tests passed`);
-        else notify.warning(`${passed}/${total} passed, ${failed} failed`);
+        if (failed === 0) notifySuccess(`All ${total} tests passed`);
+        else notifyWarning(`${passed}/${total} passed, ${failed} failed`);
       }
     } catch (error) {
       setTestResults({ error: "Test request failed" });
-      notify.error("Provider test failed");
+      notifyError("Provider test failed");
     } finally {
       setTestingMode(null);
     }
   };
 
-  const compatibleProviders = providerNodes
-    .filter((node) => node.type === "openai-compatible")
-    .map((node) => ({
-      id: node.id,
-      name: node.name || "OpenAI Compatible",
-      color: "#10A37F",
-      textIcon: "OC",
-      apiType: node.apiType,
-    }))
-    .filter((p) => matchSearch(p.name));
-
-  const anthropicCompatibleProviders = providerNodes
-    .filter((node) => node.type === "anthropic-compatible")
-    .map((node) => ({
-      id: node.id,
-      name: node.name || "Anthropic Compatible",
-      color: "#D97757",
-      textIcon: "AC",
-    }))
-    .filter((p) => matchSearch(p.name));
-
-  const oauthEntries = sortByPriority(
-    Object.entries(OAUTH_PROVIDERS).filter(([, info]) => !info.hidden && matchSearch(info.name)),
-    "oauth",
+  const compatibleProviders = useMemo(
+    () =>
+      providerNodes
+        .filter((node) => node.type === "openai-compatible")
+        .map((node) => ({
+          id: node.id,
+          name: node.name || "OpenAI Compatible",
+          color: "#10A37F",
+          textIcon: "OC",
+          apiType: node.apiType,
+        }))
+        .filter((p) => matchSearch(p.name)),
+    [providerNodes, matchSearch],
   );
-  const freeEntries = Object.entries(FREE_PROVIDERS)
-    .filter(([, info]) => !info.hidden && matchSearch(info.name))
-    .sort(([, a], [, b]) => (b.noAuth ? 1 : 0) - (a.noAuth ? 1 : 0));
-  const freeTierEntries = sortByPriority(
-    Object.entries(FREE_TIER_PROVIDERS).filter(
-      ([, info]) =>
-        !info.hidden &&
-        matchSearch(info.name) &&
-        (info.serviceKinds ?? ["llm"]).includes("llm"),
-    ),
-    "freeTier",
-  ).sort(([, a], [, b]) => (b.noAuth ? 1 : 0) - (a.noAuth ? 1 : 0));
+
+  const anthropicCompatibleProviders = useMemo(
+    () =>
+      providerNodes
+        .filter((node) => node.type === "anthropic-compatible")
+        .map((node) => ({
+          id: node.id,
+          name: node.name || "Anthropic Compatible",
+          color: "#D97757",
+          textIcon: "AC",
+        }))
+        .filter((p) => matchSearch(p.name)),
+    [providerNodes, matchSearch],
+  );
+
+  const oauthEntries = useMemo(
+    () =>
+      sortByPriority(
+        Object.entries(OAUTH_PROVIDERS).filter(
+          ([, info]) => !info.hidden && matchSearch(info.name),
+        ),
+        "oauth",
+      ),
+    [sortByPriority, matchSearch],
+  );
+
+  const freeEntries = useMemo(
+    () =>
+      Object.entries(FREE_PROVIDERS)
+        .filter(([, info]) => !info.hidden && matchSearch(info.name))
+        .sort(([, a], [, b]) => (b.noAuth ? 1 : 0) - (a.noAuth ? 1 : 0)),
+    [matchSearch],
+  );
+
+  const freeTierEntries = useMemo(
+    () =>
+      sortByPriority(
+        Object.entries(FREE_TIER_PROVIDERS).filter(
+          ([, info]) =>
+            !info.hidden &&
+            matchSearch(info.name) &&
+            (info.serviceKinds ?? ["llm"]).includes("llm"),
+        ),
+        "freeTier",
+      ).sort(([, a], [, b]) => (b.noAuth ? 1 : 0) - (a.noAuth ? 1 : 0)),
+    [sortByPriority, matchSearch],
+  );
+
   // API Key: connected providers first, then alphabetical by name
-  const apikeyEntries = Object.entries(APIKEY_PROVIDERS)
-    .filter(
-      ([, info]) =>
-        !info.hidden &&
-        (info.serviceKinds ?? ["llm"]).includes("llm") &&
-        matchSearch(info.name),
-    )
-    .sort(([ka, a], [kb, b]) => {
-      const ca = getProviderStats(ka, "apikey").total > 0 ? 0 : 1;
-      const cb = getProviderStats(kb, "apikey").total > 0 ? 0 : 1;
-      if (ca !== cb) return ca - cb;
-      return (a.name || "").localeCompare(b.name || "");
-    });
-  const isApikeySearching = !!searchQuery.trim();
+  const apikeyEntries = useMemo(
+    () =>
+      Object.entries(APIKEY_PROVIDERS)
+        .filter(
+          ([, info]) =>
+            !info.hidden &&
+            (info.serviceKinds ?? ["llm"]).includes("llm") &&
+            matchSearch(info.name),
+        )
+        .sort(([ka, a], [kb, b]) => {
+          const ca = getProviderStats(ka, "apikey").total > 0 ? 0 : 1;
+          const cb = getProviderStats(kb, "apikey").total > 0 ? 0 : 1;
+          if (ca !== cb) return ca - cb;
+          return (a.name || "").localeCompare(b.name || "");
+        }),
+    [matchSearch, getProviderStats],
+  );
+
+  // Dùng deferredQuery (không phải searchQuery) để danh sách không nhấp nháy
+  // giữa 20 mục và toàn bộ trong lúc chờ debounce.
+  const isApikeySearching = !!deferredQuery.trim();
   const visibleApikeyEntries =
     isApikeySearching || showAllApikey
       ? apikeyEntries
@@ -335,7 +486,7 @@ export default function ProvidersPage() {
     <div className="flex min-w-0 flex-col gap-6 px-1 sm:px-0">
       {!hasAnyResult && (
         <div className="text-center py-8 border border-dashed border-border rounded-xl">
-          <span className="material-symbols-outlined text-[32px] text-text-muted mb-2">
+          <span className="material-symbols-outlined text-4xl text-text-muted mb-2">
             search_off
           </span>
           <p className="text-text-muted text-sm">No providers match your search</p>
@@ -371,7 +522,7 @@ export default function ProvidersPage() {
         {compatibleProviders.length === 0 &&
         anthropicCompatibleProviders.length === 0 ? (
           <div className="flex items-center justify-center gap-2 py-2 border border-dashed border-border rounded-xl text-text-muted text-sm">
-            <span className="material-symbols-outlined text-[18px]">extension</span>
+            <span className="material-symbols-outlined text-lg">extension</span>
             <span>No custom providers — use buttons above to add OpenAI/Anthropic compatible endpoints</span>
           </div>
         ) : (
@@ -453,26 +604,16 @@ export default function ProvidersPage() {
           </Button>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
-          {freeEntries.map(([key, info]) => {
-            // Kiro accepts both OAuth and api-key connections; count/toggle both
-            // so the card total matches the provider detail page (#kiro-apikey).
-            // Kiro's headless api-key flow persists authType "api_key" (underscore),
-            // while generic apikey providers use "apikey" — include both spellings.
-            const freeAuthTypes =
-              key === "kiro" ? ["oauth", "apikey", "api_key"] : "oauth";
-            return (
-              <ProviderCard
-                key={key}
-                providerId={key}
-                provider={info}
-                stats={getProviderStats(key, freeAuthTypes)}
-                authType="free"
-                onToggle={(active) =>
-                  handleToggleProvider(key, freeAuthTypes, active)
-                }
-              />
-            );
-          })}
+          {freeEntries.map(([key, info]) => (
+            <ProviderCard
+              key={key}
+              providerId={key}
+              provider={info}
+              stats={getProviderStats(key, "oauth")}
+              authType="free"
+              onToggle={(active) => handleToggleProvider(key, "oauth", active)}
+            />
+          ))}
           {freeTierEntries.map(([key, info]) => (
             <ApiKeyProviderCard
               key={key}
@@ -524,7 +665,7 @@ export default function ProvidersPage() {
             onClick={() => setShowAllApikey(true)}
             className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-primary/40 px-3 py-2.5 text-sm font-medium text-primary transition-colors hover:border-primary hover:bg-primary/5"
           >
-            <span className="material-symbols-outlined text-[16px]">expand_more</span>
+            <span className="material-symbols-outlined text-base">expand_more</span>
             Show all {apikeyEntries.length} providers
           </button>
         )}
@@ -602,7 +743,34 @@ export default function ProvidersPage() {
   );
 }
 
-function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
+// So sánh nông các prop có ảnh hưởng tới render.
+// `onToggle` được cố tình BỎ QUA: nó là arrow inline tạo mới mỗi render, nếu
+// so sánh nó thì memo() luôn fail. An toàn vì onToggle chỉ gọi
+// handleToggleProvider (đã ổn định, deps rỗng) với providerId/authType lấy từ
+// chính các prop được so sánh bên dưới.
+function areCardPropsEqual(prev, next) {
+  if (
+    prev.providerId !== next.providerId ||
+    prev.provider !== next.provider ||
+    prev.authType !== next.authType
+  ) {
+    return false;
+  }
+  const a = prev.stats;
+  const b = next.stats;
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.connected === b.connected &&
+    a.error === b.error &&
+    a.total === b.total &&
+    a.errorCode === b.errorCode &&
+    a.errorTime === b.errorTime &&
+    a.allDisabled === b.allDisabled
+  );
+}
+
+function ProviderCardBase({ providerId, provider, stats, authType, onToggle }) {
   const { connected, error, errorCode, errorTime, allDisabled } = stats;
   const isNoAuth = !!provider.noAuth;
 
@@ -637,7 +805,7 @@ function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
                 {allDisabled ? (
                   <Badge variant="default" size="sm">
                     <span className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[12px]">
+                      <span className="material-symbols-outlined text-xs">
                         pause_circle
                       </span>
                       Disabled
@@ -681,7 +849,7 @@ function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
   );
 }
 
-ProviderCard.propTypes = {
+ProviderCardBase.propTypes = {
   providerId: PropTypes.string.isRequired,
   provider: PropTypes.shape({
     id: PropTypes.string.isRequired,
@@ -699,7 +867,9 @@ ProviderCard.propTypes = {
   onToggle: PropTypes.func,
 };
 
-function ApiKeyProviderCard({
+const ProviderCard = memo(ProviderCardBase, areCardPropsEqual);
+
+function ApiKeyProviderCardBase({
   providerId,
   provider,
   stats,
@@ -752,7 +922,7 @@ function ApiKeyProviderCard({
                 {allDisabled ? (
                   <Badge variant="default" size="sm">
                     <span className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[12px]">
+                      <span className="material-symbols-outlined text-xs">
                         pause_circle
                       </span>
                       Disabled
@@ -806,7 +976,7 @@ function ApiKeyProviderCard({
   );
 }
 
-ApiKeyProviderCard.propTypes = {
+ApiKeyProviderCardBase.propTypes = {
   providerId: PropTypes.string.isRequired,
   provider: PropTypes.shape({
     id: PropTypes.string.isRequired,
@@ -825,11 +995,13 @@ ApiKeyProviderCard.propTypes = {
   onToggle: PropTypes.func,
 };
 
+const ApiKeyProviderCard = memo(ApiKeyProviderCardBase, areCardPropsEqual);
+
 function ProviderTestResultsView({ results }) {
   if (results.error && !results.results) {
     return (
       <div className="text-center py-6">
-        <span className="material-symbols-outlined text-red-500 text-[32px] mb-2 block">
+        <span className="material-symbols-outlined text-red-500 text-4xl mb-2 block">
           error
         </span>
         <p className="text-sm text-red-400">{results.error}</p>
@@ -872,7 +1044,7 @@ function ProviderTestResultsView({ results }) {
           className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg bg-black/[0.03] px-3 py-2 text-xs dark:bg-white/[0.03] sm:flex-nowrap"
         >
           <span
-            className={`material-symbols-outlined text-[16px] ${r.valid ? "text-emerald-500" : "text-red-500"}`}
+            className={`material-symbols-outlined text-base ${r.valid ? "text-emerald-500" : "text-red-500"}`}
           >
             {r.valid ? "check_circle" : "error"}
           </span>
@@ -890,7 +1062,7 @@ function ProviderTestResultsView({ results }) {
             </span>
           )}
           <span
-            className={`shrink-0 text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
+            className={`shrink-0 text-xs uppercase font-bold px-1.5 py-0.5 rounded ${
               r.valid
                 ? "bg-emerald-500/15 text-emerald-400"
                 : "bg-red-500/15 text-red-400"

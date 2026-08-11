@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getProviderConnections } from "@/models";
 import {
+  AI_PROVIDERS,
   FREE_PROVIDERS,
   OAUTH_PROVIDERS,
   APIKEY_PROVIDERS,
@@ -39,6 +40,12 @@ function isCompatibleProvider(providerId) {
   );
 }
 
+function supportsLlmTesting(connection) {
+  if (isCompatibleProvider(connection.provider)) return true;
+  const serviceKinds = AI_PROVIDERS[connection.provider]?.serviceKinds ?? ["llm"];
+  return serviceKinds.includes("llm");
+}
+
 // POST /api/providers/test-batch - Test multiple connections by group
 export async function POST(request) {
   try {
@@ -59,7 +66,11 @@ export async function POST(request) {
     } else if (mode === "free") {
       connectionsToTest = allConnections.filter((c) => getAuthGroup(c.provider, c) === "free");
     } else if (mode === "apikey") {
-      connectionsToTest = allConnections.filter((c) => getAuthGroup(c.provider, c) === "apikey");
+      // Media/search-only API keys are configured and tested from their own
+      // surfaces. This batch runs the LLM connection tester only.
+      connectionsToTest = allConnections.filter(
+        (c) => getAuthGroup(c.provider, c) === "apikey" && supportsLlmTesting(c),
+      );
     } else if (mode === "compatible") {
       connectionsToTest = allConnections.filter((c) => isCompatibleProvider(c.provider));
     } else if (mode === "all") {

@@ -131,7 +131,7 @@ export default function McpMarketplaceModal({ isOpen, onClose, onAdd, addedNames
 
         {loading && (
           <div className="flex items-center gap-2 text-text-muted text-xs py-4 justify-center">
-            <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+            <span className="material-symbols-outlined animate-spin text-lg">progress_activity</span>
             <span>Loading registry...</span>
           </div>
         )}
@@ -162,22 +162,22 @@ export default function McpMarketplaceModal({ isOpen, onClose, onAdd, addedNames
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-medium text-xs">{s.title}</span>
                         {s.oauth ? (
-                          <span className="px-1 py-0.5 text-[9px] rounded bg-amber-500/10 text-amber-600">OAuth</span>
+                          <span className="px-1 py-0.5 text-xs rounded bg-amber-500/10 text-amber-600">OAuth</span>
                         ) : (
-                          <span className="px-1 py-0.5 text-[9px] rounded bg-green-500/10 text-green-600">Authless</span>
+                          <span className="px-1 py-0.5 text-xs rounded bg-green-500/10 text-green-600">Authless</span>
                         )}
                         {s.toolCount > 0 && (
-                          <span className="text-[10px] text-text-muted">{s.toolCount} tools</span>
+                          <span className="text-xs text-text-muted">{s.toolCount} tools</span>
                         )}
                       </div>
                       {s.description && (
-                        <p className="text-[10px] text-text-muted line-clamp-2 mt-0.5">{s.description}</p>
+                        <p className="text-xs text-text-muted line-clamp-2 mt-0.5">{s.description}</p>
                       )}
                     </div>
                     <button
                       onClick={() => added ? null : expandServer(s)}
                       disabled={added}
-                      className={`shrink-0 px-2 py-1 rounded text-[10px] font-medium transition-colors ${
+                      className={`shrink-0 px-2 py-1 rounded text-xs font-medium transition-colors ${
                         added
                           ? "bg-green-500/10 text-green-600 cursor-default"
                           : expanded
@@ -191,35 +191,35 @@ export default function McpMarketplaceModal({ isOpen, onClose, onAdd, addedNames
                   {expanded && (
                     <div className="px-3 py-2 bg-surface/40 border-t border-border flex flex-col gap-2">
                       {isLoadingTools && (
-                        <div className="flex items-center gap-2 text-text-muted text-[10px] py-1">
-                          <span className="material-symbols-outlined animate-spin text-[14px]">progress_activity</span>
+                        <div className="flex items-center gap-2 text-text-muted text-xs py-1">
+                          <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>
                           <span>Probing server for tools...</span>
                         </div>
                       )}
                       {!isLoadingTools && cache?.requiresAuth && (
-                        <p className="text-[10px] text-amber-600 bg-amber-500/10 px-2 py-1 rounded">
+                        <p className="text-xs text-amber-600 bg-amber-500/10 px-2 py-1 rounded">
                           🔐 OAuth required. Add now and authenticate after Apply; tool list will be discovered after first connect.
                         </p>
                       )}
                       {!isLoadingTools && cache?.error && !cache?.requiresAuth && (
-                        <p className="text-[10px] text-red-600 bg-red-500/10 px-2 py-1 rounded">Probe failed: {cache.error}</p>
+                        <p className="text-xs text-red-600 bg-red-500/10 px-2 py-1 rounded">Probe failed: {cache.error}</p>
                       )}
                       {!isLoadingTools && toolKeys.length === 0 && !cache?.requiresAuth && !cache?.error && (
-                        <p className="text-[10px] text-text-muted">No tools advertised by server.</p>
+                        <p className="text-xs text-text-muted">No tools advertised by server.</p>
                       )}
                       {!isLoadingTools && toolKeys.length > 0 && (
                         <>
                           <div className="flex items-center justify-between">
-                            <span className="text-[10px] text-text-muted">{selectedCount}/{toolKeys.length} tools enabled</span>
+                            <span className="text-xs text-text-muted">{selectedCount}/{toolKeys.length} tools enabled</span>
                             <div className="flex gap-1">
-                              <button onClick={() => setAllTools(s.url, true)} className="text-[10px] text-primary hover:underline">All</button>
-                              <span className="text-[10px] text-text-muted">·</span>
-                              <button onClick={() => setAllTools(s.url, false)} className="text-[10px] text-primary hover:underline">None</button>
+                              <button onClick={() => setAllTools(s.url, true)} className="text-xs text-primary hover:underline">All</button>
+                              <span className="text-xs text-text-muted">·</span>
+                              <button onClick={() => setAllTools(s.url, false)} className="text-xs text-primary hover:underline">None</button>
                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-1 max-h-40 overflow-y-auto">
                             {toolKeys.map((t) => (
-                              <label key={t} className="flex items-center gap-1.5 text-[10px] cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 px-1 rounded">
+                              <label key={t} className="flex items-center gap-1.5 text-xs cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 px-1 rounded">
                                 <input
                                   type="checkbox"
                                   checked={!!sel[t]}
@@ -234,7 +234,7 @@ export default function McpMarketplaceModal({ isOpen, onClose, onAdd, addedNames
                       )}
                       <button
                         onClick={() => confirmAdd(s)}
-                        className="self-end px-2 py-1 rounded text-[10px] font-medium bg-primary text-white hover:bg-primary/90"
+                        className="self-end px-2 py-1 rounded text-xs font-medium bg-primary text-white hover:bg-primary/90"
                       >
                         ✓ Confirm Add
                       </button>
@@ -246,7 +246,7 @@ export default function McpMarketplaceModal({ isOpen, onClose, onAdd, addedNames
           </div>
         )}
 
-        <div className="text-[10px] text-text-muted text-right">
+        <div className="text-xs text-text-muted text-right">
           {filtered.length} of {servers.length} servers
         </div>
       </div>

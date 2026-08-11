@@ -12,7 +12,7 @@ describe("usage performance paths", () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "switch-router-usage-performance-"));
     process.env.DATA_DIR = tempDir;
     vi.resetModules();
-    db = await import("@/lib/db/index.js");
+    db = await import("../../src/lib/db/index.js");
     await db.initDb();
   });
 

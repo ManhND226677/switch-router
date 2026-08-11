@@ -40,14 +40,6 @@ export async function PUT(request, { params }) {
       }
     }
 
-    // Sanitize Base URL for Custom Embedding (strip trailing slash and /embeddings)
-    if (node.type === "custom-embedding") {
-      sanitizedBaseUrl = sanitizedBaseUrl.replace(/\/$/, "");
-      if (sanitizedBaseUrl.endsWith("/embeddings")) {
-        sanitizedBaseUrl = sanitizedBaseUrl.slice(0, -"/embeddings".length);
-      }
-    }
-
     const updates = {
       name: name.trim(),
       prefix: prefix.trim(),
@@ -91,6 +83,26 @@ export async function DELETE(request, { params }) {
     }
 
     await deleteProviderNode(id);
+    
+    const { 
+      deleteModelAlias, getModelAliases, 
+      deleteCustomModel, getCustomModels, 
+    } = await import("@/lib/localDb");
+    
+    // Clean up references to models exposed via this provider
+    const aliases = await getModelAliases();
+    for (const [aliasId, resolvedModel] of Object.entries(aliases)) {
+      if (resolvedModel.startsWith(`${id}/`)) {
+         await deleteModelAlias(aliasId);
+      }
+    }
+    
+    const customModels = await getCustomModels();
+    for (const customModel of customModels) {
+      if (customModel.providerId === id) {
+         await deleteCustomModel(customModel.id);
+      }
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

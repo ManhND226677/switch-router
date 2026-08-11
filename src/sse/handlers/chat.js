@@ -23,6 +23,11 @@ import { updateProviderCredentials, checkAndRefreshToken } from "../services/tok
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
 import { RoutingEngine } from "@/core/routing/routingEngine.js";
 import { modelForProvider, resolveConnectionSelector } from "../services/connectionSelector.js";
+import {
+  appendOfficePowerPointRuntimeGuardrail,
+  getOfficeRequestPolicy,
+  routeOfficeRequestModel,
+} from "../services/officeRequestPolicy.js";
 
 /**
  * Handle chat completion request
@@ -47,6 +52,14 @@ export async function handleChat(request, clientRawRequest = null) {
       headers: Object.fromEntries(request.headers.entries())
     };
   }
+  // Preserve clientRawRequest as the exact Office payload for logging/session
+  // semantics; the gateway-owned guardrail is added only to the working body.
+  const routedOfficeBody = routeOfficeRequestModel(body, clientRawRequest?.endpoint);
+  if (routedOfficeBody !== body) {
+    log.info("OFFICE", `Model route ${body.model || "unknown"} -> ${routedOfficeBody.model}`);
+  }
+  body = routedOfficeBody;
+  body = appendOfficePowerPointRuntimeGuardrail(body, clientRawRequest?.endpoint);
   cacheClaudeHeaders(clientRawRequest.headers);
 
   const modelStr = body.model;
@@ -222,6 +235,7 @@ async function handleSingleModelRequest(body, modelStr, clientRawRequest = null,
     // Use shared chatCore
     const chatSettings = await getSettings();
     const providerThinking = (chatSettings.providerThinking || {})[provider] || null;
+    const requestPolicy = getOfficeRequestPolicy(chatSettings, clientRawRequest?.endpoint);
     const result = await handleChatCore({
       body: { ...body, model: `${provider}/${model}` },
       modelInfo: { provider, model },
@@ -232,18 +246,19 @@ async function handleSingleModelRequest(body, modelStr, clientRawRequest = null,
       userAgent,
       apiKey,
       ccFilterNaming: !!chatSettings.ccFilterNaming,
-      rtkEnabled: !!chatSettings.rtkEnabled,
-      cavemanEnabled: !!chatSettings.cavemanEnabled,
+      rtkEnabled: requestPolicy.rtkEnabled,
+      cavemanEnabled: requestPolicy.cavemanEnabled,
       cavemanLevel: chatSettings.cavemanLevel || "full",
-      ponytailEnabled: !!chatSettings.ponytailEnabled,
+      ponytailEnabled: requestPolicy.ponytailEnabled,
       ponytailLevel: chatSettings.ponytailLevel || "full",
-      pxpipeEnabled: !!chatSettings.pxpipeEnabled,
+      pxpipeEnabled: requestPolicy.pxpipeEnabled,
       pxpipeMinChars: chatSettings.pxpipeMinChars,
       pxpipeTimeoutMs: chatSettings.pxpipeTimeoutMs,
       // Lazily warms the in-process module on first use; null when not installed (fail-open)
-      pxpipeTransform: chatSettings.pxpipeEnabled ? await getPxpipeTransform() : null,
+      pxpipeTransform: requestPolicy.pxpipeEnabled ? await getPxpipeTransform() : null,
       onPxpipeEvent: appendPxpipeEvent,
       providerThinking,
+      preserveClientPayload: requestPolicy.preserveClientPayload,
       // Detect source format by endpoint + body
       sourceFormatOverride: request?.url ? detectFormatByEndpoint(new URL(request.url).pathname, body) : null,
       onCredentialsRefreshed: async (newCreds) => {

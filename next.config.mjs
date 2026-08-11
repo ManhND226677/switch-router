@@ -9,9 +9,6 @@ const nextConfig = {
   outputFileTracingExcludes: {
     "*": ["./gitbook/**/*"]
   },
-  outputFileTracingIncludes: {
-    "*": ["./skills/**/*"]
-  },
   images: {
     unoptimized: true
   },

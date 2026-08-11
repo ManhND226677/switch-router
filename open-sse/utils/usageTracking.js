@@ -202,6 +202,9 @@ export function canonicalizeUsage(usage) {
     cached_tokens: cached,
     cache_creation_input_tokens: cacheCreation,
   };
+  // Preserve the estimated flag so storage/UI can tell content-based estimates
+  // apart from provider-reported usage (canonicalization must not drop it).
+  if (usage.estimated === true) result.estimated = true;
   if (reasoning > 0) result.reasoning_tokens = reasoning;
   return result;
 }

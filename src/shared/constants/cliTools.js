@@ -64,6 +64,14 @@ export const CLI_TOOLS = {
     description: "Nous Research self-improving AI agent",
     configType: "custom",
   },
+  aizen: {
+    id: "aizen",
+    name: "Aizen",
+    image: "/providers/aizen.png",
+    color: "#6C5CE7",
+    description: "AI Terminal Assistant (aizen)",
+    configType: "custom",
+  },
 };
 
 // Get all provider models for mapping dropdown

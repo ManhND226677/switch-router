@@ -38,13 +38,7 @@ const SPECS = {
   },
   openclaw: {
     commands: ["openclaw", "claw"],
-    markers: [
-      path.join(home, ".openclaw", "openclaw.json"),
-      path.join(home, ".openclaw"),
-      path.join(home, ".claw"),
-      appData ? path.join(appData, "clawhub") : null,
-      appData ? path.join(appData, "openclaw") : null,
-    ],
+    markers: [path.join(home, ".openclaw", "openclaw.json")],
   },
   hermes: {
     commands: ["hermes", "hermes-agent"],

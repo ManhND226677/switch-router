@@ -9,12 +9,9 @@ import { OpenCodeExecutor } from "./opencode.js";
 import { OpenCodeGoExecutor } from "./opencode-go.js";
 import { GrokWebExecutor } from "./grok-web.js";
 import { GrokCliExecutor } from "./grok-cli.js";
-import { PerplexityWebExecutor } from "./perplexity-web.js";
 import { OllamaLocalExecutor } from "./ollama-local.js";
 import { CommandCodeExecutor } from "./commandcode.js";
 import { XiaomiTokenplanExecutor } from "./xiaomi-tokenplan.js";
-import { MimoFreeExecutor } from "./mimo-free.js";
-import { CavotiExecutor } from "./cavoti.js";
 import { StepFunExecutor } from "./stepfun.js";
 import { DefaultExecutor } from "./default.js";
 
@@ -33,13 +30,9 @@ const executors = {
   "grok-cli": new GrokCliExecutor(),
   gcli: new GrokCliExecutor(), // Alias
   gb: new GrokCliExecutor(), // Alias (Grok Build)
-  "perplexity-web": new PerplexityWebExecutor(),
   "ollama-local": new OllamaLocalExecutor(),
   commandcode: new CommandCodeExecutor(),
   "xiaomi-tokenplan": new XiaomiTokenplanExecutor(),
-  "mimo-free": new MimoFreeExecutor(),
-  mmf: new MimoFreeExecutor(), // Alias for mimo-free
-  cavoti: new CavotiExecutor(),
   stepfun: new StepFunExecutor(),
 };
 
@@ -63,15 +56,4 @@ export { QoderExecutor } from "./qoder.js";
 export { CodexExecutor } from "./codex.js";
 export { CursorExecutor } from "./cursor.js";
 export { DefaultExecutor } from "./default.js";
-export { QwenExecutor } from "./qwen.js";
-export { OpenCodeExecutor } from "./opencode.js";
-export { OpenCodeGoExecutor } from "./opencode-go.js";
-export { GrokWebExecutor } from "./grok-web.js";
-export { GrokCliExecutor } from "./grok-cli.js";
-export { PerplexityWebExecutor } from "./perplexity-web.js";
-export { OllamaLocalExecutor } from "./ollama-local.js";
-export { CommandCodeExecutor } from "./commandcode.js";
-export { XiaomiTokenplanExecutor } from "./xiaomi-tokenplan.js";
-export { MimoFreeExecutor } from "./mimo-free.js";
-export { CavotiExecutor } from "./cavoti.js";
-export { StepFunExecutor } from "./stepfun.js";
+

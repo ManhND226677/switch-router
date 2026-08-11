@@ -42,7 +42,16 @@ export default function ProxyPoolsPage() {
   const [healthProgress, setHealthProgress] = useState({ current: 0, total: 0 });
   const [bulkBusy, setBulkBusy] = useState(false);
   const [confirmState, setConfirmState] = useState(null);
-  const notify = useNotificationStore();
+  // Selector từng action rồi gộp lại, thay vì subscribe cả store.
+  // Các action ổn định (tạo 1 lần lúc create()) nên object `notify` cũng ổn
+  // định; trước đây subscribe cả store khiến trang re-render mỗi lần có toast.
+  const notifySuccess = useNotificationStore((s) => s.success);
+  const notifyError = useNotificationStore((s) => s.error);
+  const notifyWarning = useNotificationStore((s) => s.warning);
+  const notify = useMemo(
+    () => ({ success: notifySuccess, error: notifyError, warning: notifyWarning }),
+    [notifySuccess, notifyError, notifyWarning],
+  );
 
   const fetchProxyPools = useCallback(async () => {
     try {
@@ -462,19 +471,19 @@ export default function ProxyPoolsPage() {
                     </div>
                     <p className="mt-1 truncate text-xs text-text-muted">{pool.proxyUrl}</p>
                     {pool.noProxy && <p className="mt-1 truncate text-xs text-text-muted">No proxy: {pool.noProxy}</p>}
-                    <p className="mt-1 text-[11px] text-text-muted">Last tested: {formatDateTime(pool.lastTestedAt)}{pool.lastError ? ` · ${pool.lastError}` : ""}</p>
+                    <p className="mt-1 text-xs text-text-muted">Last tested: {formatDateTime(pool.lastTestedAt)}{pool.lastError ? ` · ${pool.lastError}` : ""}</p>
                   </div>
                 </div>
                 <div className="flex items-center justify-end gap-1">
                   <Toggle size="sm" checked={pool.isActive === true} onChange={() => handleToggleActive(pool)} title={pool.isActive ? "Disable" : "Enable"} />
                   <button onClick={() => handleTest(pool.id)} className="rounded p-2 text-text-muted hover:bg-black/5 hover:text-primary dark:hover:bg-white/5" title="Test proxy" disabled={testingId === pool.id}>
-                    <span className="material-symbols-outlined text-[18px]" style={testingId === pool.id ? { animation: "spin 1s linear infinite" } : undefined}>{testingId === pool.id ? "progress_activity" : "science"}</span>
+                    <span className="material-symbols-outlined text-lg" style={testingId === pool.id ? { animation: "spin 1s linear infinite" } : undefined}>{testingId === pool.id ? "progress_activity" : "science"}</span>
                   </button>
                   <button onClick={() => openEditModal(pool)} className="rounded p-2 text-text-muted hover:bg-black/5 hover:text-primary dark:hover:bg-white/5" title="Edit">
-                    <span className="material-symbols-outlined text-[18px]">edit</span>
+                    <span className="material-symbols-outlined text-lg">edit</span>
                   </button>
                   <button onClick={() => handleDelete(pool)} className="rounded p-2 text-red-500 hover:bg-red-500/10" title="Delete">
-                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                    <span className="material-symbols-outlined text-lg">delete</span>
                   </button>
                 </div>
               </div>

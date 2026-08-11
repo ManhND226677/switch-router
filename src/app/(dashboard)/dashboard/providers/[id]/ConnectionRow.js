@@ -193,16 +193,16 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
           </div>
           {hasAnyProxy && (
             <div className="mt-1 flex items-center gap-2 flex-wrap">
-              <span className="max-w-full truncate text-[11px] text-text-muted sm:max-w-[420px]" title={proxyDisplayText}>
+              <span className="max-w-full truncate text-xs text-text-muted sm:max-w-[420px]" title={proxyDisplayText}>
                 {proxyDisplayText}
               </span>
               {maskedProxyUrl && (
-                <code className="max-w-full truncate rounded bg-black/5 px-1 py-0.5 font-mono text-[10px] text-text-muted dark:bg-white/5 sm:max-w-[260px]">
+                <code className="max-w-full truncate rounded bg-black/5 px-1 py-0.5 font-mono text-xs text-text-muted dark:bg-white/5 sm:max-w-[260px]">
                   {maskedProxyUrl}
                 </code>
               )}
               {noProxyText && (
-                <span className="max-w-full truncate text-[11px] text-text-muted sm:max-w-[320px]" title={noProxyText}>
+                <span className="max-w-full truncate text-xs text-text-muted sm:max-w-[320px]" title={noProxyText}>
                   no_proxy: {noProxyText}
                 </span>
               )}
@@ -220,10 +220,10 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
                 className={`flex w-full flex-col items-center rounded px-2 py-1 transition-colors hover:bg-black/5 dark:hover:bg-white/5 ${hasAnyProxy ? "text-primary" : "text-text-muted hover:text-primary"}`}
                 disabled={updatingProxy}
               >
-                <span className="material-symbols-outlined text-[18px]">
+                <span className="material-symbols-outlined text-lg">
                   {updatingProxy ? "progress_activity" : "lan"}
                 </span>
-                <span className="text-[10px] leading-tight">Proxy</span>
+                <span className="text-xs leading-tight">Proxy</span>
               </button>
               {showProxyDropdown && (
                 <div className="absolute right-0 top-full z-50 mt-1 max-w-[78vw] min-w-[160px] rounded-lg border border-border bg-bg py-1 shadow-lg">
@@ -252,18 +252,18 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
                 onClick={() => autoPing.onToggle(!autoPing.on)}
                 className={`flex w-full flex-col items-center rounded px-2 py-1 transition-colors hover:bg-black/5 dark:hover:bg-white/5 ${autoPing.on ? "text-primary" : "text-text-muted hover:text-primary"}`}
               >
-                <span className="material-symbols-outlined text-[18px]">bolt</span>
-                <span className="text-[10px] leading-tight">Auto-ping</span>
+                <span className="material-symbols-outlined text-lg">bolt</span>
+                <span className="text-xs leading-tight">Auto-ping</span>
               </button>
             </Tooltip>
           )}
           <button onClick={onEdit} className="flex flex-col items-center rounded px-2 py-1 text-text-muted hover:bg-black/5 hover:text-primary dark:hover:bg-white/5">
-            <span className="material-symbols-outlined text-[18px]">edit</span>
-            <span className="text-[10px] leading-tight">Edit</span>
+            <span className="material-symbols-outlined text-lg">edit</span>
+            <span className="text-xs leading-tight">Edit</span>
           </button>
           <button onClick={onDelete} className="flex flex-col items-center rounded px-2 py-1 text-red-500 hover:bg-red-500/10">
-            <span className="material-symbols-outlined text-[18px]">delete</span>
-            <span className="text-[10px] leading-tight">Delete</span>
+            <span className="material-symbols-outlined text-lg">delete</span>
+            <span className="text-xs leading-tight">Delete</span>
           </button>
         </div>
         <Toggle

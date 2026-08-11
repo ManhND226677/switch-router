@@ -32,13 +32,6 @@ export default function HeroSection() {
             <span className="material-symbols-outlined">rocket_launch</span>
             Open Dashboard
           </button>
-          <a 
-            href="/dashboard/skills"
-            className="h-12 px-8 rounded-lg border border-[#333333] bg-[#262626] hover:bg-[#333333] text-white text-base font-bold transition-all flex items-center gap-2"
-          >
-            <span className="material-symbols-outlined">code</span>
-            View Skills
-          </a>
         </div>
       </div>
     </section>

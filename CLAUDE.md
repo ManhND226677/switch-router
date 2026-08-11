@@ -8,6 +8,8 @@ Switch-Router (`switch-router-app`) — a local AI routing gateway + Next.js das
 
 This repository contains one runtime artifact: the Web dashboard and gateway in the root `package.json`. The project does not ship a separate CLI launcher or tray package.
 
+**Chat-only surface:** media providers and endpoints (image/TTS/STT/embedding/video generation, web search/fetch, agent skills) were removed — the gateway serves chat (`/v1/chat/completions`, `/v1/messages`, `/v1beta`, `/codex`, `/office/v1`) only. Registry entries, executors, handlers, dashboard pages, and tests for removed providers must not be resurrected.
+
 The code lives in `src/` (Next.js app + dashboard/compat APIs), `open-sse/` (the provider-agnostic routing/translation engine), and `tests/`.
 
 ## Commands
@@ -32,13 +34,14 @@ npx vitest run unit/capabilities.test.js   # single file (path relative to tests
 ```
 > The committed `tests/package.json` `test` script hardcodes Unix paths (`NODE_PATH=/tmp/node_modules …`) — a shared-install workaround from upstream. On Windows (or anywhere), ignore it and use the `npx vitest` form above; `vitest.config.js` resolves the `open-sse`/`@/` aliases from the repo root regardless of where vitest lives.
 >
-> **The suite is NOT expected to be all-green on a plain checkout.** ~938 pass, ~64 fail. Judge regressions with `tests/__baseline__/verify-no-regression.mjs`, not a raw run. Expected red:
-> - 26 catalogued in `tests/__baseline__/known-fails.txt` (rtk, oauth-cursor-auto-import, translator-request-normalization, …).
+> **The suite is NOT expected to be all-green on a plain checkout.** ~817 pass, ~14 fail. Judge regressions with `tests/__baseline__/verify-no-regression.mjs`, not a raw run. Expected red:
+> - All 14 catalogued in `tests/__baseline__/known-fails.txt` (oauth-cursor-auto-import, translator-request-normalization, …).
 > - `unit/embeddings.cloud.test.js` imports `cloud/src/handlers/embeddings.js` — the `cloud/` worker dir is **not in this repo**, so it always fails here.
 > - `unit/xai-oauth-service.test.js` times out (5s) when the xAI endpoint-discovery fetch isn't reachable/mocked.
 > - `real/*.real.test.js` make live provider calls — need credentials, skip otherwise.
 - `*.real.test.js` under `tests/translator/real/` make live provider calls — skip unless credentials are set.
-- Regression baselines: `tests/__baseline__/verify-*.mjs` compare against committed snapshots (providers, aliases, OAuth URLs). Run these after touching provider registry / alias logic.
+- Regression baselines: `tests/__baseline__/verify-*.mjs` compare against committed snapshots (providers, aliases, OAuth URLs). Run these after touching provider registry / alias logic. Regen snapshots with `verify-alias.mjs --snapshot` / `verify-oauth-urls.mjs --snapshot` (providers baseline is the raw `PROVIDERS` JSON dump).
+- Provider drift: `node scripts/qa-provider-drift.mjs` flags test fixtures that reference retired provider ids. Extend its `REMOVED_LIST` whenever a provider is deleted from the registry.
 
 ## Architecture
 

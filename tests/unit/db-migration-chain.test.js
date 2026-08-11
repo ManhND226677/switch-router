@@ -26,8 +26,8 @@ afterEach(() => {
 
 describe("Schema migrations", () => {
   it("fresh DB → applies migrations & stamps schemaVersion", async () => {
-    const { getAdapter } = await import("@/lib/db/driver.js");
-    const { latestVersion } = await import("@/lib/db/migrations/index.js");
+    const { getAdapter } = await import("../../src/lib/db/driver.js");
+    const { latestVersion } = await import("../../src/lib/db/migrations/index.js");
     const db = await getAdapter();
     const row = db.get(`SELECT value FROM _meta WHERE key='schemaVersion'`);
     expect(parseInt(row.value, 10)).toBe(latestVersion());
@@ -41,7 +41,7 @@ describe("Schema migrations", () => {
 
   it("existing DB at older schemaVersion → re-applies pending migrations on restart", async () => {
     // 1st boot
-    const { getAdapter } = await import("@/lib/db/driver.js");
+    const { getAdapter } = await import("../../src/lib/db/driver.js");
     const db = await getAdapter();
     db.run(`INSERT INTO settings(id, data) VALUES(1, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data`, ['{"foo":"bar"}']);
     db.run(`UPDATE _meta SET value = '0' WHERE key = 'schemaVersion'`);
@@ -51,7 +51,7 @@ describe("Schema migrations", () => {
     delete global._dbAdapter;
     vi.resetModules();
     const { getAdapter: getAdapter2 } = await import("@/lib/db/driver.js");
-    const { latestVersion } = await import("@/lib/db/migrations/index.js");
+    const { latestVersion } = await import("../../src/lib/db/migrations/index.js");
     const db2 = await getAdapter2();
     const row = db2.get(`SELECT value FROM _meta WHERE key='schemaVersion'`);
     expect(parseInt(row.value, 10)).toBe(latestVersion());
@@ -61,7 +61,7 @@ describe("Schema migrations", () => {
   });
 
   it("removes legacy routing profiles while preserving provider and combo settings", async () => {
-    const { getAdapter } = await import("@/lib/db/driver.js");
+    const { getAdapter } = await import("../../src/lib/db/driver.js");
     const db = await getAdapter();
     db.run(
       `INSERT INTO settings(id, data) VALUES(1, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data`,
@@ -98,7 +98,7 @@ describe("Schema migrations", () => {
     };
     fs.writeFileSync(path.join(tempDir, "db.json"), JSON.stringify(legacy));
 
-    const { getAdapter } = await import("@/lib/db/driver.js");
+    const { getAdapter } = await import("../../src/lib/db/driver.js");
     const db = await getAdapter();
 
     const settings = db.get(`SELECT data FROM settings WHERE id=1`);
@@ -113,7 +113,7 @@ describe("Schema migrations", () => {
   });
 
   it("auto-sync re-creates missing index when DB lacks it", async () => {
-    const { getAdapter } = await import("@/lib/db/driver.js");
+    const { getAdapter } = await import("../../src/lib/db/driver.js");
     const db = await getAdapter();
     db.exec(`DROP INDEX IF EXISTS idx_pn_type`);
     expect(db.all(`PRAGMA index_list(providerNodes)`).map(i => i.name)).not.toContain("idx_pn_type");

@@ -2,6 +2,110 @@
 
 This file tracks changes for the local personal build only.
 
+## 0.6.8 - 2026-08-09
+
+### Fixed
+
+- **Usage Logs tab:** added auto-refresh polling (~15s) so new requests appear while the tab stays open.
+- **Endpoint page layout:** redistributed cards — API Keys + M365 Gateway side-by-side, Base URLs full-width below.
+- **Basic Chat model list:** only show models from connections that actually have credentials; auth failures no longer fall back to the static catalog.
+- **Quota Total Accounts count:** now only counts active, credentialled connections.
+
+## 0.6.7 - 2026-08-09
+
+### Removed
+
+- **Cavoti Provider:** completely removed the `cavoti` provider from the registry, handlers, services, and tests. The static imports, UI components, and fallback logic specific to Cavoti have all been cleaned up. The provider list now stands at 72 entries.
+
+## 0.6.6 - 2026-08-08
+
+### Fixed
+
+- **Dashboard Layout:** refactored the Endpoint page `Gateway Status` grid spacing and forced `min-h-[300px]` / `min-h-[220px]` on Recharts charts within `UsageChart` / `Model Usage` to prevent white-space layout collapse when chart data is empty.
+
+## 0.6.5 - 2026-08-08
+
+### Fixed
+
+- **Office Gateway Card tests:** updated `endpoint-cards.render.test.js` to align with the simplified OfficeGatewayCard layout, removing obsolete card UI assertions that failed after the recent card restructuring.
+
+## 0.6.4 - 2026-08-08
+
+### Fixed
+
+- **Claude for Office auxiliary requests:** the Office model catalog is now
+  restricted to the configured `OFFICE_MODEL_IDS` allowlist. An Office request
+  that uses a hidden or fixed helper-model ID outside that allowlist is routed
+  through the first allowed combo without mutating the Office-owned request
+  captured by the gateway. This prevents the add-in's parallel
+  `claude-haiku-4-5` request from failing independently with Zyloo `402` while
+  the selected `claude-sonnet-5` combo succeeds.
+- **Office-only diagnostics:** completed Office streams now emit metadata-only
+  `[OFFICE-SSE]` summaries containing model, event/block counts, tool name,
+  argument byte counts, top-level JSON value types, and finish reason. Prompt,
+  document, slide, tool-argument, and response content are never included.
+- **Office raw-log isolation:** raw request/provider/response file logging is
+  disabled for preserved Office requests even when global request logging is
+  enabled.
+
+## 0.6.3 - 2026-08-08
+
+### Fixed
+
+- **Claude for Office `AskUserQuestion` streaming:** the OpenAI-to-Claude
+  response translator now emits one valid root JSON object for each tool input,
+  including when an upstream restarts a function-argument snapshot after a
+  broken prefix or appends malformed trailing data. Duplicate upstream terminal
+  chunks are ignored so a completed tool JSON object cannot be replayed as
+  adjacent JSON (`}{`) in the Office client.
+- **Office payload preservation:** this release does not trim, summarize, or
+  rewrite Claude for Office request content. The repair applies only to the
+  mandatory protocol response conversion after routing to an OpenAI-compatible
+  provider. Metadata-only `[TOOLJSON]` diagnostics record recovery without
+  logging Office or tool content.
+
+## 0.6.2 - 2026-08-08
+
+### Fixed
+
+- **Claude for Office `AskUserQuestion`:** OpenAI-compatible providers that
+  repeat or cumulatively resend complete function-argument JSON while
+  streaming no longer produce concatenated payloads. The Claude response
+  translator now reconciles compatible JSON snapshots into one valid
+  `input_json_delta`, preventing the client-side
+  `Unexpected non-whitespace character after JSON` parse failure.
+
+## 0.6.1 - 2026-08-08
+
+### Fixed
+
+- **Claude for Office PowerPoint execution:** added a gateway-owned Office.js
+  safety constraint for PowerPoint shape traversal. Models are now instructed
+  to load and inspect a shape type before obtaining a text frame, skip
+  non-text shapes, and check `isNullObject` after `context.sync()`. This
+  prevents a non-text shape from aborting a whole Office execution with
+  `Shape.getTextFrameOrNullObject`.
+
+### Changed
+
+- **Lossless Office request policy:** `/office/v1/messages` now bypasses all
+  optional content-altering transforms: RTK tool-result compression, PXPIPE,
+  incompatible-modality stripping, remote-image prefetch conversion, model
+  strip lists, Claude-tool deduplication, and provider-level thinking
+  overrides. The Claude/OpenAI protocol conversion remains, because the
+  configured Zyloo upstream requires it; Office-provided system context,
+  history, attachments, tools, and tool results are otherwise retained.
+
+## 0.6.0 - 2026-08-08
+
+### Changed
+
+- **Office gateway prompt profile:** requests to `/office/v1/messages` now skip
+  the Caveman and Ponytail style-prompt injections. The global settings remain
+  unchanged for every other gateway endpoint, provider, and combo route.
+  This avoids adding style-only context to Claude for Office requests, which
+  already carry task-pane-specific context.
+
 ## 0.5.0 — 2026-08-06
 
 ### Removed

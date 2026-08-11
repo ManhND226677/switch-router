@@ -15,7 +15,7 @@ function MenuItem({ icon, label, onClick, trailing, danger }) {
           : "text-text-main hover:bg-black/5 dark:hover:bg-white/5"
       }`}
     >
-      <span className={`material-symbols-outlined text-[20px] ${danger ? "" : "text-text-muted"}`}>
+      <span className={`material-symbols-outlined text-xl ${danger ? "" : "text-text-muted"}`}>
         {icon}
       </span>
       <span className="flex-1 text-left">{label}</span>

@@ -91,7 +91,7 @@ vi.mock("../../open-sse/utils/error.js", () => ({
   parseUpstreamError: vi.fn(),
 }));
 
-vi.mock("@/lib/usageDb.js", () => ({
+vi.mock("../../src/lib/usageDb.js", () => ({
   trackPendingRequest: vi.fn(),
   appendRequestLog: vi.fn(() => Promise.resolve()),
   saveRequestDetail: vi.fn(() => Promise.resolve()),

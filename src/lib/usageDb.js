@@ -5,4 +5,4 @@ export {
   invalidateUsageStatsCache, appendRequestLog, getLatestUsageId,
   getRecentLogs, getRecentLogsPage,
   saveRequestDetail, getRequestDetails, getRequestDetailById,
-} from "@/lib/db/index.js";
+} from "./db/index.js";

@@ -23,7 +23,7 @@ beforeAll(async () => {
   process.env.DATA_DIR = tempDir;
   delete process.env.OBSERVABILITY_ENABLED;
   vi.resetModules();
-  db = await import("@/lib/db/index.js");
+  db = await import("../../src/lib/db/index.js");
   await db.initDb();
   const { getAdapter } = await import("@/lib/db/driver.js");
   adapter = await getAdapter();

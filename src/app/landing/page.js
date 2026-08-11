@@ -62,12 +62,6 @@ export default function LandingPage() {
               >
                 Open Dashboard
               </button>
-              <button 
-                onClick={() => router.push("/dashboard/skills")}
-                className="w-full sm:w-auto h-14 px-10 rounded-lg border border-[#333333] hover:bg-[#262626] text-white text-lg font-bold transition-all"
-              >
-                View Skills
-              </button>
             </div>
           </div>
         </section>

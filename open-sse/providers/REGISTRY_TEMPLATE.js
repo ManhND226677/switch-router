@@ -8,7 +8,9 @@
  * Quick recipes:
  *   - Plain API-key LLM      → id, alias, category:"apikey", display, transport{baseUrl}, models.
  *   - OAuth LLM (device/PKCE)→ add oauth{...}; clientId/tokenUrl auto-inject into transport.
- *   - Media-only (tts/stt/…) → drop `models`+chat baseUrl, fill media{serviceKinds, *Config}.
+ *
+ * The gateway is chat/LLM-only: media capabilities (tts/stt/embedding/image/search) are
+ * not supported anymore — do not add *Config keys or media serviceKinds.
  */
 
 // import { CLAUDE_API_HEADERS, GOOGLE_OAUTH_CLIENT, OPENAI_COMPAT_BASE } from "./shared.js";
@@ -73,22 +75,15 @@ export default {
   //   userInfoUrl: "https://example.com/userinfo",
   // },
 
-  // ── media (non-LLM services) → PROVIDER_MEDIA[id] ────────────────────────
+  // ── media (service kinds) → PROVIDER_MEDIA[id] ────────────────────────────
   // media: {
-  //   serviceKinds: ["llm", "tts", "stt", "embedding", "image", "imageToText", "webSearch"],
-  //   ttsConfig:       { baseUrl: "...", authType: "apikey", authHeader: "bearer", format: "openai", defaultModel: "tts-1", models: [{ id: "tts-1", name: "TTS-1" }] },
-  //   sttConfig:       { baseUrl: "...", authType: "apikey", authHeader: "bearer", format: "openai", models: [{ id: "whisper-1", name: "Whisper" }] },
-  //   embeddingConfig: { baseUrl: "...", authType: "apikey", authHeader: "bearer", models: [{ id: "emb-1", name: "Emb", dimensions: 1536 }] },
-  //   imageConfig:     { baseUrl: "https://api.example.com/v1/images/generations" },
-  //   searchViaChat:   { defaultModel: "ex-search", pricingUrl: "https://example.com/pricing" },
-  //   // hiddenKinds: ["image"],
+  //   serviceKinds: ["llm"],
+  //   // hiddenKinds: [],
   // },
 
   // ── models (omit = no key; [] = explicit empty) ──────────────────────────
   models: [
     { id: "example-large", name: "Example Large" },
-    // { id: "example-img", name: "Example Image", type: "image", capabilities: ["text2img"], params: ["size"] },
-    // { id: "example-emb", name: "Example Embed", type: "embedding" },
   ],
 
   // ── optional flags ───────────────────────────────────────────────────────
