@@ -327,7 +327,10 @@ function UsageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const [period, setPeriod] = useState("today");
+  // Default to a useful populated window. The local usage store can have no
+  // entries for the current calendar day while still containing valid history;
+  // opening on `today` made a healthy dashboard look empty after idle periods.
+  const [period, setPeriod] = useState("7d");
 
   const tabFromUrl = searchParams.get("tab");
   const validTabFromUrl = tabFromUrl && ["overview", "logs"].includes(tabFromUrl) ? tabFromUrl : null;
