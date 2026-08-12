@@ -13,42 +13,42 @@
 
 /* ============================================================
    Switch-Router palette
-   Brand orange (dark) / soft coral (light), neutral warm bases
+   Midnight Operations: slate navy dark / blue-white light, route blue accent
    ============================================================ */
 :root {
-  /* Brand scale (light) - centered on #E56A4A */
-  --color-brand-50: #fdf1ed;
-  --color-brand-100: #fadccf;
-  --color-brand-200: #f4b59c;
-  --color-brand-300: #ee8d6a;
-  --color-brand-400: #ea7855;
-  --color-brand-500: #e56a4a;
-  --color-brand-600: #cc5236;
-  --color-brand-700: #a64027;
-  --color-brand-800: #7a2f1d;
-  --color-brand-900: #4d1e12;
+  /* Brand scale (light) - centered on Route Blue #5C8DFF */
+  --color-brand-50: #eff4ff;
+  --color-brand-100: #dce7ff;
+  --color-brand-200: #bed0ff;
+  --color-brand-300: #9bb7ff;
+  --color-brand-400: #7b9eff;
+  --color-brand-500: #5c8dff;
+  --color-brand-600: #466fe0;
+  --color-brand-700: #3658b5;
+  --color-brand-800: #293f83;
+  --color-brand-900: #1f2d5a;
 
   /* Primary (legacy alias for backward compat with existing components) */
   --color-primary: var(--color-brand-500);
   --color-primary-hover: var(--color-brand-600);
 
   /* Surfaces & backgrounds (light) */
-  --color-bg: #fdfaf6;
-  --color-bg-alt: #f7f3ee;
+  --color-bg: #eef3f9;
+  --color-bg-alt: #e7eef6;
   --color-surface: #ffffff;
-  --color-surface-2: #f4f4f5;
-  --color-surface-3: #e7e7e9;
-  --color-sidebar: rgba(244, 241, 236, 0.85);
+  --color-surface-2: #f5f8fc;
+  --color-surface-3: #e7eef6;
+  --color-sidebar: rgba(232, 239, 247, 0.92);
 
   /* Borders */
-  --color-border: #e5e7eb;
-  --color-border-subtle: #f1f1f3;
+  --color-border: #d8e2ee;
+  --color-border-subtle: #e6edf5;
 
   /* Text */
-  --color-text: #0a0a0a;
-  --color-text-main: #0a0a0a;
-  --color-text-muted: #6b7280;
-  --color-text-subtle: #9ca3af;
+  --color-text: #17263b;
+  --color-text-main: #17263b;
+  --color-text-muted: #60758f;
+  --color-text-subtle: #8ca0b7;
 
   /* Status */
   --color-danger: #cf222e;
@@ -62,45 +62,45 @@
 
   /* Shadows */
   --shadow-soft: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
-  --shadow-warm: 0 2px 12px -2px rgba(229, 106, 74, 0.18);
-  --shadow-elevated: 0 12px 28px -4px rgba(60, 50, 45, 0.06);
+  --shadow-warm: 0 2px 16px -2px rgba(92, 141, 255, 0.18);
+  --shadow-elevated: 0 12px 28px -4px rgba(56, 80, 108, 0.08);
   --shadow-elev:
     inset 0 1px 0 0 rgba(255, 255, 255, 0.8), 0 1px 2px rgba(15, 23, 42, 0.04),
     0 12px 36px -8px rgba(15, 23, 42, 0.1);
-  --shadow-focus: 0 0 0 3px rgba(229, 106, 74, 0.18);
+  --shadow-focus: 0 0 0 3px rgba(92, 141, 255, 0.2);
 
   color-scheme: light;
 }
 
 .dark {
-  /* Surfaces (dark - Claude-like neutral warm) */
-  --color-bg: #1a1a1a;
-  --color-bg-alt: #1f1f1e;
-  --color-surface: #262626;
-  --color-surface-2: #303030;
-  --color-surface-3: #3a3a3a;
-  --color-sidebar: rgba(30, 30, 30, 0.85);
+  /* Midnight Operations dark surfaces */
+  --color-bg: #071321;
+  --color-bg-alt: #0b1b2e;
+  --color-surface: #122740;
+  --color-surface-2: #19324f;
+  --color-surface-3: #23405f;
+  --color-sidebar: rgba(7, 19, 33, 0.94);
 
-  --color-border: #333333;
-  --color-border-subtle: #2a2a2a;
+  --color-border: rgba(145, 174, 213, 0.18);
+  --color-border-subtle: rgba(145, 174, 213, 0.11);
 
-  --color-text: #ededed;
-  --color-text-main: #ededed;
-  --color-text-muted: #9ca3af;
-  --color-text-subtle: #6b7280;
+  --color-text: #edf4fb;
+  --color-text-main: #edf4fb;
+  --color-text-muted: #8da6c2;
+  --color-text-subtle: #627d9b;
 
-  --color-danger: #ef4444;
-  --color-success: #22c55e;
-  --color-warning: #fbbf24;
-  --color-info: #60a5fa;
+  --color-danger: #ef8c7c;
+  --color-success: #54d7a4;
+  --color-warning: #f5b94c;
+  --color-info: #7da5ff;
 
-  --shadow-soft: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-  --shadow-warm: 0 2px 12px -2px rgba(229, 106, 74, 0.25);
-  --shadow-elevated: 0 12px 28px -4px rgba(0, 0, 0, 0.45);
+  --shadow-soft: 0 1px 2px 0 rgba(0, 0, 0, 0.28);
+  --shadow-warm: 0 2px 16px -2px rgba(92, 141, 255, 0.22);
+  --shadow-elevated: 0 12px 28px -4px rgba(0, 0, 0, 0.42);
   --shadow-elev:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.06), 0 1px 2px rgba(0, 0, 0, 0.4),
-    0 16px 48px -8px rgba(0, 0, 0, 0.55);
-  --shadow-focus: 0 0 0 3px rgba(229, 106, 74, 0.18);
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.05), 0 1px 2px rgba(0, 0, 0, 0.35),
+    0 16px 48px -8px rgba(0, 0, 0, 0.48);
+  --shadow-focus: 0 0 0 3px rgba(92, 141, 255, 0.2);
 
   color-scheme: dark;
 }
@@ -158,18 +158,18 @@ select {
   --color-info: var(--color-info);
 
   /* Static fallbacks (explicit per-mode usage if needed) */
-  --color-bg-light: #fcfbf9;
-  --color-bg-dark: #1a1a1a;
+  --color-bg-light: #eef3f9;
+  --color-bg-dark: #071321;
   --color-surface-light: #ffffff;
   --color-surface-dark: #262626;
-  --color-sidebar-light: #f4f1ec;
-  --color-sidebar-dark: #1f1f1e;
-  --color-border-light: #e5e7eb;
-  --color-border-dark: #333333;
-  --color-text-main-light: #0a0a0a;
-  --color-text-main-dark: #ededed;
-  --color-text-muted-light: #6b7280;
-  --color-text-muted-dark: #9ca3af;
+  --color-sidebar-light: #e8eff7;
+  --color-sidebar-dark: #0b1b2e;
+  --color-border-light: #d8e2ee;
+  --color-border-dark: rgba(145, 174, 213, 0.18);
+  --color-text-main-light: #17263b;
+  --color-text-main-dark: #edf4fb;
+  --color-text-muted-light: #60758f;
+  --color-text-muted-dark: #8da6c2;
 
   /* Radius */
   --radius-brand: var(--radius-brand);
@@ -199,11 +199,11 @@ body {
 
 /* Selection - brand-tinted */
 ::selection {
-  background-color: rgba(229, 106, 74, 0.25);
+  background-color: rgba(92, 141, 255, 0.25);
   color: var(--color-primary);
 }
 .dark ::selection {
-  background-color: rgba(229, 106, 74, 0.3);
+  background-color: rgba(92, 141, 255, 0.3);
   color: var(--color-brand-300);
 }
 
@@ -275,10 +275,11 @@ textarea {
 .bg-vibrancy {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(232, 239, 247, 0.86);
+  border-color: var(--color-border-subtle);
 }
 .dark .bg-vibrancy {
-  background: rgba(38, 38, 38, 0.72);
+  background: rgba(7, 19, 33, 0.9);
 }
 
 /* macOS Traffic Lights */
@@ -507,12 +508,12 @@ button:disabled,
   background-image:
     radial-gradient(
       circle at 15% 20%,
-      rgba(229, 106, 74, 0.1) 0%,
+      rgba(92, 141, 255, 0.09) 0%,
       transparent 40%
     ),
     radial-gradient(
       circle at 85% 80%,
-      rgba(229, 106, 74, 0.06) 0%,
+      rgba(84, 215, 164, 0.045) 0%,
       transparent 40%
     );
 }
@@ -520,12 +521,12 @@ button:disabled,
   background-image:
     radial-gradient(
       circle at 15% 20%,
-      rgba(229, 106, 74, 0.18) 0%,
+      rgba(92, 141, 255, 0.16) 0%,
       transparent 40%
     ),
     radial-gradient(
       circle at 85% 80%,
-      rgba(229, 106, 74, 0.1) 0%,
+      rgba(84, 215, 164, 0.08) 0%,
       transparent 40%
     );
 }
@@ -536,10 +537,10 @@ button:disabled,
     linear-gradient(to right, var(--color-accent) 1px, transparent 1px),
     linear-gradient(to bottom, var(--color-accent) 1px, transparent 1px);
   background-size: 40px 40px;
-  opacity: 0.08;
+  opacity: 0.035;
 }
 .dark .landing-grid {
-  opacity: 0.04;
+  opacity: 0.025;
 }
 
 /* React Flow controls: match app theme */

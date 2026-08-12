@@ -8,9 +8,9 @@ export default function ThemeToggle({ className, variant = "default" }) {
 
   const variants = {
     default: cn(
-      "flex items-center justify-center size-10 rounded-full",
+      "flex items-center justify-center size-9 rounded-lg border border-border-subtle bg-surface/60",
       "text-text-muted hover:text-text-main",
-      "hover:bg-surface-2 transition-colors"
+      "hover:bg-surface-2 hover:border-primary/30 transition-all"
     ),
     card: cn(
       "flex items-center justify-center size-11 rounded-full",
