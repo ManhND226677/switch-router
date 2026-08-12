@@ -95,8 +95,8 @@ const getPageInfo = (pathname) => {
     };
   if (pathname.includes("/endpoint"))
     return {
-      title: "Endpoint",
-      description: "API endpoint configuration",
+      title: "Endpoint & Key",
+      description: "Manage client access, API keys and protocol base URLs",
       icon: "api",
       breadcrumbs: [],
     };
@@ -123,8 +123,8 @@ const getPageInfo = (pathname) => {
     };
   if (pathname === "/dashboard")
     return {
-      title: "Endpoint",
-      description: "API endpoint configuration",
+      title: "Endpoint & Key",
+      description: "Manage client access, API keys and protocol base URLs",
       icon: "api",
       breadcrumbs: [],
     };

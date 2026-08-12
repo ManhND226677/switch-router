@@ -12,7 +12,8 @@ export default function EndpointPageClient() {
   const [keys, setKeys] = useState([]);
   const [loading, setLoading] = useState(true);
   const [requireApiKey, setRequireApiKey] = useState(false);
-  const [officeGatewayEnabled, setOfficeGatewayEnabled] = useState(false);
+  // The Office namespace is a permanent user-facing route in the new dashboard shell.
+  const [officeGatewayEnabled, setOfficeGatewayEnabled] = useState(true);
   const [officeAllowlistCount, setOfficeAllowlistCount] = useState(0);
   const [health, setHealth] = useState("checking");
   const [modelCount, setModelCount] = useState(null);
@@ -44,7 +45,9 @@ export default function EndpointPageClient() {
       const data = await response.json();
       if (response.ok) {
         setRequireApiKey(data.requireApiKey === true);
-        setOfficeGatewayEnabled(data.officeGatewayEnabled === true);
+        // Keep Claude for M365 visible as an Always-on namespace; the endpoint
+        // rows and dedicated card should not disappear when legacy settings are false.
+        setOfficeGatewayEnabled(true);
         setOfficeAllowlistCount(Number(data.officeModelAllowlistCount) || 0);
       }
     } catch (error) {
@@ -178,6 +181,17 @@ export default function EndpointPageClient() {
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-success/20 bg-success/5 px-4 py-3 shadow-[var(--shadow-soft)]">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="material-symbols-outlined shrink-0 rounded-lg bg-success/15 p-2 text-success">hub</span>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-success">Always-on namespace</p>
+            <p className="truncate text-sm font-semibold text-text-main">Claude for M365 Gateway</p>
+            <p className="truncate text-xs text-text-muted">Enabled · dedicated /office/v1 route · included in Base URLs below</p>
+          </div>
+        </div>
+        <code className="rounded-md bg-surface-2 px-2.5 py-1.5 text-xs text-primary">{origin}/office/v1</code>
+      </div>
       <Card title="Gateway Status" icon="monitor_heart">
         <RuntimeStatusCard
           health={health}
@@ -278,7 +292,7 @@ export default function EndpointPageClient() {
 
         {/* Side Column - spans 1 column */}
         <div className="flex flex-col gap-6">
-          <Card title="Claude for M365 Gateway" icon="description" subtitle="An isolated namespace for Office agents. It never changes the behaviour of the endpoints above.">
+          <Card title="Claude for M365 Gateway" icon="description" subtitle="Always-on isolated namespace for Office agents with a dedicated model allowlist.">
             <OfficeGatewayCard
               origin={origin}
               enabled={officeGatewayEnabled}

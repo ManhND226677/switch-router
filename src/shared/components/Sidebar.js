@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -17,8 +16,6 @@ const providerModelItems = [
 const observabilityItems = [
   { href: "/dashboard/usage", label: "Usage", icon: "bar_chart" },
   { href: "/dashboard/quota", label: "Quota Tracker", icon: "data_usage" },
-  { href: "/dashboard/console-log", label: "Console Log", icon: "terminal", debug: true },
-  { href: "/dashboard/translator", label: "Translator", icon: "translate", debug: true },
 ];
 
 const systemItems = [
@@ -69,18 +66,6 @@ function NavSection({ title, children, isMini }) {
 
 export default function Sidebar({ onClose, isMini = false }) {
   const pathname = usePathname();
-  const [enableTranslator, setEnableTranslator] = useState(false);
-  const [enableDebug, setEnableDebug] = useState(true);
-
-  useEffect(() => {
-    fetch("/api/settings")
-      .then(res => res.json())
-      .then(data => {
-        if (data.enableTranslator) setEnableTranslator(true);
-        if (data.enableDebug === false) setEnableDebug(false);
-      })
-      .catch(() => {});
-  }, []);
 
   const isActive = (href) => {
     if (href === "/dashboard/endpoint") {
@@ -130,14 +115,9 @@ export default function Sidebar({ onClose, isMini = false }) {
           </NavSection>
 
           <NavSection title="Observability" isMini={isMini}>
-            {observabilityItems
-              .filter((item) => !item.debug || enableDebug)
-              .map((item) => {
-                if (item.href === "/dashboard/translator" && !enableTranslator) return null;
-                return (
-                  <NavLink key={item.href} item={item} active={isActive(item.href)} onClose={onClose} isMini={isMini} />
-                );
-              })}
+            {observabilityItems.map((item) => (
+              <NavLink key={item.href} item={item} active={isActive(item.href)} onClose={onClose} isMini={isMini} />
+            ))}
           </NavSection>
 
           <NavSection title="System" isMini={isMini}>
