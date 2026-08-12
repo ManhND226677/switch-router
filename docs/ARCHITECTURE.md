@@ -102,7 +102,7 @@ Important compatibility routes:
 
 Management domains:
 
-- Auth/settings: `src/app/api/auth/*`, `src/app/api/settings/*`
+- Local-only/settings: `src/dashboardGuard.js`, `src/app/api/auth/status`, `src/app/api/settings/*`
 - Providers/connections: `src/app/api/providers*`
 - Provider nodes: `src/app/api/provider-nodes*`
 - OAuth: `src/app/api/oauth/*`
@@ -234,7 +234,7 @@ flowchart TD
 
 Fallback decisions are driven by `open-sse/services/accountFallback.js` using status codes and error-message heuristics.
 
-## OAuth Onboarding and Token Refresh Lifecycle
+## Provider OAuth Onboarding and Token Refresh Lifecycle
 
 ```mermaid
 sequenceDiagram
@@ -246,7 +246,7 @@ sequenceDiagram
     participant Test as /api/providers/[id]/test
     participant Exec as Provider Executor
 
-    UI->>OAuth: GET authorize or device-code
+    UI->>OAuth: GET provider authorize or device-code
     OAuth->>ProvAuth: create auth/device flow
     ProvAuth-->>OAuth: auth URL or device code payload
     OAuth-->>UI: flow data
@@ -276,8 +276,8 @@ erDiagram
 
     SETTINGS {
       number stickyRoundRobinLimit
-      boolean requireLogin
-      string password_hash
+      boolean localOnly
+      string legacy_auth_fields_ignored
     }
 
     PROVIDER_CONNECTION {

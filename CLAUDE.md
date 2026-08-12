@@ -59,6 +59,12 @@ Two authoritative docs already exist — read them before working in these areas
 
 `src/sse/` is the app-side entry glue; `open-sse/` is the provider-agnostic engine (also usable standalone). Cross that boundary consciously.
 
+### Dashboard access model
+- The dashboard is deliberately **local-only** and does not have a password or OIDC login flow.
+- `/dashboard` and dashboard management APIs are gated by `src/dashboardGuard.js`, which trusts the TCP-derived `x-9r-real-ip` stamp from `custom-server.js` and rejects non-loopback requests.
+- Gateway authentication remains separate: `/v1/*`, `/v1beta/*`, `/codex/*`, and `/office/v1/*` use their own API-key/CLI-token semantics. Do not add dashboard authentication checks to the LLM request path.
+- Legacy `/login`, `/api/auth/login`, and OIDC routes are compatibility endpoints only; they must never create a dashboard session or call an identity provider.
+
 ### Translator engine (`open-sse/translator/`)
 - Pivots through **OpenAI as the intermediate format**. A translator registered on an exact `source:target` pair runs as a **direct route**, skipping the lossy double-hop. Prefer a direct route for fragile pairs (thinking blocks, tool ids, non-base64 images, `is_error`).
 - Translators **self-register** via `register(from, to, reqFn, resFn)` as an import side effect — a new translator file MUST be imported in `open-sse/translator/index.js` or it never runs.
@@ -81,6 +87,6 @@ Pre-translate hooks that compress `tool_result` content in-place to cut tokens. 
 
 - Plain JavaScript (ESM), no TypeScript. `@/*` path alias → `src/*` (`jsconfig.json`).
 - `custom-server.js` wraps the Next standalone server to derive client IP from the TCP socket and strip attacker-controlled `X-Forwarded-For` — trusting forwarding headers only from a loopback reverse proxy. Preserve this when touching request/IP/rate-limit code.
-- Security-sensitive env: `JWT_SECRET` (session cookie), `API_KEY_SECRET`, `MACHINE_ID_SALT`. Full env contract in `.env.example` and ARCHITECTURE.md's env matrix.
+- Security-sensitive env: `API_KEY_SECRET`, `MACHINE_ID_SALT`, provider credentials and outbound proxy settings. Dashboard password/JWT/OIDC variables are legacy and are not used by the local-only dashboard. Full env contract is in `.env.example`.
 - Binary/protobuf upstreams (cursor protobuf, commandcode NDJSON) don't round-trip through OpenAI — they're handled inside their own executor, not the translator.
 - Versioning: the root Web application is versioned in `package.json`. Commit style is Conventional Commits (`fix(translator): …`, `feat(...)`).

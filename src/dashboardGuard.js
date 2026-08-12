@@ -22,10 +22,7 @@ const PUBLIC_API_PATHS = [
   "/api/health",
   "/api/init",
   "/api/locale",
-  "/api/auth/login",
-  "/api/auth/logout",
   "/api/auth/status",
-  "/api/auth/oidc",
   "/api/settings/require-login",
 ];
 
@@ -195,7 +192,8 @@ export async function proxy(request) {
     return NextResponse.json({ error: "Switch-Router dashboard is local-only" }, { status: 403 });
   }
 
-  // Do not show a login screen that cannot be reached meaningfully in local mode.
+  // Dashboard authentication is disabled. Keep legacy bookmarks useful without
+  // rendering a password form; remote callers remain blocked by local-only.
   if (pathname === "/login") {
     if (canAccessLocalDashboard(request)) return NextResponse.redirect(new URL("/dashboard", request.url));
     return NextResponse.json({ error: "Switch-Router is local-only" }, { status: 403 });
