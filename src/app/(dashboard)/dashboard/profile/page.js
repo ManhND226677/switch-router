@@ -5,6 +5,7 @@ import { Card, Button, Toggle, Input } from "@/shared/components";
 import { ConfirmModal } from "@/shared/components/Modal";
 import LanguageSwitcher from "@/shared/components/LanguageSwitcher";
 import { useTheme } from "@/shared/hooks/useTheme";
+import DesignSwitcher from "@/shared/components/DesignSwitcher";
 import { cn } from "@/shared/utils/cn";
 import { APP_CONFIG } from "@/shared/constants/config";
 import { LOCALE_COOKIE, normalizeLocale } from "@/i18n/config";
@@ -415,7 +416,8 @@ export default function ProfilePage() {
               </p>
             )}
           </div>
-        </Card>
+        <DesignSwitcher />
+          </Card>
 
         {/* Language */}
         <Card>

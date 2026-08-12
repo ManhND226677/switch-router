@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import { useTheme } from "@/shared/hooks/useTheme";
 import { ConfirmModal } from "./Modal";
+import DesignSwitcher from "./DesignSwitcher";
 
 function MenuItem({ icon, label, onClick, trailing, danger }) {
   return (
@@ -82,6 +83,7 @@ export default function HeaderMenu() {
               label="Theme"
               onClick={() => { toggleTheme(); close(); }}
             />
+            <DesignSwitcher />
             <MenuItem
               icon="power_settings_new"
               label="Shutdown"

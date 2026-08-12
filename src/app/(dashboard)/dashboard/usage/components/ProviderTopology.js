@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import PropTypes from "prop-types";
 import {
@@ -48,7 +49,7 @@ function ProviderNode({ data }) {
         style={{ backgroundColor: `${color}15` }}
       >
         {!imgError ? (
-          <img src={imageUrl} alt={label} className="w-6 h-6 rounded-sm object-contain" onError={() => setImgError(true)} />
+          <Image src={imageUrl} alt={label} width={24} height={24} className="w-6 h-6 rounded-sm object-contain" onError={() => setImgError(true)} />
         ) : (
           <span className="text-sm font-bold" style={{ color }}>{textIcon}</span>
         )}
@@ -86,7 +87,7 @@ function RouterNode({ data }) {
       <Handle type="source" position={Position.Left} id="left" className="!bg-transparent !border-0 !w-0 !h-0" />
       <Handle type="source" position={Position.Right} id="right" className="!bg-transparent !border-0 !w-0 !h-0" />
 
-      <img src="/favicon.svg" alt="Switch-Router" className="w-6 h-6 mr-2" />
+      <Image src="/favicon.svg" alt="Switch-Router" width={24} height={24} className="w-6 h-6 mr-2" />
       <span className="text-sm font-bold text-primary">Switch-Router</span>
       {data.activeCount > 0 && (
         <span className="ml-2 px-1.5 py-0.5 rounded-full bg-primary text-white text-xs font-bold">
@@ -254,7 +255,7 @@ export default function ProviderTopology({ providers = [], activeRequests = [], 
 
   const { nodes, edges } = useMemo(
     () => buildLayout(providers, activeSet, lastSet, errorSet),
-    [providers, activeSet, lastKey, errorKey]
+    [providers, activeSet, lastSet, errorSet]
   );
 
   // Stable key — only remount when provider list changes
@@ -265,11 +266,11 @@ export default function ProviderTopology({ providers = [], activeRequests = [], 
 
   const rfInstance = useRef(null);
   const containerRef = useRef(null);
-  const fitOpts = { padding: 0.2, duration: 200 };
+  const fitOpts = useMemo(() => ({ padding: 0.2, duration: 200 }), []);
   const onInit = useCallback((instance) => {
     rfInstance.current = instance;
     setTimeout(() => instance.fitView(fitOpts), 50);
-  }, []);
+  }, [fitOpts]);
 
   // Re-fit on container resize
   useEffect(() => {
@@ -280,7 +281,7 @@ export default function ProviderTopology({ providers = [], activeRequests = [], 
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [fitOpts]);
 
   // Re-fit when node count/layout changes
   useEffect(() => {
@@ -288,7 +289,7 @@ export default function ProviderTopology({ providers = [], activeRequests = [], 
       const id = setTimeout(() => rfInstance.current.fitView(fitOpts), 50);
       return () => clearTimeout(id);
     }
-  }, [nodes.length]);
+  }, [nodes.length, fitOpts]);
 
   return (
     <div ref={containerRef} className="h-[320px] w-full min-w-0 rounded-lg border border-border bg-bg-subtle/30 sm:h-[480px]">

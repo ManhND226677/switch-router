@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { Suspense, useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -6,7 +6,7 @@ import { CardSkeleton, SegmentedControl } from "@/shared/components";
 import Card from "@/shared/components/Card";
 import RequestDetailsTab from "./components/RequestDetailsTab";
 import UsageChart from "./components/UsageChart";
-import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from "recharts";
+import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 import { fetchModelNames, getModelName } from "@/shared/utils/modelNames";
 
 const PERIODS = [
@@ -60,29 +60,37 @@ function MetricCard({ title, value, trend, trendUp }) {
 }
 
 function CustomPieTooltip({ active, payload }) {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-surface border border-border shadow-md rounded-lg p-3 min-w-[120px]">
-        {payload.map((entry, index) => (
-          <div key={index} className="flex flex-col gap-1">
-            <div className="flex items-center gap-2 mb-1">
-              <div
-                className="w-2.5 h-2.5 rounded-sm"
+  if (!active || !payload?.length) return null;
+
+  return (
+    <div className="min-w-[180px] max-w-[280px] rounded-lg border border-border bg-surface p-3 shadow-lg">
+      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+        Model usage
+      </div>
+      <div className="flex flex-col gap-2">
+        {payload.map((entry, index) => {
+          const modelName = entry.payload?.name || entry.name || "Unknown model";
+          return (
+            <div key={`${modelName}-${index}`} className="flex items-start gap-2">
+              <span
+                className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
                 style={{ backgroundColor: entry.color }}
               />
-              <span className="text-xs font-medium text-text-muted">{entry.name}</span>
+              <div className="min-w-0">
+                <div className="break-words text-xs font-medium text-text-main">
+                  {modelName}
+                </div>
+                <div className="text-xs text-text-muted">
+                  {fmt(entry.value)} tokens
+                </div>
+              </div>
             </div>
-            <span className="text-sm font-semibold text-text-main ml-4">
-              {fmt(entry.value)} <span className="text-text-muted font-normal text-xs">Tokens</span>
-            </span>
-          </div>
-        ))}
+          );
+        })}
       </div>
-    );
-  }
-  return null;
+    </div>
+  );
 }
-
 function OverviewDashboard({ period }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -224,12 +232,7 @@ const [providerNameMap, setProviderNameMap] = useState({});
                       ))}
                     </Pie>
                     <RechartsTooltip content={<CustomPieTooltip />} cursor={{fill: 'transparent'}} />
-                    <Legend 
-                      verticalAlign="bottom" 
-                      height={36} 
-                      iconType="circle"
-                      wrapperStyle={{ fontSize: "12px", color: "var(--color-text-muted)" }}
-                    />
+
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
