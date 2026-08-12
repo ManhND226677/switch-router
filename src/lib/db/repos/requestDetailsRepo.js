@@ -220,16 +220,25 @@ const _shutdownHandler = async () => {
   if (writeBuffer.length > 0) await flushToDatabase();
 };
 
-function ensureShutdownHandler() {
-  process.off("beforeExit", _shutdownHandler);
-  process.off("SIGINT", _shutdownHandler);
-  process.off("SIGTERM", _shutdownHandler);
-  process.off("exit", _shutdownHandler);
+const shutdownState = (globalThis.__switchRouterRequestDetailsShutdown ??= {
+  handler: null,
+});
 
-  process.on("beforeExit", _shutdownHandler);
-  process.on("SIGINT", _shutdownHandler);
-  process.on("SIGTERM", _shutdownHandler);
-  process.on("exit", _shutdownHandler);
+function ensureShutdownHandler() {
+  // Replace the previous module instance during Next.js hot reload. Retaining
+  // the old function reference lets us remove it before registering the new one.
+  if (shutdownState.handler) {
+    process.off("beforeExit", shutdownState.handler);
+    process.off("SIGINT", shutdownState.handler);
+    process.off("SIGTERM", shutdownState.handler);
+    process.off("exit", shutdownState.handler);
+  }
+
+  shutdownState.handler = _shutdownHandler;
+  process.on("beforeExit", shutdownState.handler);
+  process.on("SIGINT", shutdownState.handler);
+  process.on("SIGTERM", shutdownState.handler);
+  process.on("exit", shutdownState.handler);
 }
 
 ensureShutdownHandler();
