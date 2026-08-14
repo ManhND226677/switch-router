@@ -106,9 +106,32 @@ function mergeWithDefaults(raw) {
   return merged;
 }
 
+// Hot-path cache: chat/auth call getSettings() multiple times per request.
+// Invalidate on every write so dashboard updates stay immediately visible.
+// Survive Next.js dev HMR via global (same pattern as db/driver.js).
+if (!global._settingsCache) global._settingsCache = { value: null, inflight: null };
+const settingsCache = global._settingsCache;
+
+export function invalidateSettingsCache() {
+  settingsCache.value = null;
+  settingsCache.inflight = null;
+}
+
 export async function getSettings() {
-  const raw = await readRaw();
-  return mergeWithDefaults(raw);
+  if (settingsCache.value) return settingsCache.value;
+  if (settingsCache.inflight) return settingsCache.inflight;
+  settingsCache.inflight = readRaw()
+    .then((raw) => {
+      const merged = mergeWithDefaults(raw);
+      settingsCache.value = merged;
+      settingsCache.inflight = null;
+      return merged;
+    })
+    .catch((err) => {
+      settingsCache.inflight = null;
+      throw err;
+    });
+  return settingsCache.inflight;
 }
 
 // Atomic read-merge-write inside transaction (prevents losing concurrent updates)
@@ -124,7 +147,11 @@ export async function updateSettings(updates) {
       [stringifyJson(next)]
     );
   });
-  return mergeWithDefaults(next);
+  const merged = mergeWithDefaults(next);
+  // Publish immediately so concurrent readers see the write without a stale hit.
+  settingsCache.value = merged;
+  settingsCache.inflight = null;
+  return merged;
 }
 
 export async function exportSettings() {

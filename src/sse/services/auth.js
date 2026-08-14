@@ -7,8 +7,53 @@ import { getProviderRoutingPolicy } from "@/core/routing/routingConfig.js";
 import { buildRuntimeCredentials } from "@/core/credentials/credentialProjection.js";
 import * as log from "../utils/logger.js";
 
-// Mutex to prevent race conditions during account selection
-let selectionMutex = Promise.resolve();
+// Per-provider mutex: concurrent requests for different providers no longer
+// serialize each other. Same-provider selection still serializes so sticky-RR
+// counters stay consistent under concurrency.
+if (!global._providerSelectionMutex) global._providerSelectionMutex = new Map();
+const providerMutexes = global._providerSelectionMutex;
+
+async function withProviderSelectionLock(providerId, fn) {
+  const prev = providerMutexes.get(providerId) || Promise.resolve();
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  // Chain must be the Map value we compare against on release (not `gate` alone).
+  const chained = prev.then(() => gate, () => gate);
+  providerMutexes.set(providerId, chained);
+  try {
+    await prev;
+    return await fn();
+  } finally {
+    release();
+    // Drop settled tail so the map does not grow forever for idle providers.
+    if (providerMutexes.get(providerId) === chained) providerMutexes.delete(providerId);
+  }
+}
+
+// In-memory sticky-RR counters. Avoids a full-row DB write on every request
+// before first upstream byte. DB is still the source of truth for locks/tokens;
+// these counters only accelerate lastUsedAt / consecutiveUseCount.
+if (!global._rrStickyState) global._rrStickyState = new Map();
+const rrStickyState = global._rrStickyState; // connectionId -> { lastUsedAt, consecutiveUseCount }
+
+function overlayRrState(connection) {
+  const mem = rrStickyState.get(connection.id);
+  if (!mem) return connection;
+  return {
+    ...connection,
+    lastUsedAt: mem.lastUsedAt || connection.lastUsedAt,
+    consecutiveUseCount: mem.consecutiveUseCount ?? connection.consecutiveUseCount,
+  };
+}
+
+function recordRrUse(connectionId, consecutiveUseCount) {
+  const lastUsedAt = new Date().toISOString();
+  rrStickyState.set(connectionId, { lastUsedAt, consecutiveUseCount });
+  // Fire-and-forget persist — selection path must not await disk.
+  updateProviderConnection(connectionId, { lastUsedAt, consecutiveUseCount }).catch((err) => {
+    log.warn?.("AUTH", `RR sticky persist failed for ${connectionId?.slice?.(0, 8) || connectionId}: ${err?.message || err}`);
+  });
+}
 
 /**
  * Get provider credentials from localDb
@@ -23,17 +68,12 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     ? excludeConnectionIds
     : (excludeConnectionIds ? new Set([excludeConnectionIds]) : new Set());
   const preferredConnectionId = options?.preferredConnectionId || null;
-  // Acquire mutex to prevent race conditions
-  const currentMutex = selectionMutex;
-  let resolveMutex;
-  selectionMutex = new Promise(resolve => { resolveMutex = resolve; });
 
-  try {
-    await currentMutex;
+  // Resolve alias to provider ID (e.g., "kc" -> "kilocode") before locking
+  // so different aliases of the same provider share one mutex.
+  const providerId = resolveProviderId(provider);
 
-    // Resolve alias to provider ID (e.g., "kc" -> "kilocode")
-    const providerId = resolveProviderId(provider);
-
+  return withProviderSelectionLock(providerId, async () => {
     // Inject a virtual connection for no-auth free providers (with optional proxy pool from settings)
     if (FREE_PROVIDERS[providerId]?.noAuth) {
       const settings = await getSettings();
@@ -68,15 +108,19 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       return null;
     }
 
+    // Overlay in-memory RR counters so sticky decisions see the latest use
+    // without waiting for deferred DB writes from prior requests.
+    const connectionsWithRr = connections.map(overlayRrState);
+
     // Filter out model-locked and excluded connections
-    const availableConnections = connections.filter(c => {
+    const availableConnections = connectionsWithRr.filter(c => {
       if (excludeSet.has(c.id)) return false;
       if (isModelLockActive(c, model)) return false;
       return true;
     });
 
-    log.debug("AUTH", `${provider} | available: ${availableConnections.length}/${connections.length}`);
-    connections.forEach(c => {
+    log.debug("AUTH", `${provider} | available: ${availableConnections.length}/${connectionsWithRr.length}`);
+    connectionsWithRr.forEach(c => {
       const excluded = excludeSet.has(c.id);
       const locked = isModelLockActive(c, model);
       if (excluded || locked) {
@@ -87,12 +131,12 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
 
     if (availableConnections.length === 0) {
       // Find earliest lock expiry across all connections for retry timing
-      const lockedConns = connections.filter(c => isModelLockActive(c, model));
+      const lockedConns = connectionsWithRr.filter(c => isModelLockActive(c, model));
       const expiries = lockedConns.map(c => getEarliestModelLockUntil(c)).filter(Boolean);
       const earliest = expiries.sort()[0] || null;
       if (earliest) {
         const earliestConn = lockedConns[0];
-        log.warn("AUTH", `${provider} | all ${connections.length} accounts locked for ${model || "all"} (${formatRetryAfter(earliest)}) | lastError=${earliestConn?.lastError?.slice(0, 50)}`);
+        log.warn("AUTH", `${provider} | all ${connectionsWithRr.length} accounts locked for ${model || "all"} (${formatRetryAfter(earliest)}) | lastError=${earliestConn?.lastError?.slice(0, 50)}`);
         return {
           allRateLimited: true,
           retryAfter: earliest,
@@ -101,7 +145,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
           lastErrorCode: earliestConn?.errorCode || null
         };
       }
-      log.warn("AUTH", `${provider} | all ${connections.length} accounts unavailable`);
+      log.warn("AUTH", `${provider} | all ${connectionsWithRr.length} accounts unavailable`);
       return null;
     }
 
@@ -136,11 +180,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       if (current && current.lastUsedAt && currentCount < stickyLimit) {
         // Stay with current account
         connection = current;
-        // Update lastUsedAt and increment count (await to ensure persistence)
-        await updateProviderConnection(connection.id, {
-          lastUsedAt: new Date().toISOString(),
-          consecutiveUseCount: (connection.consecutiveUseCount || 0) + 1
-        });
+        recordRrUse(connection.id, (connection.consecutiveUseCount || 0) + 1);
       } else {
         // Pick the least recently used (excluding current if possible)
         const sortedByOldest = [...availableConnections].sort((a, b) => {
@@ -151,12 +191,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
         });
 
         connection = sortedByOldest[0];
-
-        // Update lastUsedAt and reset count to 1 (await to ensure persistence)
-        await updateProviderConnection(connection.id, {
-          lastUsedAt: new Date().toISOString(),
-          consecutiveUseCount: 1
-        });
+        recordRrUse(connection.id, 1);
       }
     } else {
       // Default: fill-first (already sorted by priority in getProviderConnections)
@@ -166,9 +201,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     const resolvedProxy = await resolveConnectionProxyConfig(connection.providerSpecificData || {});
 
     return buildRuntimeCredentials(connection, resolvedProxy);
-  } finally {
-    if (resolveMutex) resolveMutex();
-  }
+  });
 }
 
 /**

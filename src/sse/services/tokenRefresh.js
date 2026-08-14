@@ -210,6 +210,53 @@ export async function updateProviderCredentials(connectionId, newCredentials) {
  * @param {object} credentials
  * @returns {Promise<object>} updated credentials object
  */
+// Dedupe in-flight background refreshes per connection so concurrent requests
+// in the soft-refresh window do not stampede the OAuth token endpoint.
+if (!global._bgTokenRefreshInflight) global._bgTokenRefreshInflight = new Map();
+const bgTokenRefreshInflight = global._bgTokenRefreshInflight;
+
+function scheduleBackgroundCredentialRefresh(provider, creds) {
+  const key = `${provider}:${creds.connectionId || creds.id || "unknown"}`;
+  if (bgTokenRefreshInflight.has(key)) return bgTokenRefreshInflight.get(key);
+
+  const work = (async () => {
+    try {
+      const newCreds = await _refreshProviderCredentials(provider, creds, log);
+      if (!(newCreds?.accessToken || newCreds?.apiKey || newCreds?.copilotToken)) return;
+      const mergedCreds = {
+        ...newCreds,
+        existingProviderSpecificData: creds.providerSpecificData,
+      };
+      await updateProviderCredentials(creds.connectionId, mergedCreds);
+      _refreshProjectId(provider, creds.connectionId, newCreds.accessToken || creds.accessToken);
+    } catch (err) {
+      log.warn?.("TOKEN_REFRESH", `Background refresh failed for ${provider}: ${err?.message || err}`);
+    } finally {
+      bgTokenRefreshInflight.delete(key);
+    }
+  })();
+
+  bgTokenRefreshInflight.set(key, work);
+  return work;
+}
+
+/**
+ * Soft lead window: when token is still valid but inside the proactive refresh
+ * lead, kick off refresh in the background and let THIS request use the current
+ * token. Only block the request when the token is already expired (or missing
+ * expiry with a stale-refresh rule that requires a new token).
+ */
+function isHardRefreshRequired(provider, creds, nowMs = Date.now()) {
+  const expiresAt = creds.expiresAt ? new Date(creds.expiresAt).getTime() : null;
+  if (expiresAt !== null && Number.isFinite(expiresAt)) {
+    // Still valid → soft (background). Already expired → must wait.
+    return expiresAt <= nowMs;
+  }
+  // No absolute expiry: stale-refresh providers (e.g. codex maxRefreshAgeMs)
+  // must still block — we cannot safely reuse an unbounded token.
+  return true;
+}
+
 export async function checkAndRefreshToken(provider, credentials) {
   let creds = { ...credentials };
   if (!creds.connectionId && creds.id) {
@@ -221,37 +268,49 @@ export async function checkAndRefreshToken(provider, credentials) {
     const expiresAt = creds.expiresAt ? new Date(creds.expiresAt).getTime() : null;
     const remaining = expiresAt ? expiresAt - Date.now() : null;
     const refreshLead = _getRefreshLeadMs(provider);
+    const hard = isHardRefreshRequired(provider, creds);
 
-    log.info("TOKEN_REFRESH", "Refreshing provider credentials proactively", {
-      provider,
-      expiresIn: remaining === null ? null : Math.round(remaining / 1000),
-      refreshLeadMs: refreshLead,
-      lastRefreshAt: creds.lastRefreshAt || null,
-    });
+    if (!hard) {
+      // Token still usable — refresh off the hot path so TTFT is not blocked.
+      log.info("TOKEN_REFRESH", "Scheduling background proactive refresh", {
+        provider,
+        expiresIn: remaining === null ? null : Math.round(remaining / 1000),
+        refreshLeadMs: refreshLead,
+        lastRefreshAt: creds.lastRefreshAt || null,
+      });
+      scheduleBackgroundCredentialRefresh(provider, creds);
+    } else {
+      log.info("TOKEN_REFRESH", "Refreshing provider credentials proactively", {
+        provider,
+        expiresIn: remaining === null ? null : Math.round(remaining / 1000),
+        refreshLeadMs: refreshLead,
+        lastRefreshAt: creds.lastRefreshAt || null,
+      });
 
-    const newCreds = await _refreshProviderCredentials(provider, creds, log);
-    if (newCreds?.accessToken || newCreds?.apiKey || newCreds?.copilotToken) {
-      const mergedCreds = {
-        ...newCreds,
-        existingProviderSpecificData: creds.providerSpecificData,
-      };
+      const newCreds = await _refreshProviderCredentials(provider, creds, log);
+      if (newCreds?.accessToken || newCreds?.apiKey || newCreds?.copilotToken) {
+        const mergedCreds = {
+          ...newCreds,
+          existingProviderSpecificData: creds.providerSpecificData,
+        };
 
-      // Persist to DB (non-blocking path continues below)
-      await updateProviderCredentials(creds.connectionId, mergedCreds);
+        // Persist to DB (non-blocking path continues below)
+        await updateProviderCredentials(creds.connectionId, mergedCreds);
 
-      creds = {
-        ...creds,
-        ...newCreds,
-        expiresAt: newCreds.expiresIn
-          ? toExpiresAt(newCreds.expiresIn)
-          : normalizeExpiresAt(newCreds.expiresAt) || newCreds.expiresAt || creds.expiresAt,
-        providerSpecificData: newCreds.providerSpecificData
-          ? { ...creds.providerSpecificData, ...newCreds.providerSpecificData }
-          : creds.providerSpecificData,
-      };
+        creds = {
+          ...creds,
+          ...newCreds,
+          expiresAt: newCreds.expiresIn
+            ? toExpiresAt(newCreds.expiresIn)
+            : normalizeExpiresAt(newCreds.expiresAt) || newCreds.expiresAt || creds.expiresAt,
+          providerSpecificData: newCreds.providerSpecificData
+            ? { ...creds.providerSpecificData, ...newCreds.providerSpecificData }
+            : creds.providerSpecificData,
+        };
 
-      // Non-blocking: refresh projectId with the new access token
-      _refreshProjectId(provider, creds.connectionId, creds.accessToken);
+        // Non-blocking: refresh projectId with the new access token
+        _refreshProjectId(provider, creds.connectionId, creds.accessToken);
+      }
     }
   }
 
@@ -265,25 +324,56 @@ export async function checkAndRefreshToken(provider, credentials) {
     const remaining        = copilotExpiresAt - now;
 
     if (!copilotToken || remaining < TOKEN_EXPIRY_BUFFER_MS) {
-      log.info("TOKEN_REFRESH", "Copilot token expiring soon or missing, refreshing proactively", {
-        provider,
-        expiresIn: copilotToken ? Math.round(remaining / 1000) : "missing",
-      });
-
-      const copilotTokenResult = await refreshCopilotToken(creds.accessToken);
-      if (copilotTokenResult) {
-        const updatedSpecific = {
-          ...creds.providerSpecificData,
-          copilotToken:          copilotTokenResult.token,
-          copilotTokenExpiresAt: copilotTokenResult.expiresAt,
-        };
-
-        await updateProviderCredentials(creds.connectionId, {
-          providerSpecificData: updatedSpecific,
+      // Soft: still have a valid copilot token → background. Hard: missing/expired → await.
+      const copilotHard = !copilotToken || remaining <= 0;
+      if (!copilotHard) {
+        log.info("TOKEN_REFRESH", "Scheduling background Copilot token refresh", {
+          provider,
+          expiresIn: Math.round(remaining / 1000),
+        });
+        const key = `github-copilot:${creds.connectionId || "unknown"}`;
+        if (!bgTokenRefreshInflight.has(key)) {
+          const work = (async () => {
+            try {
+              const copilotTokenResult = await refreshCopilotToken(creds.accessToken);
+              if (!copilotTokenResult) return;
+              const updatedSpecific = {
+                ...creds.providerSpecificData,
+                copilotToken:          copilotTokenResult.token,
+                copilotTokenExpiresAt: copilotTokenResult.expiresAt,
+              };
+              await updateProviderCredentials(creds.connectionId, {
+                providerSpecificData: updatedSpecific,
+              });
+            } catch (err) {
+              log.warn?.("TOKEN_REFRESH", `Background Copilot refresh failed: ${err?.message || err}`);
+            } finally {
+              bgTokenRefreshInflight.delete(key);
+            }
+          })();
+          bgTokenRefreshInflight.set(key, work);
+        }
+      } else {
+        log.info("TOKEN_REFRESH", "Copilot token expiring soon or missing, refreshing proactively", {
+          provider,
+          expiresIn: copilotToken ? Math.round(remaining / 1000) : "missing",
         });
 
-        creds.providerSpecificData = updatedSpecific;
-        creds.copilotToken = copilotTokenResult.token;
+        const copilotTokenResult = await refreshCopilotToken(creds.accessToken);
+        if (copilotTokenResult) {
+          const updatedSpecific = {
+            ...creds.providerSpecificData,
+            copilotToken:          copilotTokenResult.token,
+            copilotTokenExpiresAt: copilotTokenResult.expiresAt,
+          };
+
+          await updateProviderCredentials(creds.connectionId, {
+            providerSpecificData: updatedSpecific,
+          });
+
+          creds.providerSpecificData = updatedSpecific;
+          creds.copilotToken = copilotTokenResult.token;
+        }
       }
     }
   }
