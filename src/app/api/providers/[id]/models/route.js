@@ -263,8 +263,6 @@ const PROVIDER_MODELS_CONFIG = {
   mistral: createOpenAIModelsConfig("https://api.mistral.ai/v1/models"),
   ollama: createOpenAIModelsConfig("https://ollama.com/api/tags"),
   // ollama-local: url resolved dynamically below via providerSpecificData.baseUrl
-  nanobanana: createOpenAIModelsConfig("https://api.nanobananaapi.ai/v1/models"),
-  assemblyai: createOpenAIModelsConfig("https://api.assemblyai.com/v1/models"),
   vilao: {
     // P2P marketplace: model ids are the aliases the user configured on their key,
     // and the gateway host itself can be overridden per key.
