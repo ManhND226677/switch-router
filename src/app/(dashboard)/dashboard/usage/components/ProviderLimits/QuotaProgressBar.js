@@ -80,7 +80,7 @@ export default function QuotaProgressBar({
   // set recurring:false: resetTime is a hard expiry, so word it as "expires".
   const resetWord = recurring ? "Reset" : "Expires";
 
-  // percentage is already remaining percentage (from ProviderLimitCard)
+  // percentage is already remaining percentage
   const remaining = percentage;
   
   return (
