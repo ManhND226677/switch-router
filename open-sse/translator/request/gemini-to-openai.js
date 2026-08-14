@@ -91,7 +91,7 @@ function convertGeminiContent(content) {
       parts.push({
         type: OPENAI_BLOCK.IMAGE_URL,
         image_url: {
-          url: encodeDataUri(part.inlineData.mimeType, part.inlineData.data)
+          url: encodeDataUri(part.inlineData.mimeType || part.inlineData.mime_type, part.inlineData.data)
         }
       });
     }

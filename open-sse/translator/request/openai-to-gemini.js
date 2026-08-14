@@ -171,18 +171,16 @@ function openaiToGeminiBase(model, body, stream, signature = DEFAULT_THINKING_AG
               }
 
               let resp = toolResponses[fid];
-              let parsedResp = tryParseJSON(resp);
-              if (parsedResp === null) {
-                parsedResp = { result: resp };
-              } else if (typeof parsedResp !== "object") {
-                parsedResp = { result: parsedResp };
-              }
+              const parsedResp = tryParseJSON(resp);
+              // Single result wrapper: parsed JSON (object or scalar) is passed
+              // through as-is; plain text stays raw. Never double-wrap.
+              const resultValue = parsedResp === null ? resp : parsedResp;
 
               toolParts.push({
                 functionResponse: {
                   id: fid,
                   name: sanitizeGeminiFunctionName(name),
-                  response: { result: parsedResp }
+                  response: { result: resultValue }
                 }
               });
             }

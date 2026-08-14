@@ -39,15 +39,6 @@ function envMs(name, def) {
   return Number.isFinite(n) && n > 0 ? n : def;
 }
 
-function envUrl(name, def) {
-  const raw = process.env[name]?.trim();
-  return raw || def;
-}
-
-// SearXNG endpoint used by the unauthenticated web-search provider.
-// Configure this for a separate SearXNG service or remote instance.
-export const SEARXNG_URL = envUrl("SEARXNG_URL", "http://localhost:8888/search");
-
 // Inter-chunk stall timeout (once tokens are flowing). Generous headroom so
 // slow reasoning models aren't aborted mid-stream. Env: STREAM_STALL_TIMEOUT_MS.
 // This timer is RE-ARMED on every chunk, so a responsive-yet-slow stream that

@@ -15,7 +15,6 @@ export {
   createProxyPool,
   updateProxyPool,
   deleteProxyPool,
-  deleteProviderConnectionsByProvider,
   getCombos,
   getComboById,
   getComboByName,
@@ -29,7 +28,9 @@ export {
   addCustomModel,
   deleteCustomModel,
   getApiKeys,
+  getApiKeyById,
   createApiKey,
+  updateApiKey,
   deleteApiKey,
   validateApiKey,
 } from "@/lib/localDb";

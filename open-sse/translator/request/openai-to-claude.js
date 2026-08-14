@@ -7,6 +7,7 @@ import { parseDataUri } from "../concerns/image.js";
 import { extractTextContent } from "../formats/gemini.js";
 import { ROLE, OPENAI_BLOCK, CLAUDE_BLOCK } from "../schema/index.js";
 import { getCapabilitiesForModel } from "../../providers/capabilities.js";
+import { dbg } from "../../utils/debugLog.js";
 
 // Empty prefix matches real Claude Code behavior (no tool name prefix).
 // Previously "proxy_" was used but this is a detectable fingerprint difference.
@@ -224,18 +225,24 @@ function getContentBlocksFromMessage(msg, toolNameMap = new Map()) {
             ...(part.is_error && { is_error: part.is_error })
           });
         } else if (part.type === OPENAI_BLOCK.IMAGE_URL) {
-          const url = part.image_url.url;
-          const parsed = parseDataUri(url);
-          if (parsed) {
-            blocks.push({
-              type: CLAUDE_BLOCK.IMAGE,
-              source: { type: "base64", media_type: parsed.mimeType, data: parsed.base64 }
-            });
-          } else if (url.startsWith("http://") || url.startsWith("https://")) {
-            blocks.push({
-              type: CLAUDE_BLOCK.IMAGE,
-              source: { type: "url", url }
-            });
+          const url = typeof part.image_url === "string" ? part.image_url : part.image_url?.url;
+          if (typeof url === "string" && url) {
+            const parsed = parseDataUri(url);
+            if (parsed) {
+              blocks.push({
+                type: CLAUDE_BLOCK.IMAGE,
+                source: { type: "base64", media_type: parsed.mimeType, data: parsed.base64 }
+              });
+            } else if (url.startsWith("http://") || url.startsWith("https://")) {
+              blocks.push({
+                type: CLAUDE_BLOCK.IMAGE,
+                source: { type: "url", url }
+              });
+            } else {
+              // Non-base64 / non-http(s) image data (e.g. data:image/svg+xml,…) has
+              // no valid Claude transport — drop it instead of 400ing the upstream.
+              dbg("translator", `dropped unsupported image_url (no base64/http transport): ${url.slice(0, 80)}`);
+            }
           }
         } else if (part.type === OPENAI_BLOCK.IMAGE && part.source) {
           blocks.push({ type: CLAUDE_BLOCK.IMAGE, source: part.source });
