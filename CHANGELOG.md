@@ -2,6 +2,19 @@
 
 This file tracks changes for the local personal build only.
 
+## 0.7.1 - 2026-08-14
+
+### Performance
+
+- **Hot-path TTFT:** process cache for `getSettings()` (invalidate on write); short TTL list cache for `getProviderConnections` (invalidate on every connection/node write and `importDb`).
+- **Account selection:** global selection mutex replaced with **per-provider** locks so concurrent requests to different providers no longer serialize.
+- **Sticky round-robin:** `lastUsedAt` / `consecutiveUseCount` updated in-memory first; DB persist is fire-and-forget so selection no longer awaits a full-row write before upstream.
+- **Token refresh:** when the access token is still valid but inside the proactive lead window, refresh runs in the background (deduped per connection); only expired/missing-expiry hard cases still block the request. Same soft/hard split for GitHub Copilot tokens.
+
+### Removed
+
+- **GitLab Duo provider (`gitlab`):** registry, executor, OAuth UI/API, i18n, baselines, and drift list cleaned end-to-end (32 providers remain).
+
 ## 0.6.8 - 2026-08-09
 
 ### Fixed
