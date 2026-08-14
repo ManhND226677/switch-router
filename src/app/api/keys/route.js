@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getApiKeys, createApiKey } from "@/lib/localDb";
+import { sanitizeApiKey } from "@/lib/db/repos/apiKeysRepo";
 import { getConsistentMachineId } from "@/shared/utils/machineId";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const keys = await getApiKeys();
-    return NextResponse.json({ keys });
+    return NextResponse.json({ keys: keys.map(sanitizeApiKey) });
   } catch (error) {
     console.log("Error fetching keys:", error);
     return NextResponse.json({ error: "Failed to fetch keys" }, { status: 500 });
@@ -29,11 +30,12 @@ export async function POST(request) {
     const machineId = await getConsistentMachineId();
     const apiKey = await createApiKey(name, machineId);
 
+    // machineId is embedded in the key itself (sk-{machineId}-…) and is a
+    // machine fingerprint — never echo it back to the client.
     return NextResponse.json({
       key: apiKey.key,
       name: apiKey.name,
       id: apiKey.id,
-      machineId: apiKey.machineId,
     }, { status: 201 });
   } catch (error) {
     console.log("Error creating key:", error);
