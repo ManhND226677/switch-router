@@ -105,3 +105,10 @@ graphify-out/*
 
 # Local AI assistant workspace memory (not part of the repo)
 .workbuddy-ai/
+
+# One-off AI audit reports / screenshots (not part of the shipped app)
+/artifacts/
+EVALUATION.md
+
+# Local codebase-memory graph cache (regenerable; not runtime)
+.codebase-memory/
