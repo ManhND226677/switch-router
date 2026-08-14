@@ -20,7 +20,6 @@ export { default as McpMarketplaceModal } from "./McpMarketplaceModal";
 export { default as LanguageSwitcher } from "./LanguageSwitcher";
 export { default as HeaderMenu } from "./HeaderMenu";
 export { default as CursorAuthModal } from "./CursorAuthModal";
-export { default as GitLabAuthModal } from "./GitLabAuthModal";
 export { default as EditConnectionModal } from "./EditConnectionModal";
 export { default as NoAuthProxyCard } from "./NoAuthProxyCard";
 export { default as SegmentedControl } from "./SegmentedControl";

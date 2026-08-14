@@ -15,7 +15,7 @@
     "ocg": "opencode-go",
     "qd": "qoder",
     "qoder": "qoder",
-    "el": "elevenlabs",
+    "el": "el",
     "openai": "openai",
     "anthropic": "anthropic",
     "gemini": "gemini",
@@ -59,9 +59,9 @@
     "topaz": "topaz",
     "runway": "runway",
     "runwayml": "runwayml",
-    "jina": "jina-ai",
+    "jina": "jina",
     "jina-ai": "jina-ai",
-    "polly": "aws-polly",
+    "polly": "polly",
     "aws-polly": "aws-polly"
   },
   "idToAlias": {
@@ -75,7 +75,6 @@
     "gemini": "gemini",
     "gemini-cli": "gc",
     "github": "gh",
-    "gitlab": "gitlab",
     "glm": "glm",
     "grok-cli": "gcli",
     "grok-web": "grok-web",

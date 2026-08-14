@@ -687,7 +687,7 @@ OAuthModal.propTypes = {
   providerInfo: PropTypes.shape({ name: PropTypes.string }),
   onSuccess: PropTypes.func,
   onClose: PropTypes.func.isRequired,
-  /** Extra metadata passed to /authorize and /exchange (e.g. gitlab clientId/baseUrl) */
+  /** Extra metadata passed to /authorize and /exchange (e.g. clientId/baseUrl) */
   oauthMeta: PropTypes.object,
 
 };

@@ -93,9 +93,6 @@ export const KIMI_CODING_CONFIG = {
 // KiloCode OAuth Configuration (Custom Device Auth Flow)
 export const KILOCODE_CONFIG = { ...PROVIDER_OAUTH["kilocode"] };
 
-// GitLab Duo OAuth Configuration (Authorization Code Flow with PKCE)
-export const GITLAB_CONFIG = { ...PROVIDER_OAUTH["gitlab"] };
-
 // Grok CLI / Grok Build OAuth Configuration (Device Code Flow)
 // Endpoint: cli-chat-proxy.grok.com — same client_id as xai, different flow + scopes
 export const GROK_CLI_CONFIG = { ...PROVIDER_OAUTH["grok-cli"] };
@@ -116,6 +113,5 @@ export const PROVIDERS = {
   CURSOR: "cursor",
   KIMI_CODING: "kimi-coding",
   KILOCODE: "kilocode",
-  GITLAB: "gitlab",
   GROK_CLI: "grok-cli",
 };

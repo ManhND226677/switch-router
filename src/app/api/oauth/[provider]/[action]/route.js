@@ -84,7 +84,7 @@ export async function GET(request, { params }) {
 
     if (action === "authorize") {
       const redirectUri = searchParams.get("redirect_uri") || "http://localhost:8080/callback";
-      // Collect provider-specific meta params (e.g. gitlab passes baseUrl, clientId, clientSecret)
+      // Collect provider-specific meta params (baseUrl, clientId, clientSecret, ...)
       const reservedParams = new Set(["redirect_uri"]);
       const meta = {};
       searchParams.forEach((value, key) => { if (!reservedParams.has(key)) meta[key] = value; });
@@ -244,7 +244,7 @@ export async function POST(request, { params }) {
         return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
       }
 
-      // Exchange code for tokens (meta carries provider-specific params, e.g. gitlab clientId/baseUrl)
+      // Exchange code for tokens (meta carries provider-specific params like clientId/baseUrl)
       const tokenData = await exchangeTokens(provider, code, redirectUri, codeVerifier, state, meta);
 
       // Save to database

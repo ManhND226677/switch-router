@@ -16,12 +16,7 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
     priority: 1,
     apiKey: "",
   });
-  const [azureData, setAzureData] = useState({
-    azureEndpoint: "",
-    apiVersion: "2024-10-01-preview",
-    deployment: "",
-    organization: "",
-  });
+  const [baseUrl, setBaseUrl] = useState("");
   const [region, setRegion] = useState("");
   const [endpointProfile, setEndpointProfile] = useState("default");
   const [apiMode, setApiMode] = useState("");
@@ -44,15 +39,7 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
         priority: connection.priority || 1,
         apiKey: "",
       });
-      // Load Azure-specific data if present
-      if (connection.provider === "azure" && connection.providerSpecificData) {
-        setAzureData({
-          azureEndpoint: connection.providerSpecificData.azureEndpoint || "",
-          apiVersion: connection.providerSpecificData.apiVersion || "2024-10-01-preview",
-          deployment: connection.providerSpecificData.deployment || "",
-          organization: connection.providerSpecificData.organization || "",
-        });
-      }
+      setBaseUrl(connection.providerSpecificData?.baseUrl || "");
       // Load region for providers that support it (e.g. xiaomi-tokenplan)
       const providerCfg = AI_PROVIDERS?.[connection.provider];
       if (providerCfg?.regions) {
@@ -67,16 +54,24 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const isOAuth = connection?.authType === "oauth";
-  const isAzure = connection?.provider === "azure";
   const isCompatible = connection
     ? (isOpenAICompatibleProvider(connection.provider) || isAnthropicCompatibleProvider(connection.provider))
     : false;
+  const isPerKeyBaseUrlProvider = connection?.provider === "vilao";
   const providerRegions = connection ? (AI_PROVIDERS?.[connection.provider]?.regions || null) : null;
 
   // Build providerSpecificData for region-aware providers
   const buildRegionSpecificData = () => {
     if (providerRegions && region) return { ...((connection?.providerSpecificData) || {}), region };
     return undefined;
+  };
+
+  const buildBaseUrlSpecificData = () => {
+    if (!isPerKeyBaseUrlProvider || !baseUrl.trim()) return undefined;
+    return {
+      ...((connection?.providerSpecificData) || {}),
+      baseUrl: baseUrl.trim(),
+    };
   };
 
   const buildApiModeSpecificData = () => {
@@ -113,7 +108,7 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
         body: JSON.stringify({
           provider: connection.provider,
           apiKey: formData.apiKey,
-          ...(isAzure ? { providerSpecificData: azureData } : {}),
+          ...(isPerKeyBaseUrlProvider ? { providerSpecificData: buildBaseUrlSpecificData() } : {}),
           ...(providerRegions ? { providerSpecificData: buildRegionSpecificData() } : {}),
           ...(providerApiModes.length > 0 ? { providerSpecificData: buildApiModeSpecificData() } : {}),
         }),
@@ -148,7 +143,7 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
               body: JSON.stringify({
                 provider: connection.provider,
                 apiKey: formData.apiKey,
-                ...(isAzure ? { providerSpecificData: azureData } : {}),
+                ...(isPerKeyBaseUrlProvider ? { providerSpecificData: buildBaseUrlSpecificData() } : {}),
                 ...(providerRegions ? { providerSpecificData: buildRegionSpecificData() } : {}),
                 ...(providerApiModes.length > 0 ? { providerSpecificData: buildApiModeSpecificData() } : {}),
               }),
@@ -169,14 +164,9 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
         }
       }
       
-      // Add Azure-specific data if this is an Azure connection
-      if (isAzure) {
-        updates.providerSpecificData = {
-          azureEndpoint: azureData.azureEndpoint,
-          apiVersion: azureData.apiVersion,
-          deployment: azureData.deployment,
-          organization: azureData.organization,
-        };
+      // Persist updated per-key baseUrl (ViLao P2P gateway)
+      if (isPerKeyBaseUrlProvider) {
+        updates.providerSpecificData = buildBaseUrlSpecificData();
       }
       // Persist updated region for region-aware providers
       if (providerRegions && region) {
@@ -216,6 +206,16 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
           onChange={(e) => setFormData({ ...formData, priority: Number.parseInt(e.target.value, 10) || 1 })}
         />
 
+        {isPerKeyBaseUrlProvider && (
+          <Input
+            label="Base URL"
+            value={baseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
+            placeholder="https://api.vilao.ai/v1"
+            hint="Your ViLao gateway endpoint. Leave blank to keep the current value."
+          />
+        )}
+
         {!isOAuth && (
           <>
             <div className="flex gap-2">
@@ -242,42 +242,6 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
           </>
         )}
 
-        {isAzure && (
-          <div className="bg-sidebar/50 p-4 rounded-lg border border-accent/20">
-            <h3 className="font-semibold mb-3 text-sm">Azure OpenAI Configuration</h3>
-            <div className="flex flex-col gap-3">
-              <Input
-                label="Azure Endpoint"
-                value={azureData.azureEndpoint}
-                onChange={(e) => setAzureData({ ...azureData, azureEndpoint: e.target.value })}
-                placeholder="https://your-resource.openai.azure.com"
-                hint="Your Azure OpenAI resource endpoint URL"
-              />
-              <Input
-                label="Deployment Name"
-                value={azureData.deployment}
-                onChange={(e) => setAzureData({ ...azureData, deployment: e.target.value })}
-                placeholder="gpt-4"
-                hint="The deployment name in your Azure resource"
-              />
-              <Input
-                label="API Version"
-                value={azureData.apiVersion}
-                onChange={(e) => setAzureData({ ...azureData, apiVersion: e.target.value })}
-                placeholder="2024-10-01-preview"
-                hint="Azure OpenAI API version to use"
-              />
-              <Input
-                label="Organization"
-                value={azureData.organization}
-                onChange={(e) => setAzureData({ ...azureData, organization: e.target.value })}
-                placeholder="Organization ID"
-                hint="Required for billing"
-              />
-            </div>
-          </div>
-        )}
-
         {providerRegions && (
           <Select
             label="Region"
@@ -296,7 +260,7 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
           />
         )}
 
-        {!isCompatible && !isAzure && (
+        {!isCompatible && (
           <div className="flex items-center gap-3">
             <Button onClick={handleTest} variant="secondary" disabled={testing}>
               {testing ? "Testing..." : "Test Connection"}

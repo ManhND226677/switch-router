@@ -9,29 +9,28 @@ import p6 from "./deepseek.js";
 import p7 from "./gemini.js";
 import p8 from "./gemini-cli.js";
 import p9 from "./github.js";
-import p10 from "./gitlab.js";
-import p11 from "./glm.js";
-import p12 from "./grok-cli.js";
-import p13 from "./grok-web.js";
-import p14 from "./groq.js";
-import p15 from "./kilocode.js";
-import p16 from "./kimi.js";
-import p17 from "./kimi-coding.js";
-import p18 from "./minimax.js";
-import p19 from "./mistral.js";
-import p20 from "./ollama.js";
-import p21 from "./ollama-local.js";
-import p22 from "./openai.js";
-import p23 from "./opencode.js";
-import p24 from "./opencode-go.js";
-import p25 from "./openrouter.js";
-import p26 from "./qoder.js";
-import p27 from "./qwen.js";
-import p28 from "./stepfun.js";
-import p29 from "./vilao.js";
-import p30 from "./xai.js";
-import p31 from "./xiaomi-mimo.js";
-import p32 from "./xiaomi-tokenplan.js";
+import p10 from "./glm.js";
+import p11 from "./grok-cli.js";
+import p12 from "./grok-web.js";
+import p13 from "./groq.js";
+import p14 from "./kilocode.js";
+import p15 from "./kimi.js";
+import p16 from "./kimi-coding.js";
+import p17 from "./minimax.js";
+import p18 from "./mistral.js";
+import p19 from "./ollama.js";
+import p20 from "./ollama-local.js";
+import p21 from "./openai.js";
+import p22 from "./opencode.js";
+import p23 from "./opencode-go.js";
+import p24 from "./openrouter.js";
+import p25 from "./qoder.js";
+import p26 from "./qwen.js";
+import p27 from "./stepfun.js";
+import p28 from "./vilao.js";
+import p29 from "./xai.js";
+import p30 from "./xiaomi-mimo.js";
+import p31 from "./xiaomi-tokenplan.js";
 
 export default [
   p0,
@@ -65,6 +64,5 @@ export default [
   p28,
   p29,
   p30,
-  p31,
-  p32
+  p31
 ];
