@@ -13,6 +13,7 @@ import { OllamaLocalExecutor } from "./ollama-local.js";
 import { CommandCodeExecutor } from "./commandcode.js";
 import { XiaomiTokenplanExecutor } from "./xiaomi-tokenplan.js";
 import { StepFunExecutor } from "./stepfun.js";
+import { VilaoExecutor } from "./vilao.js";
 import { DefaultExecutor } from "./default.js";
 
 const executors = {
@@ -34,6 +35,7 @@ const executors = {
   commandcode: new CommandCodeExecutor(),
   "xiaomi-tokenplan": new XiaomiTokenplanExecutor(),
   stepfun: new StepFunExecutor(),
+  vilao: new VilaoExecutor(),
 };
 
 const defaultCache = new Map();

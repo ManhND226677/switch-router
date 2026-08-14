@@ -58,6 +58,8 @@ const REMOVED_LIST = [
   "azure",
   "cavoti",
   "kiro",
+  "kimchi",
+  "gitlab",
   "mimo-free",
   "mmf",
   "assemblyai",

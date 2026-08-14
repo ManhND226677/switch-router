@@ -66,4 +66,37 @@ describe("credential projection", () => {
     expect(safe.providerSpecificData).not.toHaveProperty("cookie");
     expect(connection.providerSpecificData.clientSecret).toBe("client-secret");
   });
+
+  it("redacts nested secret keys recursively and new pattern names", () => {
+    const nested = redactProviderConnection({
+      id: "connection-2",
+      provider: "openai",
+      name: "Nested",
+      apiKey: "top-secret",
+      providerSpecificData: {
+        baseUrl: "https://api.example.test",
+        oauth: {
+          accessToken: "nested-token",
+          privateKey: "nested-key",
+          passphrase: "nested-pass",
+          bearer: "nested-bearer",
+        },
+        mcp: {
+          servers: [
+            { name: "a", apiKey: "arr-secret", secret: "arr-secret-2" },
+            { name: "b" },
+          ],
+        },
+        note: "keep me",
+      },
+    });
+
+    expect(nested.providerSpecificData).toMatchObject({
+      baseUrl: "https://api.example.test",
+      note: "keep me",
+    });
+    expect(nested.providerSpecificData.oauth).toEqual({});
+    expect(nested.providerSpecificData.mcp.servers[0]).toEqual({ name: "a" });
+    expect(nested.providerSpecificData.mcp.servers[1]).toEqual({ name: "b" });
+  });
 });
