@@ -37,13 +37,20 @@ ok(
 const passthrough = new Set(REGISTRY.filter((r) => r.passthroughModels).map((r) => r.alias || r.id));
 ok("arbitrary model id accepted (passthrough)", isValidModel("vilao", "my-custom-alias", passthrough));
 
-// No dedicated executor: DefaultExecutor must handle it. Assert by absence from
-// the executors map (importing executors/index.js here pulls in node-machine-id,
-// a CJS module that only interops correctly under vitest).
+// Dedicated executor: per-key gateway override must win in chat. Assert by
+// source (importing executors/index.js here pulls in node-machine-id, a CJS
+// module that only interops correctly under vitest).
 const executorsSrc = await import("node:fs").then((fs) =>
   fs.readFileSync(new URL("../open-sse/executors/index.js", import.meta.url), "utf8")
 );
-ok("no custom executor registered (uses DefaultExecutor)", !/["']vilao["']\s*:/.test(executorsSrc));
+ok("vilao executor registered", /vilao\s*:\s*new VilaoExecutor\(\)/.test(executorsSrc));
+const vilaoExecutorSrc = await import("node:fs").then((fs) =>
+  fs.readFileSync(new URL("../open-sse/executors/vilao.js", import.meta.url), "utf8")
+);
+ok(
+  "vilao chat url honors per-key override",
+  vilaoExecutorSrc.includes("resolveVilaoConnectionEndpoint(credentials, VILAO_CHAT_PATH)")
+);
 
 // endpoint helper normalization
 const cases = [

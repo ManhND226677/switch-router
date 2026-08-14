@@ -2,6 +2,7 @@
 
 import { safeParseJSON } from "../concerns/json.js";
 import { OPENAI_BLOCK } from "../schema/index.js";
+import { dbg } from "../../utils/debugLog.js";
 
 // Unsupported JSON Schema constraints that should be removed for Antigravity
 export const UNSUPPORTED_SCHEMA_CONSTRAINTS = [
@@ -46,22 +47,23 @@ export function convertOpenAIContentToParts(content) {
     for (const item of content) {
       if (item.type === OPENAI_BLOCK.TEXT) {
         parts.push({ text: item.text });
-      } else if (item.type === OPENAI_BLOCK.IMAGE_URL && item.image_url?.url?.startsWith("data:")) {
-        const url = item.image_url.url;
-        const commaIndex = url.indexOf(",");
-        if (commaIndex !== -1) {
-          const mimePart = url.substring(5, commaIndex); // skip "data:"
-          const data = url.substring(commaIndex + 1);
-          const mimeType = mimePart.split(";")[0];
-
+      } else if (item.type === OPENAI_BLOCK.IMAGE_URL) {
+        const imageUrl = typeof item.image_url === "string" ? item.image_url : item.image_url?.url;
+        if (typeof imageUrl === "string" && imageUrl.startsWith("data:") && imageUrl.includes(";base64,")) {
+          const commaIndex = imageUrl.indexOf(",");
+          const mimePart = imageUrl.substring(5, commaIndex); // skip "data:"
           parts.push({
-            inlineData: { mime_type: mimeType, data: data }
+            inlineData: { mime_type: mimePart.split(";")[0], data: imageUrl.substring(commaIndex + 1) }
           });
+        } else if (typeof imageUrl === "string" && (imageUrl.startsWith("http://") || imageUrl.startsWith("https://"))) {
+          parts.push({
+            fileData: { fileUri: imageUrl, mimeType: "image/*" }
+          });
+        } else if (typeof imageUrl === "string" && imageUrl.startsWith("data:")) {
+          // Non-base64 data URIs (e.g. URL-encoded SVG) would corrupt inlineData —
+          // drop them instead of sending broken bytes to Gemini.
+          dbg("translator", `dropped non-base64 data image for gemini: ${imageUrl.slice(0, 80)}`);
         }
-      } else if (item.type === OPENAI_BLOCK.IMAGE_URL && item.image_url?.url && (item.image_url.url.startsWith("http://") || item.image_url.url.startsWith("https://"))) {
-        parts.push({
-          fileData: { fileUri: item.image_url.url, mimeType: "image/*" }
-        });
       } else if (item.type === OPENAI_BLOCK.INPUT_AUDIO && item.input_audio?.data) {
         const format = item.input_audio.format || "wav";
         const mimeType = format === "mp3" ? "audio/mpeg" : `audio/${format}`;

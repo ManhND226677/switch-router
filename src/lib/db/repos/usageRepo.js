@@ -3,6 +3,8 @@ import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
 import { fingerprintApiKey, isFingerprinted } from "../helpers/apiKeyPrivacy.js";
 import { getMeta, setMeta } from "../helpers/metaStore.js";
+import { toValidDateIso } from "./dateFilter.js";
+import { STREAM_MAX_DURATION_MS } from "open-sse/config/runtimeConfig.js";
 
 function maskApiKey(key) {
   if (!key || typeof key !== "string") return null;
@@ -14,7 +16,11 @@ function maskApiKey(key) {
   return key.slice(0, 8) + "***";
 }
 
-const PENDING_TIMEOUT_MS = 60 * 1000;
+// Safety net that force-zeroes the pending counters if the "done" signal never
+// arrives. Must outlive the longest possible stream: a stream running up to
+// STREAM_MAX_DURATION_MS would otherwise be shown as finished while still
+// streaming. Keep a 60s grace beyond the max stream duration.
+const PENDING_TIMEOUT_MS = STREAM_MAX_DURATION_MS + 60 * 1000;
 const RING_CAP = 50;
 const CONN_CACHE_TTL_MS = 30 * 1000;
 const PERIOD_MS = { "24h": 86400000, "7d": 604800000, "30d": 2592000000, "60d": 5184000000 };
@@ -159,15 +165,19 @@ async function getConnectionMapCached() {
 
 async function ensureRingInitialized() {
   if (recentRing.initialized) return;
-  recentRing.initialized = true;
   try {
     const db = await getAdapter();
     const rows = db.all(`SELECT timestamp, provider, model, connectionId, apiKey, endpoint, cost, status, tokens FROM usageHistory ORDER BY id DESC LIMIT ?`, [RING_CAP]);
-    recentRing.items = rows.reverse().map((r) => ({
+    const backfilled = rows.reverse().map((r) => ({
       timestamp: r.timestamp, provider: r.provider, model: r.model, connectionId: r.connectionId,
       apiKey: r.apiKey, endpoint: r.endpoint, cost: r.cost, status: r.status,
       tokens: parseJson(r.tokens, {}),
     }));
+    // Live entries pushed while the DB was unavailable are newer than any
+    // historical row — keep them, backfill only the older tail. Marking
+    // initialized only on success lets a transient DB failure retry later.
+    recentRing.items = [...backfilled, ...recentRing.items].slice(-RING_CAP);
+    recentRing.initialized = true;
   } catch {}
 }
 
@@ -516,8 +526,14 @@ export async function getUsageHistory(filter = {}) {
 
   if (filter.provider) { conds.push("provider = ?"); params.push(filter.provider); }
   if (filter.model) { conds.push("model = ?"); params.push(filter.model); }
-  if (filter.startDate) { conds.push("timestamp >= ?"); params.push(new Date(filter.startDate).toISOString()); }
-  if (filter.endDate) { conds.push("timestamp <= ?"); params.push(new Date(filter.endDate).toISOString()); }
+  if (filter.startDate) {
+    const iso = toValidDateIso(filter.startDate);
+    if (iso) { conds.push("timestamp >= ?"); params.push(iso); }
+  }
+  if (filter.endDate) {
+    const iso = toValidDateIso(filter.endDate);
+    if (iso) { conds.push("timestamp <= ?"); params.push(iso); }
+  }
 
   const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
   const rows = db.all(`SELECT timestamp, provider, model, connectionId, apiKey, endpoint, cost, status, tokens FROM usageHistory ${where} ORDER BY id ASC`, params);
@@ -536,8 +552,14 @@ export async function getUsageHistoryPage(filter = {}, { limit = 100, cursor = n
 
   if (filter.provider) { conds.push("provider = ?"); params.push(filter.provider); }
   if (filter.model) { conds.push("model = ?"); params.push(filter.model); }
-  if (filter.startDate) { conds.push("timestamp >= ?"); params.push(new Date(filter.startDate).toISOString()); }
-  if (filter.endDate) { conds.push("timestamp <= ?"); params.push(new Date(filter.endDate).toISOString()); }
+  if (filter.startDate) {
+    const iso = toValidDateIso(filter.startDate);
+    if (iso) { conds.push("timestamp >= ?"); params.push(iso); }
+  }
+  if (filter.endDate) {
+    const iso = toValidDateIso(filter.endDate);
+    if (iso) { conds.push("timestamp <= ?"); params.push(iso); }
+  }
 
   const numericCursor = cursor === null || cursor === undefined || cursor === "" ? null : Number(cursor);
   if (Number.isFinite(numericCursor)) {

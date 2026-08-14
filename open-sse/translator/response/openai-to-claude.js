@@ -3,6 +3,10 @@ import { FORMATS } from "../formats.js";
 import { ROLE, CLAUDE_BLOCK, MODEL_FALLBACK } from "../schema/index.js";
 import { fromOpenAIFinish } from "../concerns/finishReason.js";
 import { extractReasoningText } from "../concerns/reasoning.js";
+import { fallbackToolCallId } from "../concerns/toolCall.js";
+
+// Anthropic tool_use.id must match: ^[a-zA-Z0-9_-]+$
+const TOOL_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 // Legacy "proxy_" prefix used by older request translators. Response strips it
 // defensively so tool names from such turns resolve back (e.g. proxy_Read → Read
@@ -346,13 +350,19 @@ export function openaiToClaudeResponse(chunk, state) {
     for (const tc of delta.tool_calls) {
       const idx = tc.index ?? 0;
 
+      // Some OpenAI-compatible streams omit the id on the first chunk (or emit
+      // ids that violate Anthropic's ^[a-zA-Z0-9_-]+$ pattern). Fall back to a
+      // synthetic id so the tool call is never silently dropped from the stream.
+      const rawId = tc.id;
+      const toolId = rawId && TOOL_ID_PATTERN.test(rawId) ? rawId : fallbackToolCallId(idx);
+
       // GLM/fireworks repeats id+null-name on every arg chunk; open block once per idx
-      if (tc.id && !state.toolCalls.has(idx)) {
+      if (!state.toolCalls.has(idx)) {
         stopThinkingBlock(state, results);
         stopTextBlock(state, results);
 
         const toolBlockIndex = state.nextBlockIndex++;
-        state.toolCalls.set(idx, { id: tc.id, name: tc.function?.name || "", blockIndex: toolBlockIndex });
+        state.toolCalls.set(idx, { id: toolId, name: tc.function?.name || "", blockIndex: toolBlockIndex });
 
         // Strip prefix from tool name for response
         let toolName = tc.function?.name || "";
@@ -365,7 +375,7 @@ export function openaiToClaudeResponse(chunk, state) {
           index: toolBlockIndex,
           content_block: {
             type: CLAUDE_BLOCK.TOOL_USE,
-            id: tc.id,
+            id: toolId,
             name: toolName,
             input: {}
           }

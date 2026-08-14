@@ -12,6 +12,7 @@ const BULK_PLACEHOLDER = `name1|sk-key1\nname2|sk-key2\nsk-key-only-auto-named`;
 export default function AddApiKeyModal({ isOpen, provider, providerName, isCompatible, isAnthropic, authType, authHint, website, proxyPools, error, existingNames, onSave, onBulkDone, onClose }) {
   const NONE_PROXY_POOL_VALUE = "__none__";
   const isOllamaLocal = provider === "ollama-local";
+  const isVilao = provider === "vilao";
   const isCookie = authType === "cookie";
   const isXaiApiKey = provider === "xai" && !isCookie;
   const credentialLabel = isCookie ? "Cookie Value" : "API Key";
@@ -19,7 +20,6 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
     ? (provider === "grok-web" ? "sso=xxxxx... or just the raw value" : "eyJhbGciOi...")
     : (isXaiApiKey ? "xai-..." : "");
 
-  const isAzure = provider === "azure";
   const providerRegions = AI_PROVIDERS?.[provider]?.regions || null;
   const defaultRegion = AI_PROVIDERS?.[provider]?.defaultRegion || providerRegions?.[0]?.id || "";
   const providerApiModes = AI_PROVIDERS?.[provider]?.apiModes || [];
@@ -32,14 +32,9 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
     priority: 1,
     proxyPoolId: NONE_PROXY_POOL_VALUE,
     ollamaHostUrl: "",
+    baseUrl: "",
   });
   const [endpointProfile, setEndpointProfile] = useState("default");
-  const [azureData, setAzureData] = useState({
-    azureEndpoint: "",
-    apiVersion: "2024-10-01-preview",
-    deployment: "",
-    organization: "",
-  });
   const [region, setRegion] = useState(defaultRegion);
   const [apiMode, setApiMode] = useState(defaultApiMode);
   const [validating, setValidating] = useState(false);
@@ -62,13 +57,8 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
     if (isOllamaLocal && formData.ollamaHostUrl.trim()) {
       providerSpecificData.baseUrl = formData.ollamaHostUrl.trim();
     }
-    if (isAzure) {
-      Object.assign(providerSpecificData, {
-        azureEndpoint: azureData.azureEndpoint,
-        apiVersion: azureData.apiVersion,
-        deployment: azureData.deployment,
-        organization: azureData.organization,
-      });
+    if (isVilao && formData.baseUrl.trim()) {
+      providerSpecificData.baseUrl = formData.baseUrl.trim();
     }
     if (providerRegions && region) {
       providerSpecificData.region = region;
@@ -254,6 +244,15 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
             </div>
           </div>
         )}
+        {isVilao && (
+          <Input
+            label="Base URL (optional)"
+            value={formData.baseUrl}
+            onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
+            placeholder="https://api.vilao.ai/v1"
+            hint="Your ViLao gateway endpoint from Console → LLM → My API Keys. Leave blank for the default gateway."
+          />
+        )}
         {isXaiApiKey && (
           <p className="text-xs text-text-muted">
             Use a direct xAI API key from console.x.ai. This is separate from Grok Build OAuth.
@@ -314,37 +313,6 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
             Enter the model ID exactly as your compatible endpoint expects it. This model will be saved as the connection default.
           </p>
         )}
-        {isAzure && (
-          <div className="bg-sidebar/50 p-4 rounded-lg border border-accent/20">
-            <h3 className="font-semibold mb-3 text-sm">Azure OpenAI Configuration</h3>
-            <div className="flex flex-col gap-3">
-              <Input
-                label="Azure Endpoint"
-                value={azureData.azureEndpoint}
-                onChange={(e) => setAzureData({ ...azureData, azureEndpoint: e.target.value })}
-                placeholder="https://your-resource.openai.azure.com"
-              />
-              <Input
-                label="Deployment Name"
-                value={azureData.deployment}
-                onChange={(e) => setAzureData({ ...azureData, deployment: e.target.value })}
-                placeholder="gpt-4"
-              />
-              <Input
-                label="API Version"
-                value={azureData.apiVersion}
-                onChange={(e) => setAzureData({ ...azureData, apiVersion: e.target.value })}
-                placeholder="2024-10-01-preview"
-              />
-              <Input
-                label="Organization"
-                value={azureData.organization}
-                onChange={(e) => setAzureData({ ...azureData, organization: e.target.value })}
-                placeholder="Organization ID"
-              />
-            </div>
-          </div>
-        )}
 
         <Input
           label="Priority"
@@ -375,7 +343,7 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
         </p>
 
         <div className="flex gap-2">
-          <Button onClick={handleSubmit} fullWidth disabled={saving || (!isOllamaLocal && (!formData.name || !formData.apiKey)) || (isCompatible && !formData.defaultModel.trim()) || (isAzure && (!azureData.azureEndpoint || !azureData.deployment || !azureData.organization))}>
+          <Button onClick={handleSubmit} fullWidth disabled={saving || (!isOllamaLocal && (!formData.name || !formData.apiKey)) || (isCompatible && !formData.defaultModel.trim())}>
             {saving ? "Saving..." : "Save"}
           </Button>
           <Button onClick={onClose} variant="ghost" fullWidth>

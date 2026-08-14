@@ -7,6 +7,10 @@ import { openaiToCommandCodeRequest } from "open-sse/translator/request/openai-t
 import { normalizeProviderId } from "@/lib/providerNormalization";
 import { getVilaoModelsUrl } from "open-sse/providers/vilao.js";
 import { resolveStepFunEndpoints } from "open-sse/providers/stepfun.js";
+import { validateSafeBaseUrl } from "open-sse/utils/safeBaseUrl.js";
+
+const VALIDATE_TIMEOUT_MS = 8000;
+const VALIDATE_TIMEOUT_SLOW_MS = 10000;
 
 // POST /api/providers/validate - Validate API key with provider
 export async function POST(request) {
@@ -30,9 +34,15 @@ export async function POST(request) {
         if (!node) {
           return NextResponse.json({ error: "OpenAI Compatible node not found" }, { status: 404 });
         }
-        const modelsUrl = `${node.baseUrl?.replace(/\/$/, "")}/models`;
+        // User-supplied base URLs are SSRF-guarded before they reach fetch().
+        const check = validateSafeBaseUrl(node.baseUrl);
+        if (!check.ok) {
+          return NextResponse.json({ error: `Invalid base URL: ${check.error}` }, { status: 400 });
+        }
+        const modelsUrl = `${check.url.href.replace(/\/$/, "")}/models`;
         const res = await fetch(modelsUrl, {
           headers: { "Authorization": `Bearer ${apiKey}` },
+          signal: AbortSignal.timeout(VALIDATE_TIMEOUT_MS),
         });
         isValid = res.ok;
         return NextResponse.json({
@@ -47,7 +57,11 @@ export async function POST(request) {
           return NextResponse.json({ error: "Anthropic Compatible node not found" }, { status: 404 });
         }
 
-        let normalizedBase = node.baseUrl?.trim().replace(/\/$/, "") || "";
+        const check = validateSafeBaseUrl(node.baseUrl);
+        if (!check.ok) {
+          return NextResponse.json({ error: `Invalid base URL: ${check.error}` }, { status: 400 });
+        }
+        let normalizedBase = check.url.href.replace(/\/$/, "");
         if (normalizedBase.endsWith("/messages")) {
           normalizedBase = normalizedBase.slice(0, -9); // remove /messages
         }
@@ -68,6 +82,7 @@ export async function POST(request) {
             max_tokens: 1,
             messages: [{ role: "user", content: "test" }],
           }),
+          signal: AbortSignal.timeout(VALIDATE_TIMEOUT_MS),
         });
 
         // 400/529 still confirms key accepted; only 401/403 = bad key
@@ -75,35 +90,6 @@ export async function POST(request) {
         return NextResponse.json({
           valid: isValid,
           error: isValid ? null : "Invalid API key",
-        });
-      }
-
-      if (provider === "azure") {
-        const { providerSpecificData } = body;
-        const endpoint = (providerSpecificData?.azureEndpoint || "").replace(/\/$/, "");
-        const deployment = providerSpecificData?.deployment || "gpt-4";
-        const apiVersion = providerSpecificData?.apiVersion || "2024-10-01-preview";
-        const organization = providerSpecificData?.organization;
-
-        const url = `${endpoint}/openai/deployments/${deployment}/chat/completions?api-version=${apiVersion}`;
-        const headers = {
-          "api-key": apiKey,
-          "Content-Type": "application/json",
-        };
-        if (organization) headers["OpenAI-Organization"] = organization;
-
-        const azureRes = await fetch(url, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            messages: [{ role: "user", content: "test" }],
-            max_tokens: 1,
-          }),
-        });
-        isValid = azureRes.status !== 401 && azureRes.status !== 403;
-        return NextResponse.json({
-          valid: isValid,
-          error: isValid ? null : "Invalid API key or Azure configuration",
         });
       }
 
@@ -119,6 +105,7 @@ export async function POST(request) {
           // Per-key gateway override (P2P marketplace) falls back to api.vilao.ai.
           const vilaoRes = await fetch(getVilaoModelsUrl(providerSpecificData?.baseUrl), {
             headers: { "Authorization": `Bearer ${apiKey}` },
+            signal: AbortSignal.timeout(VALIDATE_TIMEOUT_MS),
           });
           // 402 = authenticated but out of balance → the key itself is valid.
           isValid = vilaoRes.ok || vilaoRes.status === 402;
@@ -137,18 +124,22 @@ export async function POST(request) {
               max_tokens: 1,
               messages: [{ role: "user", content: "test" }],
             }),
+            signal: AbortSignal.timeout(VALIDATE_TIMEOUT_MS),
           });
           isValid = anthropicRes.status !== 401;
           break;
 
         case "gemini":
-          const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`);
+          const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`, {
+            signal: AbortSignal.timeout(VALIDATE_TIMEOUT_MS),
+          });
           isValid = geminiRes.ok;
           break;
 
         case "openrouter":
           const openrouterRes = await fetch("https://openrouter.ai/api/v1/models", {
             headers: { "Authorization": `Bearer ${apiKey}` },
+            signal: AbortSignal.timeout(VALIDATE_TIMEOUT_MS),
           });
           isValid = openrouterRes.ok;
           break;
@@ -169,6 +160,7 @@ export async function POST(request) {
               ...(cfg.headers || {}),
             },
             body: JSON.stringify({ model: testModel, max_tokens: 1, messages: [{ role: "user", content: "test" }] }),
+            signal: AbortSignal.timeout(VALIDATE_TIMEOUT_MS),
           });
           // 400 = model resolution error but auth passed (e.g. agentrouter "no available channel")
           isValid = res.status !== 401 && res.status !== 403;
@@ -181,8 +173,6 @@ export async function POST(request) {
         case "stepfun":
         case "ollama":
         case "ollama-local":
-        case "assemblyai":
-        case "nanobanana":
         case "xiaomi-mimo":
         case "xiaomi-tokenplan": {
           const endpoints = {
@@ -221,6 +211,7 @@ export async function POST(request) {
               max_tokens: 1,
               stream: false,
             }),
+            signal: AbortSignal.timeout(VALIDATE_TIMEOUT_MS),
           });
           isValid = res.status !== 401 && res.status !== 403;
           break;
@@ -243,16 +234,9 @@ export async function POST(request) {
               "Authorization": `Bearer ${apiKey}`,
             },
             body: JSON.stringify(payload),
+            signal: AbortSignal.timeout(VALIDATE_TIMEOUT_MS),
           });
           isValid = res.status !== 401 && res.status !== 403;
-          break;
-        }
-
-        case "deepgram": {
-          const res = await fetch("https://api.deepgram.com/v1/projects", {
-            headers: { "Authorization": `Token ${apiKey}` },
-          });
-          isValid = res.ok;
           break;
         }
 
@@ -299,6 +283,7 @@ export async function POST(request) {
               isReasoning: false, disableTextFollowUps: true, disableMemory: true,
               forceSideBySide: false, isAsyncChat: false, disableSelfHarmShortCircuit: false,
             }),
+            signal: AbortSignal.timeout(VALIDATE_TIMEOUT_SLOW_MS),
           });
           // Cookie valid = any non-401/403 response (200, 400, 429 all mean cookie accepted)
           if (res.status === 401 || res.status === 403) {

@@ -6,6 +6,7 @@ import { getCachedClaudeHeaders } from "../utils/claudeHeaderCache.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { injectReasoningContent } from "../utils/reasoningContentInjector.js";
 import { stripUnsupportedParams } from "../translator/concerns/paramSupport.js";
+import { validateSafeBaseUrl } from "../utils/safeBaseUrl.js";
 
 // Auth header descriptors — derived from registry transport.auth, fallback to hardcoded defaults.
 const BEARER = { combined: true, header: "Authorization", scheme: "bearer" };
@@ -121,13 +122,17 @@ export class DefaultExecutor extends BaseExecutor {
     }
     if (this.provider?.startsWith?.("openai-compatible-")) {
       const baseUrl = credentials?.providerSpecificData?.baseUrl || OPENAI_COMPAT_BASE;
-      const normalized = baseUrl.replace(/\/$/, "");
+      // User-supplied base URLs go through the SSRF guard: unsafe (private/
+      // loopback host) input falls back to the default instead of reaching fetch.
+      const safe = validateSafeBaseUrl(baseUrl);
+      const normalized = (safe.ok ? safe.url.href : OPENAI_COMPAT_BASE).replace(/\/$/, "");
       const path = this.provider.includes("responses") ? "/responses" : "/chat/completions";
       return `${normalized}${path}`;
     }
     if (this.provider?.startsWith?.("anthropic-compatible-")) {
       const baseUrl = credentials?.providerSpecificData?.baseUrl || ANTHROPIC_COMPAT_BASE;
-      const normalized = baseUrl.replace(/\/$/, "");
+      const safe = validateSafeBaseUrl(baseUrl);
+      const normalized = (safe.ok ? safe.url.href : ANTHROPIC_COMPAT_BASE).replace(/\/$/, "");
       return `${normalized}/messages`;
     }
     // gemini-format: build :streamGenerateContent / :generateContent path

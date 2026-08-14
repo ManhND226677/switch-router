@@ -1,16 +1,7 @@
 import REGISTRY from "../providers/registry/index.js";
 
 // Alias→id derived from registry single-source: id→id, alias→id, aliases[]→id.
-// Media-only providers without a registry transport entry keep explicit aliases here.
-const MEDIA_ONLY_ALIASES = {
-  el: "elevenlabs",
-  jina: "jina-ai",
-  "jina-ai": "jina-ai",
-  polly: "aws-polly",
-  "aws-polly": "aws-polly",
-};
-
-const ALIAS_TO_PROVIDER_ID = { ...MEDIA_ONLY_ALIASES };
+const ALIAS_TO_PROVIDER_ID = {};
 for (const entry of REGISTRY) {
   ALIAS_TO_PROVIDER_ID[entry.id] = entry.id;
   if (entry.alias) ALIAS_TO_PROVIDER_ID[entry.alias] = entry.id;

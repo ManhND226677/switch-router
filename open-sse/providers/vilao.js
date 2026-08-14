@@ -10,6 +10,8 @@
 // Keep chat, models catalog, embeddings, and validation reading from here so the
 // four call sites cannot drift.
 
+import { validateSafeBaseUrl } from "../utils/safeBaseUrl.js";
+
 export const VILAO_DEFAULT_ORIGIN = "https://api.vilao.ai";
 export const VILAO_DEFAULT_BASE_URL = `${VILAO_DEFAULT_ORIGIN}/v1`;
 
@@ -23,17 +25,14 @@ const KNOWN_ENDPOINT_PATHS = /\/(chat\/completions|completions|embeddings|models
 // Normalize a user-supplied ViLao endpoint to a bare `<origin>/v1` base.
 // Tolerates: trailing slashes, a missing scheme, a pasted `/chat/completions`
 // path, and a missing `/v1` suffix. Falls back to the default gateway when the
-// value is empty or unparseable.
+// value is empty, unparseable, or points at a private/loopback host.
 export function normalizeVilaoBaseUrl(raw) {
   const value = typeof raw === "string" ? raw.trim() : "";
   if (!value) return VILAO_DEFAULT_BASE_URL;
 
-  let url;
-  try {
-    url = new URL(value.includes("://") ? value : `https://${value}`);
-  } catch {
-    return VILAO_DEFAULT_BASE_URL;
-  }
+  const check = validateSafeBaseUrl(value);
+  if (!check.ok) return VILAO_DEFAULT_BASE_URL;
+  const url = check.url;
 
   let pathname = url.pathname.replace(/\/+$/, "").replace(KNOWN_ENDPOINT_PATHS, "");
   if (!/\/v\d+$/.test(pathname)) pathname = `${pathname}/v1`;

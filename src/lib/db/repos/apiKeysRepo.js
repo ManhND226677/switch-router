@@ -13,6 +13,14 @@ function rowToKey(row) {
   };
 }
 
+// machineId is a machine fingerprint (also used to derive the CLI token) and is
+// embedded in the key string itself — never expose it to the dashboard client.
+export function sanitizeApiKey(key) {
+  if (!key) return key;
+  const { machineId, ...rest } = key;
+  return rest;
+}
+
 export async function getApiKeys() {
   const db = await getAdapter();
   const rows = db.all(`SELECT * FROM apiKeys ORDER BY createdAt ASC`);

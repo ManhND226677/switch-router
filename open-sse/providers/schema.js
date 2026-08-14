@@ -39,8 +39,8 @@ import { DEFAULT_RETRY_CONFIG, FETCH_CONNECT_TIMEOUT_MS } from "../config/runtim
  */
 
 // Shared transport defaults — provider only overrides fields that differ.
-// NOTE: runtime (index.js buildTransport) only re-applies `format`; the rest documents the contract
-// and feeds the (currently unwired) resolveProvider(). Adding keys here does NOT change PROVIDERS.
+// NOTE: runtime (index.js buildTransport) only re-applies `format`; the rest documents the contract.
+// Adding keys here does NOT change PROVIDERS.
 export const PROVIDER_DEFAULTS = {
   baseUrl: "",
   format: "openai",
@@ -54,23 +54,3 @@ export const PROVIDER_DEFAULTS = {
   timeoutMs: FETCH_CONNECT_TIMEOUT_MS,
   executor: "default"
 };
-
-// Default endpoints per format (provider only overrides what differs)
-export const ENDPOINT_DEFAULTS = {
-  openai: { chat: "/chat/completions", test: "/models", models: "/models" },
-  claude: { chat: "/messages", test: "/models", countTokens: "/messages/count_tokens" },
-  gemini: { chat: "/{model}:streamGenerateContent", models: "/models", test: "/models" }
-};
-
-// Deep-merge a provider entry over PROVIDER_DEFAULTS (defensive for missing transport)
-export function resolveProvider(entry) {
-  const transport = (entry && entry.transport) || {};
-  return {
-    ...PROVIDER_DEFAULTS,
-    ...transport,
-    headers: { ...PROVIDER_DEFAULTS.headers, ...transport.headers },
-    auth: { ...PROVIDER_DEFAULTS.auth, ...transport.auth },
-    quirks: { ...PROVIDER_DEFAULTS.quirks, ...transport.quirks },
-    retry: { ...PROVIDER_DEFAULTS.retry, ...transport.retry }
-  };
-}

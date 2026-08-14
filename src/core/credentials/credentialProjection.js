@@ -7,13 +7,29 @@ const TOP_LEVEL_SECRET_FIELDS = [
   "clientSecret",
 ];
 
-const PROVIDER_DATA_SECRET_PATTERN = /(?:api[-_]?key|access[-_]?token|refresh[-_]?token|id[-_]?token|copilot[-_]?token|client[-_]?secret|cookie|password|authorization|session[-_]?token)/i;
+const PROVIDER_DATA_SECRET_PATTERN = /(?:api[-_]?key|access[-_]?token|refresh[-_]?token|id[-_]?token|copilot[-_]?token|oauth[-_]?token|session[-_]?token|client[-_]?secret|secret|private[-_]?key|bearer|passphrase|token|password|authorization|cookie)/i;
+
+function isSecretKey(key) {
+  return PROVIDER_DATA_SECRET_PATTERN.test(key);
+}
+
+// Recursively strip secret-looking keys at any depth: providers may nest
+// credentials (tokens, private keys) inside sub-objects of providerSpecificData.
+function sanitizeSecretValue(value) {
+  if (Array.isArray(value)) return value.map(sanitizeSecretValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => !isSecretKey(key))
+        .map(([key, v]) => [key, sanitizeSecretValue(v)])
+    );
+  }
+  return value;
+}
 
 function copyProviderSpecificData(providerSpecificData = {}) {
   if (!providerSpecificData || typeof providerSpecificData !== "object") return {};
-  return Object.fromEntries(
-    Object.entries(providerSpecificData).filter(([key]) => !PROVIDER_DATA_SECRET_PATTERN.test(key)),
-  );
+  return sanitizeSecretValue(providerSpecificData);
 }
 
 /**

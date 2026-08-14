@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getRequestDetails } from "@/lib/usageDb";
+import { toValidDateIso } from "@/lib/db/repos/dateFilter";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,13 @@ export async function GET(request) {
     if (pageSize < 1 || pageSize > 100) {
       return NextResponse.json(
         { error: "PageSize must be between 1 and 100" },
+        { status: 400 }
+      );
+    }
+
+    if ((startDate && !toValidDateIso(startDate)) || (endDate && !toValidDateIso(endDate))) {
+      return NextResponse.json(
+        { error: "startDate/endDate must be valid date strings" },
         { status: 400 }
       );
     }

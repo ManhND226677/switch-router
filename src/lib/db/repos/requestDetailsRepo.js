@@ -1,5 +1,6 @@
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
+import { toValidDateIso } from "./dateFilter.js";
 
 const DEFAULT_MAX_RECORDS = 200;
 const DEFAULT_BATCH_SIZE = 20;
@@ -93,45 +94,52 @@ async function flushToDatabase() {
     // Drain entire buffer (loop in case more pushed during await)
     while (writeBuffer.length > 0) {
       const items = writeBuffer.splice(0, writeBuffer.length);
-      const db = await getAdapter();
-      const config = await getObservabilityConfig();
+      try {
+        const db = await getAdapter();
+        const config = await getObservabilityConfig();
 
-      db.transaction(() => {
-        for (const item of items) {
-          if (!item.id) item.id = generateDetailId(item.model);
-          if (!item.timestamp) item.timestamp = new Date().toISOString();
-          if (item.request?.headers) item.request.headers = sanitizeHeaders(item.request.headers);
+        db.transaction(() => {
+          for (const item of items) {
+            if (!item.id) item.id = generateDetailId(item.model);
+            if (!item.timestamp) item.timestamp = new Date().toISOString();
+            if (item.request?.headers) item.request.headers = sanitizeHeaders(item.request.headers);
 
-          const record = {
-            id: item.id,
-            provider: item.provider || null,
-            model: item.model || null,
-            connectionId: item.connectionId || null,
-            timestamp: item.timestamp,
-            status: item.status || null,
-            latency: item.latency || {},
-            tokens: item.tokens || {},
-            request: truncateField(item.request, config.maxJsonSize),
-            providerRequest: truncateField(item.providerRequest, config.maxJsonSize),
-            providerResponse: truncateField(item.providerResponse, config.maxJsonSize),
-            response: truncateField(item.response, config.maxJsonSize),
-            pxpipe: item.pxpipe || undefined,
-          };
+            const record = {
+              id: item.id,
+              provider: item.provider || null,
+              model: item.model || null,
+              connectionId: item.connectionId || null,
+              timestamp: item.timestamp,
+              status: item.status || null,
+              latency: item.latency || {},
+              tokens: item.tokens || {},
+              request: truncateField(item.request, config.maxJsonSize),
+              providerRequest: truncateField(item.providerRequest, config.maxJsonSize),
+              providerResponse: truncateField(item.providerResponse, config.maxJsonSize),
+              response: truncateField(item.response, config.maxJsonSize),
+              pxpipe: item.pxpipe || undefined,
+            };
 
-          db.run(
-            `INSERT INTO requestDetails(id, timestamp, provider, model, connectionId, status, data) VALUES(?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET timestamp = excluded.timestamp, provider = excluded.provider, model = excluded.model, connectionId = excluded.connectionId, status = excluded.status, data = excluded.data`,
-            [record.id, record.timestamp, record.provider, record.model, record.connectionId, record.status, stringifyJson(record)]
-          );
-        }
+            db.run(
+              `INSERT INTO requestDetails(id, timestamp, provider, model, connectionId, status, data) VALUES(?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET timestamp = excluded.timestamp, provider = excluded.provider, model = excluded.model, connectionId = excluded.connectionId, status = excluded.status, data = excluded.data`,
+              [record.id, record.timestamp, record.provider, record.model, record.connectionId, record.status, stringifyJson(record)]
+            );
+          }
 
-        const cnt = db.get(`SELECT COUNT(*) as c FROM requestDetails`);
-        if (cnt && cnt.c > config.maxRecords) {
-          db.run(
-            `DELETE FROM requestDetails WHERE id IN (SELECT id FROM requestDetails ORDER BY timestamp ASC LIMIT ?)`,
-            [cnt.c - config.maxRecords]
-          );
-        }
-      });
+          const cnt = db.get(`SELECT COUNT(*) as c FROM requestDetails`);
+          if (cnt && cnt.c > config.maxRecords) {
+            db.run(
+              `DELETE FROM requestDetails WHERE id IN (SELECT id FROM requestDetails ORDER BY timestamp ASC LIMIT ?)`,
+              [cnt.c - config.maxRecords]
+            );
+          }
+        });
+      } catch (e) {
+        // Requeue the drained batch so a transient DB error doesn't silently
+        // drop observability data; the next flush attempt retries it.
+        writeBuffer.unshift(...items);
+        throw e;
+      }
     }
   } catch (e) {
     console.error("[requestDetailsRepo] Batch write failed:", e);
@@ -179,8 +187,14 @@ export async function getRequestDetails(filter = {}) {
     conds.push(`status IN (${synonyms.map(() => "?").join(", ")})`);
     params.push(...synonyms);
   }
-  if (filter.startDate) { conds.push("timestamp >= ?"); params.push(new Date(filter.startDate).toISOString()); }
-  if (filter.endDate) { conds.push("timestamp <= ?"); params.push(new Date(filter.endDate).toISOString()); }
+  if (filter.startDate) {
+    const iso = toValidDateIso(filter.startDate);
+    if (iso) { conds.push("timestamp >= ?"); params.push(iso); }
+  }
+  if (filter.endDate) {
+    const iso = toValidDateIso(filter.endDate);
+    if (iso) { conds.push("timestamp <= ?"); params.push(iso); }
+  }
 
   const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
   const cntRow = db.get(`SELECT COUNT(*) as c FROM requestDetails ${where}`, params);
