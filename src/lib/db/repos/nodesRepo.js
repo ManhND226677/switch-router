@@ -1,6 +1,8 @@
 import { v4 as uuidv4 } from "uuid";
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
+import { invalidateSettingsCache } from "./settingsRepo.js";
+import { invalidateConnectionsCache } from "./connectionsRepo.js";
 
 function rowToNode(row) {
   if (!row) return null;
@@ -146,5 +148,10 @@ export async function deleteProviderNode(id) {
 
     db.run(`DELETE FROM providerNodes WHERE id = ?`, [id]);
   });
+  // Direct SQL writes bypass settingsRepo/connectionsRepo — drop hot caches.
+  if (removed) {
+    invalidateSettingsCache();
+    invalidateConnectionsCache();
+  }
   return removed;
 }
