@@ -24,6 +24,7 @@ npm run build && npm run start      # production Web server
 - Bun variants: `npm run dev:bun` / `build:bun` / `start:bun`.
 - Default runtime port is **28701** (dashboard at `/dashboard`, API at `/v1`).
 - Lint: `npx eslint .` (config `eslint.config.mjs`, extends `eslint-config-next`).
+- Icon font: icons render from a subset (`public/fonts/material-symbols-outlined.woff2`, ~136 KB, not the 3.9 MB package font). To add an icon: append its ligature name to `scripts/material-symbols-list.txt`, then run `npm run icons:subset` (needs `pip install fonttools brotli`; the script fails loudly if any ligature is lost). A missing icon renders as its literal name text — that is the signal to regenerate.
 
 Tests (vitest, in `tests/`, an **independent** ESM package — not wired into root `npm test`):
 ```bash
@@ -34,11 +35,9 @@ npx vitest run unit/capabilities.test.js   # single file (path relative to tests
 ```
 > The committed `tests/package.json` `test` script hardcodes Unix paths (`NODE_PATH=/tmp/node_modules …`) — a shared-install workaround from upstream. On Windows (or anywhere), ignore it and use the `npx vitest` form above; `vitest.config.js` resolves the `open-sse`/`@/` aliases from the repo root regardless of where vitest lives.
 >
-> **The suite is NOT expected to be all-green on a plain checkout.** ~817 pass, ~14 fail. Judge regressions with `tests/__baseline__/verify-no-regression.mjs`, not a raw run. Expected red:
-> - All 14 catalogued in `tests/__baseline__/known-fails.txt` (oauth-cursor-auto-import, translator-request-normalization, …).
-> - `unit/embeddings.cloud.test.js` imports `cloud/src/handlers/embeddings.js` — the `cloud/` worker dir is **not in this repo**, so it always fails here.
-> - `unit/xai-oauth-service.test.js` times out (5s) when the xAI endpoint-discovery fetch isn't reachable/mocked.
-> - `real/*.real.test.js` make live provider calls — need credentials, skip otherwise.
+> **The suite is expected to be all-green on a plain checkout.** Judge regressions with `tests/__baseline__/verify-no-regression.mjs`, not a raw run. Known skipped tests (require credentials/external services):
+> - `real/*.real.test.js` make live provider calls — skip unless credentials are set.
+> - Some E2E tests (e.g. `rtk.e2e.test.js`, `antigravity-cache.test.js`) skip when prerequisites are missing.
 - `*.real.test.js` under `tests/translator/real/` make live provider calls — skip unless credentials are set.
 - Regression baselines: `tests/__baseline__/verify-*.mjs` compare against committed snapshots (providers, aliases, OAuth URLs). Run these after touching provider registry / alias logic. Regen snapshots with `verify-alias.mjs --snapshot` / `verify-oauth-urls.mjs --snapshot` (providers baseline is the raw `PROVIDERS` JSON dump).
 - Provider drift: `node scripts/qa-provider-drift.mjs` flags test fixtures that reference retired provider ids. Extend its `REMOVED_LIST` whenever a provider is deleted from the registry.

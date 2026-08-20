@@ -1,12 +1,27 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getDefaultPricing, formatCost } from "open-sse/providers/pricing.js";
+import { getDefaultPricing } from "open-sse/providers/pricing.js";
+import Modal from "./Modal";
+import Button from "./Button";
+import { useNotificationStore } from "@/store/notificationStore";
+
+const PRICING_FIELDS = ["input", "output", "cached", "reasoning", "cache_creation"];
+const FIELD_LABELS = {
+  input: "Input",
+  output: "Output",
+  cached: "Cached",
+  reasoning: "Reasoning",
+  cache_creation: "Cache Creation",
+};
 
 export default function PricingModal({ isOpen, onClose, onSave }) {
   const [pricingData, setPricingData] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const notifySuccess = useNotificationStore((s) => s.success);
+  const notifyWarning = useNotificationStore((s) => s.warning);
+  const notifyErr = useNotificationStore((s) => s.error);
 
   const loadPricing = async () => {
     setLoading(true);
@@ -14,15 +29,13 @@ export default function PricingModal({ isOpen, onClose, onSave }) {
       const response = await fetch("/api/pricing");
       if (response.ok) {
         const data = await response.json();
-        setPricingData(data);
+        setPricingData(data || {});
       } else {
-        const defaults = getDefaultPricing();
-        setPricingData(defaults);
+        setPricingData(getDefaultPricing());
       }
     } catch (error) {
       console.error("Failed to load pricing:", error);
-      const defaults = getDefaultPricing();
-      setPricingData(defaults);
+      setPricingData(getDefaultPricing());
     } finally {
       setLoading(false);
     }
@@ -30,22 +43,31 @@ export default function PricingModal({ isOpen, onClose, onSave }) {
 
   /* eslint-disable react-hooks/set-state-in-effect -- load pricing when the modal opens. */
   useEffect(() => {
-    if (isOpen) {
-      loadPricing();
-    }
+    if (isOpen) loadPricing();
   }, [isOpen]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const handlePricingChange = (provider, model, field, value) => {
-    const numValue = parseFloat(value);
-    if (isNaN(numValue) || numValue < 0) return;
+    if (value === "") {
+      setPricingData((prev) => {
+        const next = { ...prev };
+        if (!next[provider]) next[provider] = {};
+        if (!next[provider][model]) next[provider][model] = {};
+        next[provider][model] = { ...next[provider][model], [field]: 0 };
+        return next;
+      });
+      return;
+    }
 
-    setPricingData(prev => {
-      const newData = { ...prev };
-      if (!newData[provider]) newData[provider] = {};
-      if (!newData[provider][model]) newData[provider][model] = {};
-      newData[provider][model][field] = numValue;
-      return newData;
+    const numValue = parseFloat(value);
+    if (Number.isNaN(numValue) || numValue < 0) return;
+
+    setPricingData((prev) => {
+      const next = { ...prev };
+      if (!next[provider]) next[provider] = {};
+      if (!next[provider][model]) next[provider][model] = {};
+      next[provider][model] = { ...next[provider][model], [field]: numValue };
+      return next;
     });
   };
 
@@ -55,155 +77,146 @@ export default function PricingModal({ isOpen, onClose, onSave }) {
       const response = await fetch("/api/pricing", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(pricingData)
+        body: JSON.stringify(pricingData),
       });
 
       if (response.ok) {
+        notifySuccess("Pricing saved");
         onSave?.();
         onClose();
       } else {
-        const error = await response.json();
-        alert(`Failed to save pricing: ${error.error}`);
+        const error = await response.json().catch(() => ({}));
+        notifyErr(error.error || "Failed to save pricing");
       }
     } catch (error) {
       console.error("Failed to save pricing:", error);
-      alert("Failed to save pricing");
+      notifyErr("Failed to save pricing");
     } finally {
       setSaving(false);
     }
   };
 
   const handleReset = async () => {
-    if (!confirm("Reset all pricing to defaults? This cannot be undone.")) return;
+    if (!window.confirm("Reset all pricing to defaults? This cannot be undone.")) return;
 
     try {
       const response = await fetch("/api/pricing", { method: "DELETE" });
       if (response.ok) {
-        const defaults = getDefaultPricing();
-        setPricingData(defaults);
+        setPricingData(getDefaultPricing());
+        notifyWarning("Pricing reset to defaults — click Save to persist");
+      } else {
+        notifyErr("Failed to reset pricing");
       }
     } catch (error) {
       console.error("Failed to reset pricing:", error);
-      alert("Failed to reset pricing");
+      notifyErr("Failed to reset pricing");
     }
   };
 
-  if (!isOpen) return null;
-
-  // Get all unique providers and models for display
-  const allProviders = Object.keys(pricingData).sort();
-  const pricingFields = ["input", "output", "cached", "reasoning", "cache_creation"];
+  const allProviders = Object.keys(pricingData || {}).sort();
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-bg-base border border-border rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="p-4 border-b border-border flex items-center justify-between">
-          <h2 className="text-xl font-semibold">Pricing Configuration</h2>
-          <button
-            onClick={onClose}
-            className="text-text-muted hover:text-text text-2xl leading-none"
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Pricing Configuration"
+      size="full"
+      className="!max-w-6xl"
+      closeOnOverlay={!saving}
+      footer={(
+        <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleReset}
+            disabled={saving || loading}
+            className="text-red-500 hover:bg-red-500/10 sm:self-start"
           >
-            ×
-          </button>
+            Reset to Defaults
+          </Button>
+          <div className="flex gap-2 sm:justify-end">
+            <Button variant="ghost" size="sm" onClick={onClose} disabled={saving}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleSave} loading={saving} disabled={loading}>
+              Save Changes
+            </Button>
+          </div>
         </div>
+      )}
+    >
+      {loading ? (
+        <div className="py-10 text-center text-text-muted">Loading pricing data...</div>
+      ) : (
+        <div className="flex flex-col gap-5">
+          <div className="rounded-[10px] border border-border-subtle bg-surface-2 p-3 text-sm">
+            <p className="mb-1 font-medium text-text-main">Pricing Rates Format</p>
+            <p className="text-text-muted">
+              All rates are in <strong className="text-text-main">dollars per million tokens</strong> ($/1M tokens).
+              Example: input rate of 2.50 means $2.50 per 1,000,000 input tokens.
+            </p>
+          </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-auto p-4">
-          {loading ? (
-            <div className="text-center py-8 text-text-muted">Loading pricing data...</div>
-          ) : (
-            <div className="space-y-6">
-              {/* Instructions */}
-              <div className="bg-bg-subtle border border-border rounded-lg p-3 text-sm">
-                <p className="font-medium mb-1">Pricing Rates Format</p>
-                <p className="text-text-muted">
-                  All rates are in <strong>dollars per million tokens</strong> ($/1M tokens).
-                  Example: Input rate of 2.50 means $2.50 per 1,000,000 input tokens.
-                </p>
-              </div>
-
-              {/* Pricing Tables */}
-              {allProviders.map(provider => {
-                const models = Object.keys(pricingData[provider]).sort();
-                return (
-                  <div key={provider} className="border border-border rounded-lg overflow-hidden">
-                    <div className="bg-bg-subtle px-4 py-2 font-semibold text-sm">
-                      {provider.toUpperCase()}
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-bg-hover text-text-muted uppercase text-xs">
-                          <tr>
-                            <th className="px-3 py-2 text-left">Model</th>
-                            <th className="px-3 py-2 text-right">Input</th>
-                            <th className="px-3 py-2 text-right">Output</th>
-                            <th className="px-3 py-2 text-right">Cached</th>
-                            <th className="px-3 py-2 text-right">Reasoning</th>
-                            <th className="px-3 py-2 text-right">Cache Creation</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
-                          {models.map(model => (
-                            <tr key={model} className="hover:bg-bg-subtle/50">
-                              <td className="px-3 py-2 font-medium">{model}</td>
-                              {pricingFields.map(field => (
-                                <td key={field} className="px-3 py-2">
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={pricingData[provider][model][field] || 0}
-                                    onChange={(e) => handlePricingChange(provider, model, field, e.target.value)}
-                                    className="w-20 px-2 py-1 text-right bg-bg-base border border-border rounded focus:outline-none focus:border-primary"
-                                  />
-                                </td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {allProviders.length === 0 && (
-                <div className="text-center py-8 text-text-muted">
-                  No pricing data available
+          {allProviders.map((provider) => {
+            const models = Object.keys(pricingData[provider] || {}).sort();
+            return (
+              <div
+                key={provider}
+                className="overflow-hidden rounded-[12px] border border-border-subtle bg-surface shadow-[var(--shadow-soft)]"
+              >
+                <div className="border-b border-border-subtle bg-surface-2 px-4 py-2.5 text-sm font-semibold tracking-wide text-text-main">
+                  {provider.toUpperCase()}
+                  <span className="ml-2 text-xs font-normal text-text-muted">
+                    {models.length} model{models.length === 1 ? "" : "s"}
+                  </span>
                 </div>
-              )}
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[720px] text-sm">
+                    <thead>
+                      <tr className="border-b border-border-subtle bg-bg text-xs uppercase tracking-wide text-text-muted">
+                        <th className="px-3 py-2 text-left font-semibold">Model</th>
+                        {PRICING_FIELDS.map((field) => (
+                          <th key={field} className="px-3 py-2 text-right font-semibold">
+                            {FIELD_LABELS[field]}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border-subtle">
+                      {models.map((model) => (
+                        <tr key={model} className="bg-surface transition-colors hover:bg-surface-2/70">
+                          <td className="px-3 py-2 font-mono text-xs font-medium text-text-main">
+                            {model}
+                          </td>
+                          {PRICING_FIELDS.map((field) => (
+                            <td key={field} className="px-3 py-2">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={pricingData[provider][model]?.[field] ?? 0}
+                                onChange={(e) => handlePricingChange(provider, model, field, e.target.value)}
+                                aria-label={provider + " " + model + " " + FIELD_LABELS[field] + " rate"}
+                                className="w-24 rounded-[8px] border border-border bg-surface-2 px-2 py-1.5 text-right font-mono text-xs text-text-main outline-none transition-colors focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+                              />
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
+
+          {allProviders.length === 0 && (
+            <div className="rounded-[12px] border border-dashed border-border py-10 text-center text-text-muted">
+              No pricing data available
             </div>
           )}
         </div>
-
-        {/* Footer */}
-        <div className="p-4 border-t border-border flex items-center justify-between gap-2">
-          <button
-            onClick={handleReset}
-            className="px-4 py-2 text-sm text-red-500 hover:bg-red-500/10 rounded border border-red-500/20 transition-colors"
-            disabled={saving}
-          >
-            Reset to Defaults
-          </button>
-          <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-sm text-text-muted hover:text-text border border-border rounded transition-colors"
-              disabled={saving}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              className="px-4 py-2 text-sm bg-primary text-white rounded hover:bg-primary/90 transition-colors disabled:opacity-50"
-              disabled={saving}
-            >
-              {saving ? "Saving..." : "Save Changes"}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+      )}
+    </Modal>
   );
 }

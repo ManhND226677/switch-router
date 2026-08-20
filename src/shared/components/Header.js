@@ -100,6 +100,16 @@ const getPageInfo = (pathname) => {
       icon: "api",
       breadcrumbs: [],
     };
+  if (pathname.includes("/settings/pricing"))
+    return {
+      title: "Pricing",
+      description: "Configure model rates for cost tracking",
+      icon: "payments",
+      breadcrumbs: [
+        { label: "Settings", href: "/dashboard/profile" },
+        { label: "Pricing" },
+      ],
+    };
   if (pathname.includes("/profile"))
     return {
       title: "Settings",

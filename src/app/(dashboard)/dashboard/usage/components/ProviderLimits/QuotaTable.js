@@ -210,11 +210,14 @@ export default function QuotaTable({
                       )}
 
                       <div className="flex items-center justify-between text-xs text-text-muted mt-1">
-                        <span>
+                        <span className="truncate mr-2">
                           {quota.displayValue || `${quota.used.toLocaleString()} used`}
                         </span>
-                        <span>
-                          {quota.total > 0 ? quota.total.toLocaleString() : "∞"} total
+                        <span className="shrink-0">
+                          {quota.displayTotal
+                            || (quota.unlimited || quota.percentageAvailable === false
+                              ? (quota.unit && quota.unit !== "status" ? quota.unit : "")
+                              : (quota.total > 0 ? `${quota.total.toLocaleString()} total` : "∞"))}
                         </span>
                       </div>
                     </div>

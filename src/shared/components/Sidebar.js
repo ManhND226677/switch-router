@@ -18,6 +18,8 @@ const observabilityItems = [
   { href: "/dashboard/quota", label: "Quota Tracker", icon: "data_usage" },
 ];
 
+// Pricing is reachable from Settings (profile page) but deliberately not in
+// the sidebar — custom per-model pricing is a rare, low-frequency task.
 const systemItems = [
   { href: "/dashboard/proxy-pools", label: "Proxy Pools", icon: "lan" },
 ];

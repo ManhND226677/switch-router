@@ -1195,20 +1195,25 @@ export default function ProviderLimits() {
                     </span>
                     <p className="mt-1.5 text-xs text-text-muted">{error}</p>
                   </div>
-                ) : quota?.message ? (
+                ) : (visibleQuotas.length === 0 && quota?.message) ? (
                   <div className="text-center py-5">
                     <p className="text-xs text-text-muted">{quota.message}</p>
                   </div>
                 ) : (
-                  <QuotaTable
-                    quotas={visibleQuotas}
-                    compact
-                    sortMode="default"
-                    showSortLabel={
-                      conn.provider === "codex" && quotaSortMode !== "default"
-                    }
-                    onHideQuota={(quotaRow) => handleHideQuota(conn.provider, quotaRow)}
-                  />
+                  <div className="space-y-2">
+                    {quota?.message && visibleQuotas.length > 0 && (
+                      <p className="px-1 text-xs text-text-muted">{quota.message}</p>
+                    )}
+                    <QuotaTable
+                      quotas={visibleQuotas}
+                      compact
+                      sortMode="default"
+                      showSortLabel={
+                        conn.provider === "codex" && quotaSortMode !== "default"
+                      }
+                      onHideQuota={(quotaRow) => handleHideQuota(conn.provider, quotaRow)}
+                    />
+                  </div>
                 )}
                 {hiddenQuotaRows.length > 0 && (
                   <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-black/5 pt-2 text-xs text-text-muted dark:border-white/5">

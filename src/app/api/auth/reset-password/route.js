@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server";
-import { updateSettings } from "@/lib/localDb";
 
-// Reset dashboard password to default by clearing the stored hash.
-// Local-only (enforced by dashboardGuard). Never returns the default literal.
+// Compatibility stub — dashboard password auth was removed (local-only mode).
 export async function POST() {
-  try {
-    await updateSettings({ password: null });
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  return NextResponse.json({
+    error: "Dashboard password authentication is disabled in local-only mode.",
+    dashboardAuthDisabled: true,
+    localOnly: true,
+  }, { status: 410, headers: { "Cache-Control": "no-store" } });
 }

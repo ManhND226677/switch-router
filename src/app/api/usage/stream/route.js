@@ -1,4 +1,4 @@
-import { statsEmitter, getActiveRequests } from "@/lib/usageDb";
+import { statsEmitter, getActiveRequests, getUsageStatsVersion } from "@/lib/usageDb";
 
 export const dynamic = "force-dynamic";
 
@@ -68,7 +68,9 @@ function broadcastSerialized(serialized) {
 async function broadcastLiveSnapshot() {
   if (hub.clients.size === 0) return;
   const { activeRequests, recentRequests, errorProvider } = await getActiveRequests();
-  broadcastSerialized(JSON.stringify({ activeRequests, recentRequests, errorProvider }));
+  // statsVersion lets clients refetch period-scoped stats/chart exactly when
+  // the caches were invalidated, replacing fixed-interval polling.
+  broadcastSerialized(JSON.stringify({ activeRequests, recentRequests, errorProvider, statsVersion: getUsageStatsVersion() }));
 }
 
 function scheduleLiveRefresh() {

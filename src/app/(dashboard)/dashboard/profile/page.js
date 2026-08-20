@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { Card, Button, Toggle, Input } from "@/shared/components";
 import { ConfirmModal } from "@/shared/components/Modal";
 import LanguageSwitcher from "@/shared/components/LanguageSwitcher";
@@ -526,6 +527,28 @@ export default function ProfilePage() {
                 ? ` Combos rotate after ${settings.comboStickyRoundRobinLimit || 1} call${(settings.comboStickyRoundRobinLimit || 1) === 1 ? "" : "s"} per model.`
                 : " Combos always start with their first model."}
             </p>
+          </div>
+        </Card>
+
+        {/* Pricing */}
+        <Card>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500 shrink-0">
+                <span className="material-symbols-outlined text-xl">payments</span>
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-base sm:text-lg font-semibold">Model Pricing</h3>
+                <p className="text-xs sm:text-sm text-text-muted">
+                  Edit per-model rates used for estimated cost on the Usage page.
+                </p>
+              </div>
+            </div>
+            <Link href="/dashboard/settings/pricing" className="shrink-0">
+              <Button variant="secondary" size="sm" iconRight="arrow_forward" className="w-full sm:w-auto">
+                Open Pricing
+              </Button>
+            </Link>
           </div>
         </Card>
 

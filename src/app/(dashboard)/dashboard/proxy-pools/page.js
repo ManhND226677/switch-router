@@ -475,15 +475,15 @@ export default function ProxyPoolsPage() {
                   </div>
                 </div>
                 <div className="flex items-center justify-end gap-1">
-                  <Toggle size="sm" checked={pool.isActive === true} onChange={() => handleToggleActive(pool)} title={pool.isActive ? "Disable" : "Enable"} />
-                  <button onClick={() => handleTest(pool.id)} className="rounded p-2 text-text-muted hover:bg-black/5 hover:text-primary dark:hover:bg-white/5" title="Test proxy" disabled={testingId === pool.id}>
-                    <span className="material-symbols-outlined text-lg" style={testingId === pool.id ? { animation: "spin 1s linear infinite" } : undefined}>{testingId === pool.id ? "progress_activity" : "science"}</span>
+                  <Toggle size="sm" checked={pool.isActive === true} onChange={() => handleToggleActive(pool)} title={pool.isActive ? "Disable" : "Enable"} aria-label={pool.isActive ? "Disable proxy pool" : "Enable proxy pool"} />
+                  <button type="button" onClick={() => handleTest(pool.id)} className="rounded p-2 text-text-muted hover:bg-black/5 hover:text-primary dark:hover:bg-white/5" title="Test proxy" aria-label={testingId === pool.id ? "Testing proxy" : "Test proxy"} disabled={testingId === pool.id}>
+                    <span className="material-symbols-outlined text-lg" aria-hidden="true" style={testingId === pool.id ? { animation: "spin 1s linear infinite" } : undefined}>{testingId === pool.id ? "progress_activity" : "science"}</span>
                   </button>
-                  <button onClick={() => openEditModal(pool)} className="rounded p-2 text-text-muted hover:bg-black/5 hover:text-primary dark:hover:bg-white/5" title="Edit">
-                    <span className="material-symbols-outlined text-lg">edit</span>
+                  <button type="button" onClick={() => openEditModal(pool)} className="rounded p-2 text-text-muted hover:bg-black/5 hover:text-primary dark:hover:bg-white/5" title="Edit" aria-label="Edit proxy pool">
+                    <span className="material-symbols-outlined text-lg" aria-hidden="true">edit</span>
                   </button>
-                  <button onClick={() => handleDelete(pool)} className="rounded p-2 text-red-500 hover:bg-red-500/10" title="Delete">
-                    <span className="material-symbols-outlined text-lg">delete</span>
+                  <button type="button" onClick={() => handleDelete(pool)} className="rounded p-2 text-red-500 hover:bg-red-500/10" title="Delete" aria-label="Delete proxy pool">
+                    <span className="material-symbols-outlined text-lg" aria-hidden="true">delete</span>
                   </button>
                 </div>
               </div>

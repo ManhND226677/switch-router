@@ -105,3 +105,38 @@ describe("BaseExecutor.execute — computeRetryDelay hook veto", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("BaseExecutor.execute — fastFail5xx (fallback account waiting)", () => {
+  it("skips 5xx status retries entirely when fastFail5xx=true", async () => {
+    // No provider retry override: default would retry 502 3×3s — fastFail must
+    // cut that to a single call so the routing engine can switch accounts now.
+    const ex = makeExec({ baseUrl: "https://x/api" });
+    fetchMock.mockResolvedValueOnce(res(502));
+    const out = await ex.execute({ model: "m", body: {}, stream: false, credentials: creds, fastFail5xx: true });
+    expect(out.response.status).toBe(502);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("provider-specific retry config still wins over fastFail5xx", async () => {
+    const ex = makeExec({ baseUrl: "https://x/api", retry: { 502: { attempts: 1, delayMs: 0 } } });
+    fetchMock
+      .mockResolvedValueOnce(res(502))
+      .mockResolvedValueOnce(res(200));
+    const out = await ex.execute({ model: "m", body: {}, stream: false, credentials: creds, fastFail5xx: true });
+    expect(out.response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps default retry behavior when fastFail5xx is not set", async () => {
+    // Explicit config mirrors DEFAULT_RETRY_CONFIG[502] but with delayMs 0 so
+    // the test does not sleep; proves the flag-off path still retries.
+    const ex = makeExec({ baseUrl: "https://x/api", retry: { 502: { attempts: 2, delayMs: 0 } } });
+    fetchMock
+      .mockResolvedValueOnce(res(502))
+      .mockResolvedValueOnce(res(502))
+      .mockResolvedValueOnce(res(200));
+    const out = await ex.execute({ model: "m", body: {}, stream: false, credentials: creds });
+    expect(out.response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+});

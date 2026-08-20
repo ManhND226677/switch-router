@@ -18,6 +18,12 @@ export const VILAO_DEFAULT_BASE_URL = `${VILAO_DEFAULT_ORIGIN}/v1`;
 export const VILAO_MODELS_PATH = "/models";
 export const VILAO_CHAT_PATH = "/chat/completions";
 export const VILAO_EMBEDDINGS_PATH = "/embeddings";
+// Pay-as-you-go wallet (LLM Monitor / consumer key). Verified 2026-08-14:
+// GET /v1/usage/balance → { balance, total_spent, total_requests, success_rate, models, ... }
+// Alias: GET /v1/tracking returns the same payload.
+export const VILAO_BALANCE_PATH = "/usage/balance";
+export const VILAO_TRACKING_PATH = "/tracking";
+export const VILAO_INFO_PATH = "/info";
 
 // Paths a user might paste along with their endpoint; stripped before re-adding /v1.
 const KNOWN_ENDPOINT_PATHS = /\/(chat\/completions|completions|embeddings|models|responses|messages)$/;

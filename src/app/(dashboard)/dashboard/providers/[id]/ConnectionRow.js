@@ -141,18 +141,24 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
         {/* Priority arrows */}
         <div className="flex shrink-0 flex-col">
           <button
+            type="button"
             onClick={onMoveUp}
             disabled={isFirst}
             className={`p-0.5 rounded ${isFirst ? "text-text-muted/30 cursor-not-allowed" : "hover:bg-sidebar text-text-muted hover:text-primary"}`}
+            aria-label="Move connection up"
+            title="Move up"
           >
-            <span className="material-symbols-outlined text-sm">keyboard_arrow_up</span>
+            <span className="material-symbols-outlined text-sm" aria-hidden="true">keyboard_arrow_up</span>
           </button>
           <button
+            type="button"
             onClick={onMoveDown}
             disabled={isLast}
             className={`p-0.5 rounded ${isLast ? "text-text-muted/30 cursor-not-allowed" : "hover:bg-sidebar text-text-muted hover:text-primary"}`}
+            aria-label="Move connection down"
+            title="Move down"
           >
-            <span className="material-symbols-outlined text-sm">keyboard_arrow_down</span>
+            <span className="material-symbols-outlined text-sm" aria-hidden="true">keyboard_arrow_down</span>
           </button>
         </div>
         <span className="material-symbols-outlined shrink-0 text-base text-text-muted">
@@ -190,6 +196,36 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
                 {getOneByOneLabel()}
               </Badge>
             )}
+            {(() => {
+              const probe = oneByOneStatus?.meta || connection.providerSpecificData?.lastProbe;
+              if (!probe || connection.provider !== "vilao") return null;
+              return (
+                <>
+                  {probe.walletEmpty && (
+                    <Badge variant="warning" size="sm" title="Key is valid but wallet is empty (HTTP 402)">
+                      empty wallet
+                    </Badge>
+                  )}
+                  {typeof probe.modelCount === "number" && !probe.walletEmpty && (
+                    <Badge variant="default" size="sm" title="Models returned by GET /v1/models">
+                      {probe.modelCount} models
+                    </Badge>
+                  )}
+                  {probe.health && probe.health !== "unknown" && (
+                    <Badge
+                      variant={probe.health === "healthy" || probe.health === "ok" ? "success" : "default"}
+                      size="sm"
+                      title="GET /v1/health"
+                    >
+                      {probe.health}
+                    </Badge>
+                  )}
+                  {typeof probe.latencyMs === "number" && (
+                    <span className="text-xs text-text-muted">{probe.latencyMs}ms</span>
+                  )}
+                </>
+              );
+            })()}
           </div>
           {hasAnyProxy && (
             <div className="mt-1 flex items-center gap-2 flex-wrap">
@@ -216,11 +252,16 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
           {(proxyPools || []).length > 0 && (
             <div className="relative" ref={proxyDropdownRef}>
               <button
+                type="button"
                 onClick={() => setShowProxyDropdown((v) => !v)}
                 className={`flex w-full flex-col items-center rounded px-2 py-1 transition-colors hover:bg-black/5 dark:hover:bg-white/5 ${hasAnyProxy ? "text-primary" : "text-text-muted hover:text-primary"}`}
                 disabled={updatingProxy}
+                aria-label="Choose proxy pool"
+                aria-haspopup="menu"
+                aria-expanded={showProxyDropdown}
+                title="Proxy"
               >
-                <span className="material-symbols-outlined text-lg">
+                <span className="material-symbols-outlined text-lg" aria-hidden="true">
                   {updatingProxy ? "progress_activity" : "lan"}
                 </span>
                 <span className="text-xs leading-tight">Proxy</span>
@@ -257,12 +298,12 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
               </button>
             </Tooltip>
           )}
-          <button onClick={onEdit} className="flex flex-col items-center rounded px-2 py-1 text-text-muted hover:bg-black/5 hover:text-primary dark:hover:bg-white/5">
-            <span className="material-symbols-outlined text-lg">edit</span>
+          <button type="button" onClick={onEdit} className="flex flex-col items-center rounded px-2 py-1 text-text-muted hover:bg-black/5 hover:text-primary dark:hover:bg-white/5" aria-label="Edit connection">
+            <span className="material-symbols-outlined text-lg" aria-hidden="true">edit</span>
             <span className="text-xs leading-tight">Edit</span>
           </button>
-          <button onClick={onDelete} className="flex flex-col items-center rounded px-2 py-1 text-red-500 hover:bg-red-500/10">
-            <span className="material-symbols-outlined text-lg">delete</span>
+          <button type="button" onClick={onDelete} className="flex flex-col items-center rounded px-2 py-1 text-red-500 hover:bg-red-500/10" aria-label="Delete connection">
+            <span className="material-symbols-outlined text-lg" aria-hidden="true">delete</span>
             <span className="text-xs leading-tight">Delete</span>
           </button>
         </div>
@@ -309,6 +350,8 @@ ConnectionRow.propTypes = {
   oneByOneStatus: PropTypes.shape({
     state: PropTypes.string,
     error: PropTypes.string,
+    warning: PropTypes.string,
+    meta: PropTypes.object,
   }),
   autoPing: PropTypes.shape({
     on: PropTypes.bool,

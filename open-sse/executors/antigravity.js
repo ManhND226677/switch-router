@@ -126,15 +126,34 @@ export class AntigravityExecutor extends BaseExecutor {
   // sessionId comes from transformRequest output; base.execute runs transformRequest before
   // buildHeaders, so we read it from instance state cached there (fallback: explicit arg).
   buildHeaders(credentials, stream = true, sessionId = null) {
+    // Align with IDE load/generate fingerprint so free-tier traffic is not
+    // classified differently from the desktop client (UA + Client-Metadata).
     return {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${credentials.accessToken}`,
       "User-Agent": this.config.headers?.["User-Agent"] || ANTIGRAVITY_HEADERS["User-Agent"],
+      "X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1",
+      "Client-Metadata": JSON.stringify({
+        ideType: 9, // ANTIGRAVITY
+        platform: process.platform === "win32" ? 5 : (process.platform === "darwin" ? (process.arch === "arm64" ? 2 : 1) : 3),
+        pluginType: 2, // GEMINI
+      }),
     };
   }
 
   transformRequest(model, body, stream, credentials) {
-    const projectId = credentials?.projectId || this.generateProjectId();
+    // Never invent a random Cloud Code project id. Google treats unknown
+    // projects as capacity/quota failures (429 RESOURCE_EXHAUSTED) even when
+    // fetchAvailableModels still shows remainingFraction=1 for the account.
+    const projectId = credentials?.projectId || credentials?.providerSpecificData?.projectId || null;
+    if (!projectId) {
+      const err = new Error(
+        "Antigravity Cloud Code projectId is missing. Re-auth the account or run connection repair so loadCodeAssist/onboardUser can bind a real project.",
+      );
+      err.code = "MISSING_PROJECT_ID";
+      err.status = 424;
+      throw err;
+    }
 
     // ─── Image generation: completely different request structure ───
     if (isImageModel(model)) {

@@ -7,6 +7,15 @@ import { ANTHROPIC_API_VERSION, OPENAI_COMPAT_BASE, ANTHROPIC_COMPAT_BASE } from
 /**
  * BaseExecutor - Base class for provider executors
  */
+// Retry override for 5xx when the routing layer still has fallback accounts:
+// skip the per-status backoff loop so account switching happens immediately
+// instead of after ~9s of same-account retries. Provider configs still win.
+const FAST_FAIL_RETRY_CONFIG = {
+  [HTTP_STATUS.BAD_GATEWAY]: { attempts: 0, delayMs: 0 },
+  [HTTP_STATUS.SERVICE_UNAVAILABLE]: { attempts: 0, delayMs: 0 },
+  [HTTP_STATUS.GATEWAY_TIMEOUT]: { attempts: 0, delayMs: 0 },
+};
+
 export class BaseExecutor {
   constructor(provider, config) {
     this.provider = provider;
@@ -96,14 +105,24 @@ export class BaseExecutor {
     return { status: response.status, message: bodyText || `HTTP ${response.status}` };
   }
 
-  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null }) {
+  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null, fastFail5xx = false }) {
     const fallbackCount = this.getFallbackCount();
     let lastError = null;
     let lastStatus = 0;
     const retryAttemptsByUrl = {};
 
-    // Merge default retry config with provider-specific config
-    const retryConfig = { ...DEFAULT_RETRY_CONFIG, ...this.config.retry };
+    // Merge default retry config with provider-specific config.
+    // Dashboard model probes (x-9r-probe) skip status retries so a 429 returns
+    // immediately instead of 3× exponential backoff per account.
+    // fastFail5xx (another account is waiting) drops 5xx retries the same way.
+    const isProbe = !!(
+      credentials?.isProbe
+      || credentials?.providerSpecificData?.isProbe
+      || body?.__probe === true
+    );
+    const retryConfig = isProbe
+      ? {}
+      : { ...DEFAULT_RETRY_CONFIG, ...(fastFail5xx ? FAST_FAIL_RETRY_CONFIG : null), ...this.config.retry };
 
     // Schedule retry via retryConfig[statusKey]. Returns true when caller should `urlIndex--; continue`
     // response (optional) lets a subclass hook compute a dynamic delay (e.g. antigravity Retry-After).

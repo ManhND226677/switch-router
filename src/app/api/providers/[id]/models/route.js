@@ -268,14 +268,103 @@ const PROVIDER_MODELS_CONFIG = {
     // and the gateway host itself can be overridden per key.
     customResolver: async (connection) => {
       const url = resolveVilaoConnectionEndpoint(connection, VILAO_MODELS_PATH);
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${connection.apiKey}`, "Content-Type": "application/json" },
-      });
-      if (!res.ok) {
-        return { error: `Failed to fetch models: ${res.status}`, status: res.status };
+      const started = Date.now();
+      let res;
+      try {
+        const proxy = await resolveConnectionProxyConfig(connection.providerSpecificData || {});
+        if (proxy.connectionProxyEnabled && proxy.connectionProxyUrl) {
+          const { proxyAwareFetch } = await import("open-sse/utils/proxyFetch.js");
+          res = await proxyAwareFetch(url, {
+            headers: { Authorization: `Bearer ${connection.apiKey}`, "Content-Type": "application/json" },
+            signal: AbortSignal.timeout(20000),
+          }, {
+            connectionProxyEnabled: true,
+            connectionProxyUrl: proxy.connectionProxyUrl,
+            connectionNoProxy: proxy.connectionNoProxy || "",
+          });
+        } else {
+          res = await fetch(url, {
+            headers: { Authorization: `Bearer ${connection.apiKey}`, "Content-Type": "application/json" },
+            signal: AbortSignal.timeout(20000),
+          });
+        }
+      } catch (err) {
+        return {
+          error: err.name === "TimeoutError" ? "ViLao models request timed out" : (err.message || "Network error"),
+          status: 502,
+          meta: {
+            keyValid: false,
+            walletEmpty: false,
+            baseUrl: url.replace(/\/models$/, ""),
+            latencyMs: Date.now() - started,
+            modelCount: 0,
+          },
+        };
       }
+
+      const latencyMs = Date.now() - started;
+      const baseUrl = url.replace(/\/models$/, "");
+      // 402 = key authenticated but wallet empty — still a valid key, empty catalog.
+      if (res.status === 402) {
+        return {
+          models: [],
+          warning: "ViLao key is valid but the wallet is empty (HTTP 402).",
+          meta: {
+            keyValid: true,
+            walletEmpty: true,
+            baseUrl,
+            latencyMs,
+            modelCount: 0,
+            httpStatus: 402,
+          },
+        };
+      }
+      if (!res.ok) {
+        let detail = "";
+        try {
+          const body = await res.json();
+          detail = body?.error?.message || body?.message || "";
+        } catch {
+          detail = "";
+        }
+        return {
+          error: detail ? `Failed to fetch models: ${res.status} — ${detail}` : `Failed to fetch models: ${res.status}`,
+          status: res.status,
+          meta: {
+            keyValid: res.status !== 401,
+            walletEmpty: false,
+            baseUrl,
+            latencyMs,
+            modelCount: 0,
+            httpStatus: res.status,
+          },
+        };
+      }
+
       const data = await res.json();
-      return { models: parseOpenAIStyleModels(data) };
+      const models = parseOpenAIStyleModels(data)
+        .map((m) => {
+          const id = m?.id || m?.name;
+          if (!id) return null;
+          return {
+            id,
+            name: m?.name || m?.id || id,
+            contextLength: m?.context_length || m?.contextLength || null,
+            ownedBy: m?.owned_by || m?.ownedBy || null,
+          };
+        })
+        .filter(Boolean);
+      return {
+        models,
+        meta: {
+          keyValid: true,
+          walletEmpty: false,
+          baseUrl,
+          latencyMs,
+          modelCount: models.length,
+          httpStatus: 200,
+        },
+      };
     },
   },
 
@@ -480,13 +569,17 @@ export async function GET(request, { params }) {
     if (typeof config.customResolver === "function") {
       const result = await config.customResolver(connection);
       if (result.error) {
-        return NextResponse.json({ error: result.error }, { status: result.status || 500 });
+        return NextResponse.json({
+          error: result.error,
+          ...(result.meta ? { meta: result.meta } : {}),
+        }, { status: result.status || 500 });
       }
       return NextResponse.json({
         provider: connection.provider,
         connectionId: connection.id,
         models: result.models,
-        ...(result.warning ? { warning: result.warning } : {})
+        ...(result.warning ? { warning: result.warning } : {}),
+        ...(result.meta ? { meta: result.meta } : {}),
       });
     }
 

@@ -67,6 +67,12 @@ export function invalidateUsageStatsCache() {
   chartCache.entries.clear();
 }
 
+// Monotonic counter bumped on every stats/chart cache invalidation. The usage
+// SSE stream pushes it so clients refetch exactly when data changed.
+export function getUsageStatsVersion() {
+  return statsCache.version;
+}
+
 function scheduleStatsEvent(event, delayMs = 150) {
   const key = event === "update" ? "update" : "pending";
   if (statsEmitTimers[key]) return;
@@ -623,7 +629,10 @@ async function calculateUsageStats(period = "all") {
     })
     .slice(0, 20);
 
-  // avgLatencyMs — real latency from request details (latency.total) within the period window
+  // avgLatencyMs — extract only latency.total via SQLite JSON functions.
+  // Never SELECT the full requestDetails.data blob here: historical rows can be
+  // multi‑MB each and loading/parsing them on the Node event loop freezes the
+  // whole gateway (health checks time out, dashboard looks hung, process dies).
   const nowMs = Date.now();
   const periodStartMs = (() => {
     if (period === "today") {
@@ -639,20 +648,36 @@ async function calculateUsageStats(period = "all") {
   })();
   let avgLatencyMs = 0;
   {
-    const latencyRows = periodStartMs > 0
-      ? db.all(`SELECT data FROM requestDetails WHERE timestamp >= ?`, [new Date(periodStartMs).toISOString()])
-      : db.all(`SELECT data FROM requestDetails`);
-    let totalLatency = 0;
-    let latencyCount = 0;
-    for (const row of latencyRows) {
-      const latency = parseJson(row.data, {})?.latency;
-      const ms = latency && typeof latency.total === "number" ? latency.total : 0;
-      if (ms > 0) {
-        totalLatency += ms;
-        latencyCount++;
+    try {
+      const row = periodStartMs > 0
+        ? db.get(
+          `SELECT AVG(lat) AS avgLatency, COUNT(*) AS n
+           FROM (
+             SELECT CAST(json_extract(data, '$.latency.total') AS REAL) AS lat
+             FROM requestDetails
+             WHERE timestamp >= ?
+               AND json_extract(data, '$.latency.total') IS NOT NULL
+           )
+           WHERE lat > 0`,
+          [new Date(periodStartMs).toISOString()],
+        )
+        : db.get(
+          `SELECT AVG(lat) AS avgLatency, COUNT(*) AS n
+           FROM (
+             SELECT CAST(json_extract(data, '$.latency.total') AS REAL) AS lat
+             FROM requestDetails
+             WHERE json_extract(data, '$.latency.total') IS NOT NULL
+           )
+           WHERE lat > 0`,
+        );
+      if (row?.n > 0 && Number.isFinite(Number(row.avgLatency))) {
+        avgLatencyMs = Math.round(Number(row.avgLatency));
       }
+    } catch (e) {
+      // Fail-open: avg latency is decorative. A missing JSON1 build must never
+      // block /api/usage/stats or stall the event loop.
+      console.warn("[usageRepo] avgLatency query failed:", e.message);
     }
-    if (latencyCount > 0) avgLatencyMs = Math.round(totalLatency / latencyCount);
   }
 
   const stats = {

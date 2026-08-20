@@ -476,6 +476,128 @@ export function parseQuotaData(provider, data) {
         }
         break;
 
+      case "stepfun": {
+        // Token plan / PAYG prepaid snapshot from GET /v1/accounts.
+        if (data.message && !data.quotas) {
+          normalizedQuotas.push({
+            name: "status",
+            used: 0,
+            total: 0,
+            resetAt: null,
+            message: data.message,
+            percentageAvailable: false,
+          });
+          break;
+        }
+        if (!data.quotas) break;
+        const labels = {
+          balance: "Balance",
+          cash: "Cash",
+          voucher: "Voucher",
+          models: "Models",
+        };
+        const order = ["balance", "cash", "voucher", "models"];
+        const entries = Object.entries(data.quotas).sort((a, b) => {
+          const ia = order.indexOf(a[0]);
+          const ib = order.indexOf(b[0]);
+          return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+        });
+        for (const [name, quota] of entries) {
+          // Hide zero cash/voucher rows to keep the card clean when empty.
+          if ((name === "cash" || name === "voucher") && !(Number(quota.total) > 0)) continue;
+          const isMoney = name === "balance" || name === "cash" || name === "voucher";
+          const hasPct = isMoney && quota.percentageAvailable !== false
+            && quota.remainingPercentage !== undefined
+            && quota.remainingPercentage !== null;
+          normalizedQuotas.push({
+            name: labels[name] || name,
+            category: isMoney ? "Wallet" : "Plan",
+            used: quota.used || 0,
+            total: quota.total || 0,
+            unit: quota.unit,
+            resetAt: null,
+            remainingPercentage: hasPct ? quota.remainingPercentage : undefined,
+            percentageAvailable: hasPct,
+            unlimited: quota.unlimited === true || !hasPct,
+            displayValue: quota.displayValue
+              || (name === "balance" && data.meta?.balance != null
+                ? `${Number(data.meta.balance).toLocaleString(undefined, { maximumFractionDigits: 4 })} remaining`
+                : undefined),
+            displayTotal: quota.displayTotal
+              || (name === "balance" && data.meta?.accountType ? data.meta.accountType : undefined),
+          });
+        }
+        break;
+      }
+
+      case "vilao": {
+        // Pay-as-you-go from GET /v1/usage/balance — keep 1 money row + light stats.
+        if (data.message && !data.quotas) {
+          normalizedQuotas.push({
+            name: "status",
+            used: 0,
+            total: 0,
+            resetAt: null,
+            message: data.message,
+            percentageAvailable: false,
+          });
+          break;
+        }
+        if (!data.quotas) break;
+
+        const labels = {
+          balance: "Balance",
+          credit_remaining: "Balance",
+          wallet: "Balance",
+          requests: "Requests",
+          models: "Models",
+          subscribed_models: "Models",
+          free_models: "Free models",
+          paid_models: "Paid models",
+        };
+        const order = ["balance", "credit_remaining", "wallet", "requests", "models", "subscribed_models"];
+        const entries = Object.entries(data.quotas).sort((a, b) => {
+          const ia = order.indexOf(a[0]);
+          const ib = order.indexOf(b[0]);
+          return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+        });
+
+        for (const [name, quota] of entries) {
+          // Skip legacy/duplicate money keys if both present
+          if (name === "credit_remaining" && data.quotas.balance) continue;
+          if (name === "wallet" && data.quotas.balance) continue;
+          if ((name === "free_models" || name === "paid_models") && (data.quotas.models || data.quotas.subscribed_models)) {
+            continue;
+          }
+
+          const isMoney = name === "balance" || name === "credit_remaining" || name === "wallet";
+          const hasPct = isMoney && quota.percentageAvailable !== false
+            && quota.remainingPercentage !== undefined
+            && quota.remainingPercentage !== null;
+
+          normalizedQuotas.push({
+            name: labels[name] || name,
+            category: isMoney ? "Wallet" : "Usage",
+            used: quota.used || 0,
+            total: quota.total || 0,
+            unit: quota.unit,
+            resetAt: null,
+            remainingPercentage: hasPct ? quota.remainingPercentage : undefined,
+            percentageAvailable: hasPct,
+            unlimited: quota.unlimited === true || !hasPct,
+            displayValue: quota.displayValue
+              || (isMoney && data.meta?.balance != null
+                ? `${Number(data.meta.balance).toLocaleString(undefined, { maximumFractionDigits: 2 })}${data.meta?.currency === "VND" ? "₫" : ""} remaining`
+                : undefined),
+            displayTotal: quota.displayTotal
+              || (isMoney && data.meta?.totalSpent != null
+                ? `spent ${Number(data.meta.totalSpent).toLocaleString(undefined, { maximumFractionDigits: 2 })}${data.meta?.currency === "VND" ? "₫" : ""}`
+                : undefined),
+          });
+        }
+        break;
+      }
+
       default:
         // Generic fallback for unknown providers
         if (data.quotas) {

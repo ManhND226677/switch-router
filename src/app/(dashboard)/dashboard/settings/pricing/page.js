@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import Card from "@/shared/components/Card";
+import Link from "next/link";
+import { Card, Button } from "@/shared/components";
 import PricingModal from "@/shared/components/PricingModal";
 
 export default function PricingSettingsPage() {
-  const router = useRouter();
   const [showModal, setShowModal] = useState(false);
   const [currentPricing, setCurrentPricing] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -53,21 +52,27 @@ export default function PricingSettingsPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-6">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-1 sm:px-0">
+      <div>
+        <Link
+          href="/dashboard/profile"
+          className="mb-4 inline-flex items-center gap-1 text-sm text-text-muted hover:text-primary transition-colors"
+        >
+          <span className="material-symbols-outlined text-lg">arrow_back</span>
+          Back to Settings
+        </Link>
+      </div>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Pricing Settings</h1>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Pricing Settings</h1>
           <p className="text-text-muted mt-1">
             Configure pricing rates for cost tracking and calculations
           </p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 transition-colors"
-        >
+        <Button onClick={() => setShowModal(true)} icon="edit">
           Edit Pricing
-        </button>
+        </Button>
       </div>
 
       {/* Quick Stats */}
@@ -162,14 +167,11 @@ export default function PricingSettingsPage() {
         )}
       </Card>
 
-      {/* Pricing Modal */}
-      {showModal && (
-        <PricingModal
-          isOpen={showModal}
-          onClose={() => setShowModal(false)}
-          onSave={handlePricingUpdated}
-        />
-      )}
+      <PricingModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        onSave={handlePricingUpdated}
+      />
     </div>
   );
 }

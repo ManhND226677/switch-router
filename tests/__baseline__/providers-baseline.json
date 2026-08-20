@@ -9,11 +9,12 @@
   },
   "antigravity": {
     "baseUrls": [
+      "https://daily-cloudcode-pa.googleapis.com",
       "https://cloudcode-pa.googleapis.com"
     ],
     "format": "antigravity",
     "headers": {
-      "User-Agent": "antigravity/ide/2.1.1 darwin/arm64"
+      "User-Agent": "antigravity/2.5.5 windows/amd64"
     }
   },
   "claude": {

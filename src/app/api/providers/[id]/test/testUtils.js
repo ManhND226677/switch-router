@@ -441,10 +441,89 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
         // ViLao is a P2P marketplace: the gateway host can differ per key, so a
         // custom endpoint from the user's API Keys page wins over the default.
         const url = resolveVilaoConnectionEndpoint(connection, VILAO_MODELS_PATH);
-        const res = await fetchWithConnectionProxy(url, { headers: { Authorization: `Bearer ${connection.apiKey}` } }, effectiveProxy);
+        const baseUrl = url.replace(/\/models$/, "");
+        const started = Date.now();
+        let health = "unknown";
+        try {
+          const healthRes = await fetchWithConnectionProxy(
+            `${baseUrl}/health`,
+            { signal: AbortSignal.timeout(5000) },
+            effectiveProxy,
+          );
+          if (healthRes.ok) {
+            try {
+              const h = await healthRes.json();
+              health = h?.status || "healthy";
+            } catch {
+              health = "healthy";
+            }
+          } else {
+            health = "down";
+          }
+        } catch {
+          health = "unknown";
+        }
+
+        const res = await fetchWithConnectionProxy(url, {
+          headers: { Authorization: `Bearer ${connection.apiKey}` },
+          signal: AbortSignal.timeout(15000),
+        }, effectiveProxy);
+        const latencyMs = Date.now() - started;
+
         // 402 = key authenticated but wallet empty; that is still a valid key.
-        if (res.status === 402) return { valid: true, error: null };
-        return { valid: res.ok, error: res.ok ? null : "Invalid API key" };
+        if (res.status === 402) {
+          return {
+            valid: true,
+            error: null,
+            warning: "Wallet empty (HTTP 402)",
+            meta: {
+              keyValid: true,
+              walletEmpty: true,
+              health,
+              modelCount: 0,
+              baseUrl,
+              latencyMs,
+              httpStatus: 402,
+            },
+          };
+        }
+        if (!res.ok) {
+          return {
+            valid: false,
+            error: res.status === 401 ? "Invalid API key" : `ViLao probe failed (${res.status})`,
+            meta: {
+              keyValid: false,
+              walletEmpty: false,
+              health,
+              modelCount: 0,
+              baseUrl,
+              latencyMs,
+              httpStatus: res.status,
+            },
+          };
+        }
+
+        let modelCount = 0;
+        try {
+          const data = await res.json();
+          const list = Array.isArray(data) ? data : (data?.data || data?.models || []);
+          modelCount = Array.isArray(list) ? list.length : 0;
+        } catch {
+          modelCount = 0;
+        }
+        return {
+          valid: true,
+          error: null,
+          meta: {
+            keyValid: true,
+            walletEmpty: false,
+            health,
+            modelCount,
+            baseUrl,
+            latencyMs,
+            httpStatus: 200,
+          },
+        };
       }
       case "anthropic": {
         const res = await fetchWithConnectionProxy("https://api.anthropic.com/v1/messages", {
@@ -633,7 +712,28 @@ export async function testSingleConnection(id) {
     }
   }
 
+  // Persist lightweight probe snapshot for Vilao (and any future meta-bearing probes)
+  // so the dashboard can show model count / wallet state without a second round-trip.
+  if (result.meta && typeof result.meta === "object") {
+    updateData.providerSpecificData = {
+      ...(connection.providerSpecificData || {}),
+      ...(updateData.providerSpecificData || {}),
+      lastProbe: {
+        ...result.meta,
+        testedAt: new Date().toISOString(),
+      },
+    };
+  }
+
   await updateProviderConnection(id, updateData);
 
-  return { valid: result.valid, error: result.error, refreshed: !!result.refreshed, latencyMs, testedAt: new Date().toISOString() };
+  return {
+    valid: result.valid,
+    error: result.error,
+    warning: result.warning || (result.valid ? softWarning : null) || null,
+    refreshed: !!result.refreshed,
+    latencyMs: result.meta?.latencyMs ?? latencyMs,
+    testedAt: new Date().toISOString(),
+    ...(result.meta ? { meta: result.meta } : {}),
+  };
 }

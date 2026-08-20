@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { getSettings } from "@/lib/localDb";
 import { canAccessLocalDashboard } from "@/dashboardGuard";
 
+// Compatibility stub — dashboard never requires login in local-only mode.
 export async function GET(request) {
-  try {
-    const settings = await getSettings();
-    const requireLogin = settings.requireLogin !== false && !canAccessLocalDashboard(request);
-    return NextResponse.json({ requireLogin });
-  } catch (error) {
-    return NextResponse.json({ requireLogin: !canAccessLocalDashboard(request) }, { status: 200 });
-  }
+  return NextResponse.json({
+    requireLogin: false,
+    dashboardAuthDisabled: true,
+    localOnly: true,
+    canAccessDashboard: canAccessLocalDashboard(request),
+  }, { headers: { "Cache-Control": "no-store" } });
 }

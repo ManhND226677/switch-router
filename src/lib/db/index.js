@@ -3,6 +3,10 @@ import { getAdapter } from "./driver.js";
 import { stringifyJson, parseJson } from "./helpers/jsonCol.js";
 import { invalidateSettingsCache } from "./repos/settingsRepo.js";
 import { invalidateConnectionsCache } from "./repos/connectionsRepo.js";
+import { invalidateProviderNodesCache } from "./repos/nodesRepo.js";
+import { invalidateCombosCache } from "./repos/combosRepo.js";
+import { invalidateModelAliasesCache } from "./repos/aliasRepo.js";
+import { invalidateProxyPoolsCache } from "./repos/proxyPoolsRepo.js";
 
 // Settings
 export {
@@ -59,13 +63,14 @@ export {
 export {
   statsEmitter, trackPendingRequest, getActiveRequests,
   saveRequestUsage, getUsageHistory, getUsageHistoryPage, getUsageStats, getChartData,
-  invalidateUsageStatsCache, appendRequestLog, getLatestUsageId,
+  invalidateUsageStatsCache, getUsageStatsVersion, appendRequestLog, getLatestUsageId,
   getRecentLogs, getRecentLogsPage,
 } from "./repos/usageRepo.js";
 
 // Request details
 export {
   saveRequestDetail, getRequestDetails, getRequestDetailById, getDistinctProviders,
+  compactRequestDetails,
 } from "./repos/requestDetailsRepo.js";
 
 // Export/import full DB
@@ -161,9 +166,13 @@ export async function importDb(payload) {
     }
   });
 
-  // importDb writes settings/connections via raw SQL — drop hot-path caches.
+  // importDb writes via raw SQL — drop every hot-path cache.
   invalidateSettingsCache();
   invalidateConnectionsCache();
+  invalidateProviderNodesCache();
+  invalidateCombosCache();
+  invalidateModelAliasesCache();
+  invalidateProxyPoolsCache();
 
   return await exportDb();
 }

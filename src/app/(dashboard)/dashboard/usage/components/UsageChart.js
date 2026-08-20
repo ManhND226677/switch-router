@@ -46,7 +46,7 @@ const CustomTooltip = ({ active, payload, label, formatter }) => {
   return null;
 };
 
-export default function UsageChart({ period = "7d" }) {
+export default function UsageChart({ period = "7d", statsVersion = null }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState("tokens");
@@ -66,12 +66,14 @@ export default function UsageChart({ period = "7d" }) {
   }, [period]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on mount; state updates only after the response resolves
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on mount/version bump; state updates only after the response resolves
     fetchData();
 
-    const poll = setInterval(fetchData, 15000);
-    return () => clearInterval(poll);
-  }, [fetchData]);
+    // statsVersion bumps (from the usage SSE stream) drive real updates; this
+    // slow fallback only keeps time-windowed buckets fresh while the tab idles.
+    const fallback = setInterval(fetchData, 60000);
+    return () => clearInterval(fallback);
+  }, [fetchData, statsVersion]);
 
   const hasData = data.some((d) => d.tokens > 0 || d.cost > 0);
 
@@ -101,8 +103,8 @@ export default function UsageChart({ period = "7d" }) {
           <AreaChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="gradPrimary" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#E56A4A" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#E56A4A" stopOpacity={0} />
+                <stop offset="5%" stopColor="#5C8DFF" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#5C8DFF" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" strokeOpacity={0.4} />
@@ -133,21 +135,21 @@ export default function UsageChart({ period = "7d" }) {
               <Area
                 type="monotone"
                 dataKey="tokens"
-                stroke="#E56A4A"
+                stroke="#5C8DFF"
                 strokeWidth={2}
                 fill="url(#gradPrimary)"
                 dot={false}
-                activeDot={{ r: 4, strokeWidth: 0, fill: "#E56A4A" }}
+                activeDot={{ r: 4, strokeWidth: 0, fill: "#5C8DFF" }}
               />
             ) : (
               <Area
                 type="monotone"
                 dataKey="cost"
-                stroke="#E56A4A"
+                stroke="#5C8DFF"
                 strokeWidth={2}
                 fill="url(#gradPrimary)"
                 dot={false}
-                activeDot={{ r: 4, strokeWidth: 0, fill: "#E56A4A" }}
+                activeDot={{ r: 4, strokeWidth: 0, fill: "#5C8DFF" }}
               />
             )}
           </AreaChart>
@@ -159,4 +161,5 @@ export default function UsageChart({ period = "7d" }) {
 
 UsageChart.propTypes = {
   period: PropTypes.string,
+  statsVersion: PropTypes.number,
 };
