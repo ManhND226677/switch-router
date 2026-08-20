@@ -316,5 +316,20 @@
   "1. Client Request (Input)": "1. Yêu cầu Client (Đầu vào)",
   "2. Provider Request (Translated)": "2. Yêu cầu Provider (Đã dịch)",
   "3. Provider Response (Raw)": "3. Phản hồi Provider (Thô)",
-  "4. Client Response (Final)": "4. Phản hồi Client (Cuối)"
+  "4. Client Response (Final)": "4. Phản hồi Client (Cuối)",
+  "Balance": "Số dư",
+  "Test model": "Kiểm tra mô hình",
+  "Testing model": "Đang kiểm tra mô hình",
+  "Copy model id": "Sao chép id mô hình",
+  "Copied model id": "Đã sao chép id mô hình",
+  "Move connection up": "Đưa kết nối lên",
+  "Move connection down": "Đưa kết nối xuống",
+  "Choose proxy pool": "Chọn proxy pool",
+  "Disable proxy pool": "Tắt proxy pool",
+  "Enable proxy pool": "Bật proxy pool",
+  "Edit proxy pool": "Sửa proxy pool",
+  "Delete proxy pool": "Xóa proxy pool",
+  "Testing proxy": "Đang kiểm tra proxy",
+  "Move up": "Đưa lên",
+  "Move down": "Đưa xuống"
 }

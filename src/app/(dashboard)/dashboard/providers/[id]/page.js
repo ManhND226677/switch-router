@@ -22,6 +22,7 @@ import AddApiKeyModal from "./AddApiKeyModal";
 import EditCompatibleNodeModal from "./EditCompatibleNodeModal";
 import AddCustomModelModal from "./AddCustomModelModal";
 import BulkImportCodexModal from "./BulkImportCodexModal";
+import { useNotificationStore } from "@/store/notificationStore";
 
 const ONE_BY_ONE_DELAY_MS = 1000;
 
@@ -39,6 +40,10 @@ export default function ProviderDetailPage() {
   const router = useRouter();
   const providerId = params.id;
   const { getCaps } = useModelCaps();
+  const notifySuccess = useNotificationStore((s) => s.success);
+  const notifyError = useNotificationStore((s) => s.error);
+  const notifyWarning = useNotificationStore((s) => s.warning);
+  const notifyInfo = useNotificationStore((s) => s.info);
   const [connections, setConnections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [providerNode, setProviderNode] = useState(null);
@@ -78,6 +83,8 @@ export default function ProviderDetailPage() {
   const stopOneByOneRef = useRef(false);
   const [importingQoderModels, setImportingQoderModels] = useState(false);
   const [importingFreeModels, setImportingFreeModels] = useState(false);
+  const [importingVilaoModels, setImportingVilaoModels] = useState(false);
+  const [vilaoImportSummary, setVilaoImportSummary] = useState(null);
   const { copied, copy } = useCopyToClipboard();
 
   const AG_RISK_STORAGE_KEY = "ag_risk_confirmed";
@@ -469,7 +476,7 @@ export default function ProviderDetailPage() {
         await fetchAliases();
       } else {
         const data = await res.json();
-        alert(data.error || "Failed to set alias");
+        notifyError(data.error || "Failed to set alias");
       }
     } catch (error) {
       console.log("Error setting alias:", error);
@@ -501,7 +508,7 @@ export default function ProviderDetailPage() {
         if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("customModelChanged"));
       } else {
         const data = await res.json();
-        alert(data.error || "Failed to add custom model");
+        notifyError(data.error || "Failed to add custom model");
       }
     } catch (error) {
       console.log("Error adding custom model:", error);
@@ -526,7 +533,7 @@ export default function ProviderDetailPage() {
     if (importingQoderModels) return;
     const activeConnection = connections.find((conn) => conn.isActive !== false);
     if (!activeConnection) {
-      alert(translate("Please add an active Qoder connection first"));
+      notifyWarning(translate("Please add an active Qoder connection first"));
       return;
     }
 
@@ -535,12 +542,12 @@ export default function ProviderDetailPage() {
       const res = await fetch(`/api/providers/${activeConnection.id}/models`);
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error || translate("Failed to fetch models"));
+        notifyError(data.error || translate("Failed to fetch models"));
         return;
       }
       const models = data.models || [];
       if (models.length === 0) {
-        alert(translate("No models returned"));
+        notifyWarning(translate("No models returned"));
         return;
       }
 
@@ -563,15 +570,107 @@ export default function ProviderDetailPage() {
       }
       
       if (importedCount === 0) {
-        alert(translate("All models already exist, no new models added"));
+        notifyInfo(translate("All models already exist, no new models added"));
       } else {
-        alert(translate("Successfully added") + ` ${importedCount} ` + translate("models"));
+        notifySuccess(translate("Successfully added") + ` ${importedCount} ` + translate("models"));
       }
     } catch (error) {
       console.log("Error importing Qoder models:", error);
-      alert(translate("Error fetching models") + ": " + error.message);
+      notifyError(translate("Error fetching models") + ": " + error.message);
     } finally {
       setImportingQoderModels(false);
+    }
+  };
+
+  // Fetch marketplace model ids bound to the active ViLao key (per-key baseUrl).
+  // Do NOT strip path prefixes — ids look like "moonshotai/kimi-k3-free".
+  const handleImportVilaoModels = async () => {
+    if (importingVilaoModels) return;
+    const activeConnection = connections.find((conn) => conn.isActive !== false);
+    if (!activeConnection) {
+      notifyWarning(translate("Please add an active connection first") || "Please add an active ViLao connection first");
+      return;
+    }
+
+    setImportingVilaoModels(true);
+    setVilaoImportSummary(null);
+    try {
+      const res = await fetch(`/api/providers/${activeConnection.id}/models`);
+      const data = await res.json();
+      const meta = data.meta || null;
+
+      if (meta) {
+        setConnections((prev) => prev.map((c) => (
+          c.id === activeConnection.id
+            ? {
+                ...c,
+                providerSpecificData: {
+                  ...(c.providerSpecificData || {}),
+                  lastProbe: { ...meta, testedAt: new Date().toISOString() },
+                },
+              }
+            : c
+        )));
+      }
+
+      if (!res.ok) {
+        const msg = data.error || translate("Failed to fetch models");
+        setVilaoImportSummary({ ok: false, message: msg, meta });
+        notifyError(msg);
+        return;
+      }
+
+      if (meta?.walletEmpty) {
+        const msg = data.warning || "ViLao key is valid but the wallet is empty (HTTP 402).";
+        setVilaoImportSummary({ ok: true, imported: 0, skipped: 0, total: 0, message: msg, meta });
+        notifyWarning(msg);
+        return;
+      }
+
+      const remoteModels = data.models || [];
+      if (remoteModels.length === 0) {
+        const msg = translate("No models returned") || "No models returned from this key.";
+        setVilaoImportSummary({ ok: true, imported: 0, skipped: 0, total: 0, message: msg, meta });
+        notifyWarning(msg);
+        return;
+      }
+
+      let importedCount = 0;
+      let skippedCount = 0;
+      for (const model of remoteModels) {
+        const modelId = model.id || model.name;
+        if (!modelId) continue;
+        // Keep full marketplace id (may contain "/").
+        const alreadyExists = customModels.some(
+          (entry) => entry.providerAlias === providerStorageAlias && entry.id === modelId && (entry.kind || entry.type || "llm") === "llm"
+        ) || Object.values(modelAliases).includes(`${providerStorageAlias}/${modelId}`);
+        if (alreadyExists) {
+          skippedCount += 1;
+          continue;
+        }
+        await handleAddCustomModel(modelId, "llm", providerStorageAlias);
+        importedCount += 1;
+      }
+
+      const summary = {
+        ok: true,
+        imported: importedCount,
+        skipped: skippedCount,
+        total: remoteModels.length,
+        message: importedCount === 0
+          ? (translate("All models already exist, no new models added") || "All models already imported")
+          : `${translate("Successfully added") || "Added"} ${importedCount} / ${remoteModels.length}`,
+        meta,
+      };
+      setVilaoImportSummary(summary);
+      notifySuccess(summary.message);
+    } catch (error) {
+      console.log("Error importing ViLao models:", error);
+      const msg = (translate("Error fetching models") || "Error fetching models") + ": " + error.message;
+      setVilaoImportSummary({ ok: false, message: msg });
+      notifyError(msg);
+    } finally {
+      setImportingVilaoModels(false);
     }
   };
 
@@ -586,7 +685,7 @@ export default function ProviderDetailPage() {
     try {
       const fetched = await fetchSuggestedModels(fetcher, { force: true });
       if (fetched.length === 0) {
-        alert(translate("No models returned"));
+        notifyWarning(translate("No models returned"));
         return;
       }
 
@@ -599,7 +698,7 @@ export default function ProviderDetailPage() {
         (m) => !addedFullModels.has(`${providerStorageAlias}/${m.id}`) && !hardcodedIds.has(m.id)
       );
       if (notAdded.length === 0) {
-        alert(translate("All models already exist, no new models added"));
+        notifyInfo(translate("All models already exist, no new models added"));
         return;
       }
 
@@ -608,10 +707,10 @@ export default function ProviderDetailPage() {
         await handleAddCustomModel(model.id, "llm", providerStorageAlias);
         importedCount += 1;
       }
-      alert(translate("Successfully added") + ` ${importedCount} ` + translate("models"));
+      notifySuccess(translate("Successfully added") + ` ${importedCount} ` + translate("models"));
     } catch (error) {
       console.log("Error importing free models:", error);
-      alert(translate("Error fetching models") + ": " + error.message);
+      notifyError(translate("Error fetching models") + ": " + error.message);
     } finally {
       setImportingFreeModels(false);
     }
@@ -670,8 +769,26 @@ export default function ProviderDetailPage() {
             [connection.id]: {
               state: valid ? "success" : "failed",
               error: valid ? null : (data.error || null),
+              warning: data.warning || null,
+              meta: data.meta || null,
             },
           }));
+          // Reflect probe snapshot on the connection row without a full reload.
+          if (data.meta) {
+            setConnections((prev) => prev.map((c) => (
+              c.id === connection.id
+                ? {
+                    ...c,
+                    testStatus: valid ? "active" : "error",
+                    lastError: valid ? (data.warning || null) : (data.error || c.lastError),
+                    providerSpecificData: {
+                      ...(c.providerSpecificData || {}),
+                      lastProbe: { ...data.meta, testedAt: data.testedAt || new Date().toISOString() },
+                    },
+                  }
+                : c
+            )));
+          }
         } catch (error) {
           failed += 1;
           setOneByOneResults((prev) => ({
@@ -748,7 +865,7 @@ export default function ProviderDetailPage() {
         }
         setConnections(prev => prev.filter(c => !idsToDelete.includes(c.id)));
         setSelectedConnectionIds([]);
-        if (failed > 0) alert(`Deleted ${idsToDelete.length - failed} connection(s), ${failed} failed.`);
+        if (failed > 0) notifyWarning(`Deleted ${idsToDelete.length - failed} connection(s), ${failed} failed.`);
       }
     });
   };
@@ -913,7 +1030,7 @@ export default function ProviderDetailPage() {
           failed += 1;
         }
       }
-      if (failed > 0) alert(`Updated with ${failed} failed request(s).`);
+      if (failed > 0) notifyWarning(`Updated with ${failed} failed request(s).`);
       await fetchConnections();
       setShowBulkProxyModal(false);
     } finally {
@@ -929,7 +1046,7 @@ export default function ProviderDetailPage() {
   const handleApplyOneToOne = () => {
     const activePools = proxyPools.filter((p) => p.isActive === true);
     if (activePools.length === 0) {
-      alert("No active proxy pools available.");
+      notifyWarning("No active proxy pools available.");
       return;
     }
     const targets = connections.map((c, i) => ({
@@ -1056,17 +1173,26 @@ export default function ProviderDetailPage() {
     if (testingModelIds.has(modelId)) return;
     setTestingModelIds((prev) => new Set(prev).add(modelId));
     try {
-      const res = await fetchWithTimeout("/api/models/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: `${providerStorageAlias}/${modelId}` }),
-      });
+      // Antigravity/Gemini probes can take 30–90s (cold start / 429). Default
+      // fetchWithTimeout(20s) only shows "operation aborted" and masks upstream.
+      const isSlowProbe = providerId === "antigravity" || providerId === "gemini-cli"
+        || /gemini-3\.|gemini-pro-agent/i.test(modelId);
+      const res = await fetchWithTimeout(
+        "/api/models/test",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model: `${providerStorageAlias}/${modelId}` }),
+        },
+        isSlowProbe ? 100000 : 35000,
+      );
       const data = await res.json();
       setModelTestResults((prev) => ({ ...prev, [modelId]: data.ok ? "ok" : "error" }));
       setModelsTestError(data.ok ? "" : (data.error || "Model not reachable"));
-    } catch {
+    } catch (err) {
       setModelTestResults((prev) => ({ ...prev, [modelId]: "error" }));
-      setModelsTestError("Network error");
+      const timedOut = err?.name === "AbortError" || /aborted|timeout/i.test(err?.message || "");
+      setModelsTestError(timedOut ? "Test timed out — model may be slow or rate-limited" : "Network error");
     } finally {
       setTestingModelIds((prev) => { const n = new Set(prev); n.delete(modelId); return n; });
     }
@@ -1184,6 +1310,35 @@ export default function ProviderDetailPage() {
             </span>
             {importingQoderModels ? translate("Fetching...") : translate("Fetch Qoder Models")}
           </button>
+        )}
+
+        {/* Fetch models bound to the active ViLao marketplace key */}
+        {providerId === "vilao" && connections.some((conn) => conn.isActive !== false) && (
+          <button
+            onClick={handleImportVilaoModels}
+            disabled={importingVilaoModels}
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-sky-500/40 px-3 py-2 text-xs text-sky-600 dark:text-sky-400 transition-colors hover:border-sky-500 hover:bg-sky-500/5 sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Load model ids from GET /v1/models on this key's gateway"
+          >
+            <span className="material-symbols-outlined text-sm" style={importingVilaoModels ? { animation: "spin 1s linear infinite" } : undefined}>
+              {importingVilaoModels ? "progress_activity" : "download"}
+            </span>
+            {importingVilaoModels ? (translate("Fetching...") || "Fetching...") : (translate("Fetch ViLao Models") || "Fetch ViLao Models")}
+          </button>
+        )}
+        {providerId === "vilao" && vilaoImportSummary && (
+          <p className={`w-full text-xs ${vilaoImportSummary.ok ? "text-text-muted" : "text-red-500"}`}>
+            {vilaoImportSummary.message}
+            {vilaoImportSummary.meta?.modelCount != null && (
+              <span className="ml-1">· {vilaoImportSummary.meta.modelCount} on key</span>
+            )}
+            {vilaoImportSummary.meta?.walletEmpty && (
+              <span className="ml-1 text-amber-600 dark:text-amber-400">· empty wallet</span>
+            )}
+            {vilaoImportSummary.meta?.latencyMs != null && (
+              <span className="ml-1">· {vilaoImportSummary.meta.latencyMs}ms</span>
+            )}
+          </p>
         )}
 
         {/* Load free models button — only show for no-auth free providers with a public models API */}

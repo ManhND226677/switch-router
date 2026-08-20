@@ -36,6 +36,24 @@ async function runHeavyStartup() {
   await cleanupProviderConnections();
   const settings = await getSettings();
 
+  // Compact bloated requestDetails off the request path. Historical rows that
+  // escaped truncation can be multi-MB each; leaving them around freezes
+  // /api/usage/stats and stalls the whole process.
+  try {
+    const { compactRequestDetails } = await import("@/lib/db/repos/requestDetailsRepo.js");
+    const result = await compactRequestDetails();
+    if (result && !result.skipped) {
+      const beforeMb = ((result.before?.bytes || 0) / (1024 * 1024)).toFixed(1);
+      const afterMb = ((result.after?.bytes || 0) / (1024 * 1024)).toFixed(1);
+      console.log(
+        `[InitApp] compacted requestDetails: ${result.before?.c || 0}->${result.after?.c || 0} rows, ` +
+        `${beforeMb}->${afterMb} MB (dropped bloated=${result.deletedBloated || 0})`,
+      );
+    }
+  } catch (error) {
+    console.warn("[InitApp] requestDetails compact skipped:", error.message);
+  }
+
   if (hasQuotaAutoPingEnabled(settings)) {
     import("@/shared/services/quotaAutoPing")
       .then(({ startQuotaAutoPing }) => startQuotaAutoPing())

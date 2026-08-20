@@ -35,6 +35,10 @@ export default {
     validateUrl: STEPFUN_ENDPOINTS.models,
     thinkingFormat: "step",
     auth: BEARER_AUTH,
+    // Prepaid account snapshot (works for token-plan keys too).
+    usage: {
+      url: "https://api.stepfun.ai/v1/accounts",
+    },
   },
   transports: [
     { format: "openai", baseUrl: STEPFUN_ENDPOINTS.chat, auth: BEARER_AUTH },
@@ -43,4 +47,8 @@ export default {
   ],
   models: STEPFUN_STATIC_MODEL_CATALOG,
   modelsFetcher: { url: STEPFUN_ENDPOINTS.models, type: "openai" },
+  features: {
+    usage: true,
+    usageApikey: true,
+  },
 };

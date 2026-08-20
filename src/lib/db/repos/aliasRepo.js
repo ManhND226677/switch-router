@@ -5,17 +5,52 @@ import { makeKv } from "../helpers/kvStore.js";
 const aliasKv = makeKv("modelAliases");
 const customKv = makeKv("customModels");
 
+// Hot-path cache for model alias map (chat alias resolution).
+if (!global._modelAliasesCache) global._modelAliasesCache = { at: 0, value: null, inflight: null };
+const aliasesCache = global._modelAliasesCache;
+const ALIASES_CACHE_TTL_MS = 5000;
+
+export function invalidateModelAliasesCache() {
+  aliasesCache.at = 0;
+  aliasesCache.value = null;
+  aliasesCache.inflight = null;
+}
+
 // modelAliases: key=alias, value=modelString
 export async function getModelAliases() {
-  return await aliasKv.getAll();
+  const now = Date.now();
+  if (aliasesCache.value && now - aliasesCache.at < ALIASES_CACHE_TTL_MS) {
+    return { ...aliasesCache.value };
+  }
+  if (aliasesCache.inflight) {
+    const v = await aliasesCache.inflight;
+    return { ...v };
+  }
+
+  aliasesCache.inflight = aliasKv.getAll()
+    .then((all) => {
+      aliasesCache.value = all || {};
+      aliasesCache.at = Date.now();
+      aliasesCache.inflight = null;
+      return aliasesCache.value;
+    })
+    .catch((err) => {
+      aliasesCache.inflight = null;
+      throw err;
+    });
+
+  const v = await aliasesCache.inflight;
+  return { ...v };
 }
 
 export async function setModelAlias(alias, model) {
   await aliasKv.set(alias, model);
+  invalidateModelAliasesCache();
 }
 
 export async function deleteModelAlias(alias) {
   await aliasKv.remove(alias);
+  invalidateModelAliasesCache();
 }
 
 // customModels: key=`${providerAlias}|${id}|${type}`, value=full model object

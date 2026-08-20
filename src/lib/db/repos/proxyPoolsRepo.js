@@ -39,7 +39,27 @@ function upsert(db, p) {
   );
 }
 
+// Hot-path cache for no-auth free-provider proxy rotation (getProviderCredentials).
+if (!global._proxyPoolsListCache) global._proxyPoolsListCache = new Map();
+const listCache = global._proxyPoolsListCache;
+const LIST_CACHE_TTL_MS = 2000;
+
+function listCacheKey(filter = {}) {
+  return `${filter.isActive === undefined ? "*" : filter.isActive ? "1" : "0"}|${filter.testStatus || "*"}`;
+}
+
+export function invalidateProxyPoolsCache() {
+  listCache.clear();
+}
+
 export async function getProxyPools(filter = {}) {
+  const key = listCacheKey(filter);
+  const hit = listCache.get(key);
+  const now = Date.now();
+  if (hit && now - hit.at < LIST_CACHE_TTL_MS) {
+    return hit.list.map((p) => ({ ...p }));
+  }
+
   const db = await getAdapter();
   const where = [];
   const params = [];
@@ -48,7 +68,8 @@ export async function getProxyPools(filter = {}) {
   const sql = `SELECT * FROM proxyPools${where.length ? ` WHERE ${where.join(" AND ")}` : ""}`;
   const list = db.all(sql, params).map(rowToPool);
   list.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
-  return list;
+  listCache.set(key, { at: now, list });
+  return list.map((p) => ({ ...p }));
 }
 
 export async function getProxyPoolById(id) {
@@ -74,6 +95,7 @@ export async function createProxyPool(data) {
     updatedAt: now,
   };
   upsert(db, pool);
+  invalidateProxyPoolsCache();
   return pool;
 }
 
@@ -87,6 +109,7 @@ export async function updateProxyPool(id, data) {
     upsert(db, merged);
     result = merged;
   });
+  if (result) invalidateProxyPoolsCache();
   return result;
 }
 
@@ -99,5 +122,6 @@ export async function deleteProxyPool(id) {
     removed = rowToPool(row);
     db.run(`DELETE FROM proxyPools WHERE id = ?`, [id]);
   });
+  if (removed) invalidateProxyPoolsCache();
   return removed;
 }

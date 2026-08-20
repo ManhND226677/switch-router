@@ -7,6 +7,8 @@ import {
   extractApiKey,
   isValidApiKey,
 } from "../services/auth.js";
+import { isModelLockActive } from "open-sse/services/accountFallback.js";
+import { getProviderConnections } from "@/lib/localDb";
 import { cacheClaudeHeaders } from "open-sse/utils/claudeHeaderCache.js";
 import { getSettings } from "@/lib/localDb";
 import { getModelInfo, getComboModels } from "../services/model.js";
@@ -121,7 +123,7 @@ export async function handleChat(request, clientRawRequest = null) {
             const { tools, tool_choice, ...cleanBody } = clientRawRequest.body || {};
             cleanRawReq = { ...clientRawRequest, body: cleanBody };
           }
-          return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, preferredConnectionId);
+          return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, preferredConnectionId, settings);
         },
         log,
         comboName: modelStr,
@@ -135,7 +137,7 @@ export async function handleChat(request, clientRawRequest = null) {
     return handleComboChat({
       body,
       models: comboModels,
-      handleSingleModel: (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, preferredConnectionId),
+      handleSingleModel: (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, preferredConnectionId, settings),
       log,
       comboName: modelStr,
       comboStrategy,
@@ -143,25 +145,26 @@ export async function handleChat(request, clientRawRequest = null) {
     });
   }
 
-  // Single model request
-  return handleSingleModelChat(body, routedModelStr, clientRawRequest, request, apiKey, preferredConnectionId);
+  // Single model request — reuse the settings already loaded above
+  return handleSingleModelChat(body, routedModelStr, clientRawRequest, request, apiKey, preferredConnectionId, settings);
 }
 
 /**
  * Handle single model chat request
+ * @param {object|null} settingsHint - optional preloaded settings to avoid a second getSettings() on hot path
  */
-async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null, preferredConnectionId = null) {
+async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null, preferredConnectionId = null, settingsHint = null) {
   const modelInfo = await getModelInfo(modelStr);
 
   if (modelInfo.provider) {
-    return handleSingleModelRequest(body, modelStr, clientRawRequest, request, apiKey, modelInfo, preferredConnectionId);
+    return handleSingleModelRequest(body, modelStr, clientRawRequest, request, apiKey, modelInfo, preferredConnectionId, settingsHint);
   }
 
   // If provider is null, this might be a combo name - check and handle
   if (!modelInfo.provider) {
     const comboModels = await getComboModels(modelStr);
     if (comboModels) {
-      const chatSettings = await getSettings();
+      const chatSettings = settingsHint || await getSettings();
       // Check for combo-specific strategy first, fallback to global
       const comboStrategies = chatSettings.comboStrategies || {};
       const comboSpecificStrategy = comboStrategies[modelStr]?.fallbackStrategy;
@@ -178,7 +181,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
               const { tools, tool_choice, ...cleanBody } = clientRawRequest.body || {};
               cleanRawReq = { ...clientRawRequest, body: cleanBody };
             }
-            return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, preferredConnectionId);
+            return handleSingleModelChat(b, m, cleanRawReq, request, apiKey, preferredConnectionId, chatSettings);
           },
           log,
           comboName: modelStr,
@@ -192,7 +195,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       return handleComboChat({
         body,
         models: comboModels,
-        handleSingleModel: (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, preferredConnectionId),
+        handleSingleModel: (b, m) => handleSingleModelChat(b, m, clientRawRequest, request, apiKey, preferredConnectionId, chatSettings),
         log,
         comboName: modelStr,
         comboStrategy,
@@ -204,40 +207,86 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
   }
 }
 
-async function handleSingleModelRequest(body, modelStr, clientRawRequest = null, request = null, apiKey = null, modelInfo = null, preferredConnectionId = null) {
+async function handleSingleModelRequest(body, modelStr, clientRawRequest = null, request = null, apiKey = null, modelInfo = null, preferredConnectionId = null, settingsHint = null) {
   const resolvedModelInfo = modelInfo || await getModelInfo(modelStr);
   const { provider, model } = resolvedModelInfo;
 
   // Extract userAgent from request
   const userAgent = request?.headers?.get("user-agent") || "";
+  // Dashboard "Test model" probes set x-9r-probe=1 so we:
+  //  - try only ONE account (no multi-account cascade)
+  //  - do NOT write modelLock_* / testStatus=unavailable on failure
+  // Otherwise a single Test click burns every Antigravity account on 429.
+  const isProbe = request?.headers?.get("x-9r-probe") === "1";
+
+  // Hoist per-request constants outside the account-fallback loop so multi-account
+  // retries do not re-parse URL, re-read settings, or re-warm pxpipe.
+  const chatSettings = settingsHint || await getSettings();
+  const providerThinking = (chatSettings.providerThinking || {})[provider] || null;
+  const requestPolicy = getOfficeRequestPolicy(chatSettings, clientRawRequest?.endpoint);
+  const sourceFormatOverride = request?.url
+    ? detectFormatByEndpoint(new URL(request.url).pathname, body)
+    : null;
+  const pxpipeTransform = requestPolicy.pxpipeEnabled ? await getPxpipeTransform() : null;
+  const coreBodyBase = { ...body, model: `${provider}/${model}`, ...(isProbe ? { __probe: true } : {}) };
+
+  // Candidate accounts for this provider/model (approximation over the cached
+  // connection list). While more candidates remain beyond the current one, the
+  // executor skips 5xx backoff retries and lets the engine switch accounts
+  // immediately instead of burning ~9s of same-account retries per failure.
+  let candidateAccountCount = 1;
+  try {
+    const providerConnections = await getProviderConnections({ provider });
+    candidateAccountCount = providerConnections.filter(
+      (c) => c.isActive !== false && !isModelLockActive(c, model)
+    ).length;
+  } catch { /* keep single-account (full retry) semantics on read failure */ }
 
   const accountFallbackEngine = new RoutingEngine({
+    maxAttempts: isProbe ? 1 : 64,
     resolveCredentials: ({ excludedConnectionIds }) => getProviderCredentials(
       provider,
       excludedConnectionIds,
       model,
       { preferredConnectionId },
     ),
-    executeAttempt: async ({ credentials }) => {
+    executeAttempt: async ({ credentials, excludedConnectionIds }) => {
+    const hasFallbackAccount = candidateAccountCount > (excludedConnectionIds.size + 1);
     // Account selection shown in the unified "▶" line (acc:...)
     const refreshedCredentials = await checkAndRefreshToken(provider, credentials);
 
-    // Ensure real project ID is available for providers that need it (P0 fix: cold miss)
+    // Ensure real project ID is available for providers that need it (P0 fix: cold miss).
+    // Antigravity MUST have a real cloudaicompanion project — random ids cause 429.
     if ((provider === "antigravity" || provider === "gemini-cli") && !refreshedCredentials.projectId) {
       const pid = await getProjectIdForConnection(credentials.connectionId, refreshedCredentials.accessToken);
       if (pid) {
         refreshedCredentials.projectId = pid;
-        // Persist to DB in background so subsequent requests have it immediately
-        updateProviderCredentials(credentials.connectionId, { projectId: pid }).catch(() => { });
+        // Persist so subsequent requests skip the round-trip
+        try {
+          await updateProviderCredentials(credentials.connectionId, { projectId: pid });
+        } catch {
+          updateProviderCredentials(credentials.connectionId, { projectId: pid }).catch(() => { });
+        }
+      } else if (provider === "antigravity") {
+        return {
+          success: false,
+          status: 424,
+          error: `[antigravity/${model}] Cloud Code projectId missing for this account. Open Antigravity IDE once with the same Google account, or remove & re-add the connection so onboardUser can bind a project.`,
+          response: null,
+        };
       }
     }
 
-    // Use shared chatCore
-    const chatSettings = await getSettings();
-    const providerThinking = (chatSettings.providerThinking || {})[provider] || null;
-    const requestPolicy = getOfficeRequestPolicy(chatSettings, clientRawRequest?.endpoint);
+    if (isProbe) {
+      // Propagate probe flag into executor (disables per-status retry loops).
+      refreshedCredentials.isProbe = true;
+      refreshedCredentials.providerSpecificData = {
+        ...(refreshedCredentials.providerSpecificData || {}),
+        isProbe: true,
+      };
+    }
     const result = await handleChatCore({
-      body: { ...body, model: `${provider}/${model}` },
+      body: coreBodyBase,
       modelInfo: { provider, model },
       credentials: refreshedCredentials,
       log,
@@ -246,6 +295,7 @@ async function handleSingleModelRequest(body, modelStr, clientRawRequest = null,
       userAgent,
       apiKey,
       ccFilterNaming: !!chatSettings.ccFilterNaming,
+      fastFail5xx: hasFallbackAccount,
       rtkEnabled: requestPolicy.rtkEnabled,
       cavemanEnabled: requestPolicy.cavemanEnabled,
       cavemanLevel: chatSettings.cavemanLevel || "full",
@@ -255,12 +305,11 @@ async function handleSingleModelRequest(body, modelStr, clientRawRequest = null,
       pxpipeMinChars: chatSettings.pxpipeMinChars,
       pxpipeTimeoutMs: chatSettings.pxpipeTimeoutMs,
       // Lazily warms the in-process module on first use; null when not installed (fail-open)
-      pxpipeTransform: requestPolicy.pxpipeEnabled ? await getPxpipeTransform() : null,
+      pxpipeTransform,
       onPxpipeEvent: appendPxpipeEvent,
       providerThinking,
       preserveClientPayload: requestPolicy.preserveClientPayload,
-      // Detect source format by endpoint + body
-      sourceFormatOverride: request?.url ? detectFormatByEndpoint(new URL(request.url).pathname, body) : null,
+      sourceFormatOverride,
       onCredentialsRefreshed: async (newCreds) => {
         await updateProviderCredentials(credentials.connectionId, {
           ...newCreds,
@@ -276,6 +325,12 @@ async function handleSingleModelRequest(body, modelStr, clientRawRequest = null,
       return result;
     },
     onFailure: async ({ credentials, result }) => {
+      if (isProbe) {
+        // Probe path: report failure to the tester without locking the account/model.
+        log.warn("PROBE", `test-only failure ${provider}/${model} acc:${credentials.connectionName} status=${result.status} (no lock)`);
+        return { shouldFallback: false };
+      }
+
       // Mark account unavailable (auto-calculates cooldown with exponential backoff, or precise resetsAtMs)
       const { shouldFallback } = await markAccountUnavailable(
         credentials.connectionId,

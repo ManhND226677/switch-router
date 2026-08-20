@@ -34,47 +34,57 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
         {onTest && (
           <div className="relative shrink-0 group/btn">
             <button
+              type="button"
               onClick={onTest}
               disabled={isTesting}
-              className={`rounded p-0.5 text-text-muted transition-opacity hover:bg-sidebar hover:text-primary ${isTesting ? "opacity-100" : "opacity-100 sm:opacity-0 sm:group-hover:opacity-100"}`}
+              className={`rounded p-0.5 text-text-muted transition-opacity hover:bg-sidebar hover:text-primary focus-visible:opacity-100 ${isTesting ? "opacity-100" : "opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"}`}
+              aria-label={isTesting ? "Testing model" : "Test model"}
+              title={isTesting ? "Testing..." : "Test"}
             >
-              <span className="material-symbols-outlined text-sm" style={isTesting ? { animation: "spin 1s linear infinite" } : undefined}>
+              <span className="material-symbols-outlined text-sm" aria-hidden="true" style={isTesting ? { animation: "spin 1s linear infinite" } : undefined}>
                 {isTesting ? "progress_activity" : "science"}
               </span>
             </button>
-            <span className="pointer-events-none absolute mt-1 top-5 left-1/2 -translate-x-1/2 text-xs text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
+            <span className="pointer-events-none absolute mt-1 top-5 left-1/2 -translate-x-1/2 text-xs text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 group-focus-within/btn:opacity-100 transition-opacity">
               {isTesting ? "Testing..." : "Test"}
             </span>
           </div>
         )}
         <div className="relative shrink-0 group/btn">
           <button
+            type="button"
             onClick={() => onCopy(displayModel, `model-${model.id}`)}
             className="rounded p-0.5 text-text-muted hover:bg-sidebar hover:text-primary"
+            aria-label={copied === `model-${model.id}` ? "Copied model id" : "Copy model id"}
+            title={copied === `model-${model.id}` ? "Copied!" : "Copy"}
           >
-            <span className="material-symbols-outlined text-sm">
+            <span className="material-symbols-outlined text-sm" aria-hidden="true">
               {copied === `model-${model.id}` ? "check" : "content_copy"}
             </span>
           </button>
-          <span className="pointer-events-none absolute mt-1 top-5 left-1/2 -translate-x-1/2 text-xs text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
+          <span className="pointer-events-none absolute mt-1 top-5 left-1/2 -translate-x-1/2 text-xs text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 group-focus-within/btn:opacity-100 transition-opacity">
             {copied === `model-${model.id}` ? "Copied!" : "Copy"}
           </span>
         </div>
         {isCustom ? (
           <button
+            type="button"
             onClick={onDeleteAlias}
-            className="ml-auto rounded p-0.5 text-text-muted opacity-100 transition-opacity hover:bg-red-500/10 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"
+            className="ml-auto rounded p-0.5 text-text-muted opacity-100 transition-opacity hover:bg-red-500/10 hover:text-red-500 focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
             title="Remove custom model"
+            aria-label="Remove custom model"
           >
-            <span className="material-symbols-outlined text-sm">close</span>
+            <span className="material-symbols-outlined text-sm" aria-hidden="true">close</span>
           </button>
         ) : onDisable ? (
           <button
+            type="button"
             onClick={onDisable}
-            className="ml-auto rounded p-0.5 text-text-muted opacity-100 transition-opacity hover:bg-red-500/10 hover:text-red-500 sm:opacity-0 sm:group-hover:opacity-100"
+            className="ml-auto rounded p-0.5 text-text-muted opacity-100 transition-opacity hover:bg-red-500/10 hover:text-red-500 focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
             title="Disable this model"
+            aria-label="Disable this model"
           >
-            <span className="material-symbols-outlined text-sm">close</span>
+            <span className="material-symbols-outlined text-sm" aria-hidden="true">close</span>
           </button>
         ) : null}
       </div>

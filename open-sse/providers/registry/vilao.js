@@ -40,8 +40,17 @@ export default {
     retry: {
       "429": 2,
     },
+    // Pay-as-you-go wallet on the consumer gateway (LLM Monitor).
+    // GET /v1/usage/balance → { balance, total_spent, total_requests, ... }
+    usage: {
+      url: "https://api.vilao.ai/v1/usage/balance",
+    },
   },
   serviceKinds: ["llm"],
   modelsFetcher: { url: "https://api.vilao.ai/v1/models", type: "openai" },
   passthroughModels: true,
+  features: {
+    usage: true,
+    usageApikey: true,
+  },
 };

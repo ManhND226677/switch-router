@@ -54,12 +54,39 @@ export const KIMI_CODING_BASE_URL = "https://api.kimi.com/coding/v1/messages";
 export const OPENAI_COMPAT_BASE = "https://api.openai.com/v1";
 export const ANTHROPIC_COMPAT_BASE = "https://api.anthropic.com/v1";
 
-// Official Antigravity IDE Desktop 2.1.1 fingerprint captured from macOS arm64.
-// Keep this static even when Switch-Router runs on Linux: the provider profile is
-// intentionally matching the IDE client, not the server host.
-export const ANTIGRAVITY_IDE_VERSION = "2.1.1";
-export const ANTIGRAVITY_IDE_BASE_URL = "https://cloudcode-pa.googleapis.com";
-export const ANTIGRAVITY_IDE_USER_AGENT = `antigravity/ide/${ANTIGRAVITY_IDE_VERSION} darwin/arm64`;
+// Official Antigravity IDE Desktop fingerprint.
+// Captured from installed Antigravity IDE 2.5.5 (Windows) product.json + main.js:
+//   userAgent() {
+//     const name = isGoogleInternal ? "jetski" : "antigravity";
+//     return `${name}/${ideVersion} ${platform}/${arch}`
+//   }
+// where platform: win32→windows, else process.platform; arch: x64→amd64, ia32→386.
+// Format NO LONGER includes the "/ide/" segment used by 2.1.x.
+// Keep a stable darwin/arm64 profile (same approach as before) unless host is Windows.
+export const ANTIGRAVITY_IDE_VERSION = "2.5.5";
+// IDE (2.5.5 main.js) defines:
+//   daily  = https://daily-cloudcode-pa.googleapis.com
+//   prod   = https://cloudcode-pa.googleapis.com
+// Measured 2026-08-14 with a free-tier account that works inside the IDE:
+//   generateContent on prod  → 429 RESOURCE_EXHAUSTED
+//   generateContent on daily → 200 (same token/project/model/body)
+// Chat/generate must prefer the daily host. loadCodeAssist/onboardUser/models
+// can stay on prod (those endpoints already return 200 there).
+export const ANTIGRAVITY_IDE_BASE_URL = "https://daily-cloudcode-pa.googleapis.com";
+export const ANTIGRAVITY_IDE_PROD_BASE_URL = "https://cloudcode-pa.googleapis.com";
+function antigravityIdePlatform() {
+  // Match IDE: win32 → "windows"; leave darwin/linux as-is.
+  return process.platform === "win32" ? "windows" : process.platform;
+}
+function antigravityIdeArch() {
+  switch (process.arch) {
+    case "x64": return "amd64";
+    case "ia32": return "386";
+    default: return process.arch; // arm64 stays arm64
+  }
+}
+export const ANTIGRAVITY_IDE_USER_AGENT =
+  `antigravity/${ANTIGRAVITY_IDE_VERSION} ${antigravityIdePlatform()}/${antigravityIdeArch()}`;
 
 // Antigravity OAuth client credentials (public CLI client — duplicated in usage.js + src/lib/oauth)
 export const ANTIGRAVITY_OAUTH_CLIENT = {

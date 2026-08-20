@@ -106,7 +106,9 @@ function deriveConnectionName(data, fallbackName) {
 // token updates, and dashboard edits remain immediately visible.
 if (!global._connectionsListCache) global._connectionsListCache = new Map();
 const listCache = global._connectionsListCache;
-const LIST_CACHE_TTL_MS = 250;
+// Safety-net TTL only — writes always invalidate. Slightly longer window cuts
+// repeated SQLite list+JSON parse cost under bursty concurrent chat traffic.
+const LIST_CACHE_TTL_MS = 1000;
 
 function listCacheKey(filter = {}) {
   return `${filter.provider || "*"}|${filter.isActive === undefined ? "*" : filter.isActive ? "1" : "0"}`;

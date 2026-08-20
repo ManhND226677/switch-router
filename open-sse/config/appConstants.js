@@ -141,7 +141,8 @@ export const CLOUD_CODE_API = {
 
 export const LOAD_CODE_ASSIST_HEADERS = {
   "Content-Type": "application/json",
-  "User-Agent": "google-api-nodejs-client/9.15.1",
+  // Match installed Antigravity IDE fingerprint (2.5.5+) for loadCodeAssist/onboardUser.
+  "User-Agent": ANTIGRAVITY_IDE_USER_AGENT,
   "X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1",
   "Client-Metadata": JSON.stringify({ ideType: IDE_TYPE.ANTIGRAVITY, platform: getPlatformEnum(), pluginType: PLUGIN_TYPE.GEMINI }),
 };

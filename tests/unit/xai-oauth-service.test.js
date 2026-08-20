@@ -63,6 +63,8 @@ describe("xai/oauth service", () => {
     expect(parsed.searchParams.get("referrer")).toBe("cli-proxy-api");
   });
 
+  // 15s timeout: PKCE derivation + module import exceeded the 5s default when
+  // the suite runs in parallel with a loaded machine.
   it("generates dashboard auth data with CLIProxyAPI PKCE size and discovered endpoints", async () => {
     fetch.mockResolvedValueOnce({
       ok: true,
@@ -82,7 +84,7 @@ describe("xai/oauth service", () => {
     expect(parsed.searchParams.get("code_challenge_method")).toBe("S256");
     expect(parsed.searchParams.get("plan")).toBe("generic");
     expect(parsed.searchParams.get("referrer")).toBe("cli-proxy-api");
-  });
+  }, 15000);
 
   it("exchanges dashboard codes against the discovered xAI token endpoint", async () => {
     const fetchMock = fetch;
@@ -121,5 +123,5 @@ describe("xai/oauth service", () => {
       refreshToken: "refresh-token",
       expiresIn: 3600,
     });
-  });
+  }, 15000);
 });

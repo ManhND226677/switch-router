@@ -15,6 +15,8 @@ import {
   getOllamaUsage,
   getGlmUsage,
   getQoderUsage,
+  getVilaoUsage,
+  getStepFunUsage,
 } from "./usage/misc.js";
 
 /**
@@ -35,6 +37,8 @@ const USAGE_HANDLERS = {
   glm: (c) => getGlmUsage(c.apiKey, c.provider, c.proxyOptions),
   minimax: (c) => getMiniMaxUsage(c.apiKey, c.provider, c.proxyOptions),
   "grok-cli": (c) => getGrokCliUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
+  vilao: (c) => getVilaoUsage(c.apiKey, c.providerSpecificData, c.proxyOptions),
+  stepfun: (c) => getStepFunUsage(c.apiKey, c.providerSpecificData, c.proxyOptions),
 };
 
 export async function getUsageForProvider(connection, proxyOptions = null) {

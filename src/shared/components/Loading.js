@@ -2,8 +2,7 @@
 
 import { cn } from "@/shared/utils/cn";
 
-// Spinner loading
-export function Spinner({ size = "md", className }) {
+function Spinner({ size = "md", className }) {
   const sizes = {
     sm: "size-4",
     md: "size-6",
@@ -24,18 +23,7 @@ export function Spinner({ size = "md", className }) {
   );
 }
 
-// Full page loading
-export function PageLoading({ message = "Loading..." }) {
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-bg">
-      <Spinner size="xl" />
-      <p className="mt-4 text-text-muted">{message}</p>
-    </div>
-  );
-}
-
-// Skeleton loading
-export function Skeleton({ className, ...props }) {
+function Skeleton({ className, ...props }) {
   return (
     <div
       className={cn(
@@ -47,7 +35,7 @@ export function Skeleton({ className, ...props }) {
   );
 }
 
-// Card skeleton
+// Card skeleton — primary loading placeholder used across dashboard pages
 export function CardSkeleton() {
   return (
     <div className="p-6 rounded-[14px] border border-border-subtle bg-surface shadow-[var(--shadow-soft)]">
@@ -63,12 +51,10 @@ export function CardSkeleton() {
 
 export default function Loading({ type = "spinner", ...props }) {
   switch (type) {
-    case "page":
-      return <PageLoading {...props} />;
-    case "skeleton":
-      return <Skeleton {...props} />;
     case "card":
       return <CardSkeleton {...props} />;
+    case "skeleton":
+      return <Skeleton {...props} />;
     default:
       return <Spinner {...props} />;
   }

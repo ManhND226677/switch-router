@@ -14,7 +14,11 @@ export async function POST(request, { params }) {
     return NextResponse.json({
       valid: result.valid,
       error: result.error,
+      warning: result.warning || null,
       refreshed: result.refreshed || false,
+      latencyMs: result.latencyMs,
+      testedAt: result.testedAt,
+      ...(result.meta ? { meta: result.meta } : {}),
     });
   } catch (error) {
     console.log("Error testing connection:", error);

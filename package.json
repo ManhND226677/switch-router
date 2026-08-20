@@ -1,6 +1,6 @@
 {
   "name": "switch-router-app",
-  "version": "0.7.1",
+  "version": "0.7.3",
   "description": "Switch-Router personal AI gateway dashboard",
   "private": true,
   "engines": {
@@ -16,6 +16,7 @@
     "build:bun": "bun --bun next build --webpack",
     "start:bun": "bun custom-server.js",
     "icon": "node scripts/windows/generate-icon.mjs",
+    "icons:subset": "python scripts/subset-material-symbols.py",
     "tray": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/tray.ps1",
     "tray:hidden": "wscript //nologo scripts\\windows\\switch-router-tray.vbs",
     "autostart": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/install-autostart.ps1",
@@ -28,7 +29,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@monaco-editor/react": "^4.7.0",
-    "@xyflow/react": "^12.10.1",
+    "chalk": "^5.6.2",
     "confbox": "^0.2.4",
     "material-symbols": "^0.44.6",
     "monaco-editor": "^0.55.1",

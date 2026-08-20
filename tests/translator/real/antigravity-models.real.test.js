@@ -11,20 +11,17 @@ const BASE_URL = process.env.AG_URL || "http://localhost:28701/v1";
 const API_KEY = process.env.AG_KEY;
 const TIMEOUT_MS = 90000;
 
-// All antigravity models (from providers/registry/antigravity.js)
+// Chat models from providers/registry/antigravity.js (skip image-only)
 const AG_MODELS = [
-  "ag/gemini-3.6-flash-high",
-  "ag/gemini-3.6-flash-medium",
-  "ag/gemini-3.6-flash-low",
-  "ag/gemini-3-flash-agent",
-  "ag/gemini-3.5-flash-low",
-  "ag/gemini-3.5-flash-extra-low",
+  "ag/gemini-3.7-flash-high",
+  "ag/gemini-3.7-flash-medium",
+  "ag/gemini-3.7-flash-low",
   "ag/gemini-pro-agent",
+  "ag/gemini-3.1-pro-high",
   "ag/gemini-3.1-pro-low",
   "ag/claude-sonnet-4-6",
   "ag/claude-opus-4-6-thinking",
   "ag/gpt-oss-120b-medium",
-  "ag/gemini-3-flash",
 ];
 
 // Simple text prompt — no tools

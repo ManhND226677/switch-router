@@ -10,6 +10,9 @@ export default function Toggle({
   disabled = false,
   size = "md",
   className,
+  title,
+  "aria-label": ariaLabel,
+  ...props
 }) {
   const sizes = {
     sm: { track: "w-8 h-4", thumb: "size-3", translate: "translate-x-4" },
@@ -33,6 +36,8 @@ export default function Toggle({
         type="button"
         role="switch"
         aria-checked={checked}
+        aria-label={ariaLabel || label || undefined}
+        title={title}
         disabled={disabled}
         onClick={handleClick}
         className={cn(
@@ -43,6 +48,7 @@ export default function Toggle({
           sizes[size].track,
           disabled && "cursor-not-allowed"
         )}
+        {...props}
       >
         <span
           className={cn(

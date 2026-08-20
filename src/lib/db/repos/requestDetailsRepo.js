@@ -6,7 +6,13 @@ const DEFAULT_MAX_RECORDS = 200;
 const DEFAULT_BATCH_SIZE = 20;
 const DEFAULT_FLUSH_INTERVAL_MS = 5000;
 const DEFAULT_MAX_JSON_SIZE = 5 * 1024;
+// Hard ceilings so a bad settings value (e.g. 1024 interpreted as KB → 1 MB/field)
+// cannot grow requestDetails into a multi-hundred-MB freeze bomb again.
+const MAX_RECORDS_CEILING = 2000;
+const MAX_JSON_SIZE_KB_CEILING = 64;
 const CONFIG_CACHE_TTL_MS = 5000;
+// Rows larger than this are treated as historical bloat and dropped on compact.
+const BLOATED_ROW_BYTES = 64 * 1024;
 
 // Two writers use two different words for the same outcome: usageHistory rows
 // are stored with status "ok", requestDetails rows with "success". Reads accept
@@ -37,12 +43,25 @@ async function getObservabilityConfig() {
       ? settings.enableObservability
       : (typeof settings.enableObservability2 === "boolean" ? settings.enableObservability2 : true);
     const enabled = envKillSwitch ? false : stored;
+    const maxRecordsRaw = Number(settings.observabilityMaxRecords
+      || parseInt(process.env.OBSERVABILITY_MAX_RECORDS || String(DEFAULT_MAX_RECORDS), 10)
+      || DEFAULT_MAX_RECORDS);
+    const batchSizeRaw = Number(settings.observabilityBatchSize
+      || parseInt(process.env.OBSERVABILITY_BATCH_SIZE || String(DEFAULT_BATCH_SIZE), 10)
+      || DEFAULT_BATCH_SIZE);
+    const flushRaw = Number(settings.observabilityFlushIntervalMs
+      || parseInt(process.env.OBSERVABILITY_FLUSH_INTERVAL_MS || String(DEFAULT_FLUSH_INTERVAL_MS), 10)
+      || DEFAULT_FLUSH_INTERVAL_MS);
+    // Settings store KB. Clamp aggressively — values like 1024 used to become 1 MB/field.
+    const maxJsonKbRaw = Number(settings.observabilityMaxJsonSize
+      || parseInt(process.env.OBSERVABILITY_MAX_JSON_SIZE || "5", 10)
+      || 5);
     cachedConfig = {
       enabled,
-      maxRecords: settings.observabilityMaxRecords || parseInt(process.env.OBSERVABILITY_MAX_RECORDS || String(DEFAULT_MAX_RECORDS), 10),
-      batchSize: settings.observabilityBatchSize || parseInt(process.env.OBSERVABILITY_BATCH_SIZE || String(DEFAULT_BATCH_SIZE), 10),
-      flushIntervalMs: settings.observabilityFlushIntervalMs || parseInt(process.env.OBSERVABILITY_FLUSH_INTERVAL_MS || String(DEFAULT_FLUSH_INTERVAL_MS), 10),
-      maxJsonSize: (settings.observabilityMaxJsonSize || parseInt(process.env.OBSERVABILITY_MAX_JSON_SIZE || "5", 10)) * 1024,
+      maxRecords: Math.min(Math.max(Math.floor(maxRecordsRaw) || DEFAULT_MAX_RECORDS, 50), MAX_RECORDS_CEILING),
+      batchSize: Math.min(Math.max(Math.floor(batchSizeRaw) || DEFAULT_BATCH_SIZE, 1), 200),
+      flushIntervalMs: Math.min(Math.max(Math.floor(flushRaw) || DEFAULT_FLUSH_INTERVAL_MS, 500), 60000),
+      maxJsonSize: Math.min(Math.max(Math.floor(maxJsonKbRaw) || 5, 1), MAX_JSON_SIZE_KB_CEILING) * 1024,
     };
   } catch {
     cachedConfig = {
@@ -227,6 +246,66 @@ export async function getRequestDetailById(id) {
   const db = await getAdapter();
   const row = db.get(`SELECT data FROM requestDetails WHERE id = ?`, [id]);
   return row ? parseJson(row.data, null) : null;
+}
+
+/**
+ * One-shot maintenance: drop oversized historical requestDetails rows and
+ * enforce maxRecords. Safe to call repeatedly — no-ops when already healthy.
+ * Returns a small summary for logs; never throws to callers.
+ */
+export async function compactRequestDetails({ force = false } = {}) {
+  try {
+    const db = await getAdapter();
+    const config = await getObservabilityConfig();
+    const before = db.get(
+      `SELECT COUNT(*) AS c, COALESCE(SUM(LENGTH(data)), 0) AS bytes, COALESCE(MAX(LENGTH(data)), 0) AS maxLen
+       FROM requestDetails`,
+    ) || { c: 0, bytes: 0, maxLen: 0 };
+
+    // Skip when the table is already within healthy bounds unless forced.
+    if (!force && before.c <= config.maxRecords && before.maxLen <= BLOATED_ROW_BYTES) {
+      return { skipped: true, ...before };
+    }
+
+    let deletedBloated = 0;
+    db.transaction(() => {
+      const bloated = db.run(
+        `DELETE FROM requestDetails WHERE LENGTH(data) > ?`,
+        [BLOATED_ROW_BYTES],
+      );
+      deletedBloated = bloated?.changes || 0;
+
+      const cnt = db.get(`SELECT COUNT(*) as c FROM requestDetails`);
+      if (cnt && cnt.c > config.maxRecords) {
+        db.run(
+          `DELETE FROM requestDetails WHERE id IN (
+             SELECT id FROM requestDetails ORDER BY timestamp ASC LIMIT ?
+           )`,
+          [cnt.c - config.maxRecords],
+        );
+      }
+    });
+
+    // Reclaim freelist pages when a native driver is available. sql.js ignores this.
+    try { db.exec?.("VACUUM"); } catch {}
+    try { db.checkpoint?.(); } catch {}
+
+    const after = db.get(
+      `SELECT COUNT(*) AS c, COALESCE(SUM(LENGTH(data)), 0) AS bytes, COALESCE(MAX(LENGTH(data)), 0) AS maxLen
+       FROM requestDetails`,
+    ) || { c: 0, bytes: 0, maxLen: 0 };
+
+    return {
+      skipped: false,
+      deletedBloated,
+      before,
+      after,
+      maxRecords: config.maxRecords,
+    };
+  } catch (e) {
+    console.error("[requestDetailsRepo] compact failed:", e.message);
+    return { skipped: true, error: e.message };
+  }
 }
 
 const _shutdownHandler = async () => {

@@ -77,12 +77,54 @@ function withoutRemovedSettings(raw) {
   return cleaned;
 }
 
+function clampInt(value, fallback, min, max) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(Math.max(Math.floor(n), min), max);
+}
+
 function sanitizeSettingValues(raw) {
   const cleaned = withoutRemovedSettings(raw);
   // Dashboard authentication is intentionally disabled for this local build.
   cleaned.requireLogin = false;
   if (cleaned.cavemanLevel !== undefined && !VALID_CAVEMAN_LEVELS.has(cleaned.cavemanLevel)) {
     cleaned.cavemanLevel = DEFAULT_SETTINGS.cavemanLevel;
+  }
+  // Observability knobs are easy to set too high from older builds / hand edits.
+  // Keep them inside safe ranges so requestDetails cannot balloon again.
+  if (cleaned.observabilityMaxRecords !== undefined) {
+    cleaned.observabilityMaxRecords = clampInt(
+      cleaned.observabilityMaxRecords,
+      DEFAULT_SETTINGS.observabilityMaxRecords,
+      50,
+      2000,
+    );
+  }
+  if (cleaned.observabilityBatchSize !== undefined) {
+    cleaned.observabilityBatchSize = clampInt(
+      cleaned.observabilityBatchSize,
+      DEFAULT_SETTINGS.observabilityBatchSize,
+      1,
+      200,
+    );
+  }
+  if (cleaned.observabilityFlushIntervalMs !== undefined) {
+    cleaned.observabilityFlushIntervalMs = clampInt(
+      cleaned.observabilityFlushIntervalMs,
+      DEFAULT_SETTINGS.observabilityFlushIntervalMs,
+      500,
+      60000,
+    );
+  }
+  // Stored unit is KB per JSON field. Cap at 64 KB — historical values like
+  // 1024 produced 1 MB/field rows and froze the gateway under usage stats.
+  if (cleaned.observabilityMaxJsonSize !== undefined) {
+    cleaned.observabilityMaxJsonSize = clampInt(
+      cleaned.observabilityMaxJsonSize,
+      DEFAULT_SETTINGS.observabilityMaxJsonSize,
+      1,
+      64,
+    );
   }
   return cleaned;
 }

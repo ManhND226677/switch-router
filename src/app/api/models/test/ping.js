@@ -14,26 +14,60 @@ async function getInternalHeaders() {
   const headers = { "Content-Type": "application/json" };
   if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
   headers["x-9r-cli-token"] = await getConsistentMachineId(CLI_TOKEN_SALT);
+  // Dashboard model-test probes: one account, no cooldown locks, no cascade.
+  headers["x-9r-probe"] = "1";
   return headers;
+}
+
+function pingTimeoutMs(model) {
+  const id = String(model || "").toLowerCase();
+  // Antigravity / Gemini Cloud Code often spend 20–60s on cold start or 429
+  // round-trips; a 15s AbortSignal only surfaces "operation aborted" and hides
+  // the real upstream status (measured ~49s for ag/gemini-3.7-flash-low → 429).
+  if (
+    id.startsWith("ag/")
+    || id.startsWith("antigravity/")
+    || id.startsWith("gc/")
+    || id.startsWith("gemini-cli/")
+    || id.includes("gemini-3.")
+    || id.includes("gemini-pro-agent")
+  ) {
+    return 90000;
+  }
+  return 30000;
 }
 
 export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:${process.env.PORT || SERVER_CONFIG.appPort}`) {
   const headers = await getInternalHeaders();
   const start = Date.now();
+  const timeoutMs = pingTimeoutMs(model);
 
-  const res = await fetch(`${baseUrl}/api/v1/chat/completions`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      model,
-      // Claude-on-Copilot returns empty choices at max_tokens:1 (budget is spent
-      // before a content token emits), so a 1-token probe yields a false negative.
-      max_tokens: 16,
-      stream: false,
-      messages: [{ role: "user", content: "hi" }],
-    }),
-    signal: AbortSignal.timeout(15000),
-  });
+  let res;
+  try {
+    res = await fetch(`${baseUrl}/api/v1/chat/completions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model,
+        // Claude-on-Copilot returns empty choices at max_tokens:1 (budget is spent
+        // before a content token emits), so a 1-token probe yields a false negative.
+        max_tokens: 16,
+        stream: false,
+        messages: [{ role: "user", content: "hi" }],
+      }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    const latencyMs = Date.now() - start;
+    const timedOut = err?.name === "TimeoutError" || /aborted|timeout/i.test(err?.message || "");
+    return {
+      ok: false,
+      latencyMs,
+      error: timedOut
+        ? `Timed out after ${Math.round(timeoutMs / 1000)}s waiting for ${model}`
+        : (err?.message || "Network error"),
+    };
+  }
   const latencyMs = Date.now() - start;
 
   const rawText = await res.text().catch(() => "");
@@ -42,7 +76,17 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
 
   if (!res.ok) {
     const detail = parsed?.error?.message || parsed?.msg || parsed?.message || parsed?.error || rawText;
-    return { ok: false, latencyMs, error: `HTTP ${res.status}${detail ? `: ${String(detail).slice(0, 240)}` : ""}`, status: res.status };
+    const detailStr = detail ? String(detail).replace(/\s+/g, " ").slice(0, 280) : "";
+    // Surface quota/rate-limit clearly (common on Antigravity 3.7 probes).
+    const isQuota = res.status === 429 || /resource.?exhausted|rate.?limit|quota/i.test(detailStr);
+    return {
+      ok: false,
+      latencyMs,
+      status: res.status,
+      error: isQuota
+        ? `HTTP 429 quota/rate-limit${detailStr ? `: ${detailStr}` : ""}`
+        : `HTTP ${res.status}${detailStr ? `: ${detailStr}` : ""}`,
+    };
   }
 
   const providerStatus = parsed?.status;

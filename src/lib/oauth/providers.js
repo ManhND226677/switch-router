@@ -514,7 +514,11 @@ const PROVIDERS = {
       });
       const userInfo = userInfoRes.ok ? await userInfoRes.json() : {};
 
-      // Load Code Assist to get project ID and tier
+      // Load Code Assist to get project ID and tier. New Google accounts often have
+      // no cloudaicompanionProject yet — we MUST await onboardUser in that case.
+      // Previously onboard only ran when projectId was already set (dead path),
+      // so new connections saved projectId=null and generateContent used a
+      // random fake project → RESOURCE_EXHAUSTED 429.
       let projectId = "";
       let tierId = "legacy-tier";
       try {
@@ -526,6 +530,8 @@ const PROVIDERS = {
         if (loadRes.ok) {
           const data = await loadRes.json();
           projectId = data.cloudaicompanionProject?.id || data.cloudaicompanionProject || "";
+          if (typeof projectId === "object" && projectId) projectId = projectId.id || "";
+          projectId = typeof projectId === "string" ? projectId.trim() : "";
           if (Array.isArray(data.allowedTiers)) {
             for (const tier of data.allowedTiers) {
               if (tier.isDefault && tier.id) {
@@ -534,15 +540,50 @@ const PROVIDERS = {
               }
             }
           }
+        } else {
+          console.log("loadCodeAssist HTTP", loadRes.status, await loadRes.text().catch(() => ""));
         }
       } catch (e) {
         console.log("Failed to load code assist:", e);
       }
 
-      // Fire-and-forget onboarding — does not block DB save
-      if (projectId) {
+      // Resolve missing project via onboardUser (blocking, short poll).
+      if (!projectId) {
+        for (let i = 0; i < 8; i++) {
+          try {
+            const onboardRes = await fetch(ANTIGRAVITY_CONFIG.onboardUserEndpoint, {
+              method: "POST",
+              headers: loadHeaders,
+              body: JSON.stringify({ tierId, metadata }),
+            });
+            if (onboardRes.ok) {
+              const result = await onboardRes.json();
+              const pid =
+                result?.response?.cloudaicompanionProject?.id
+                || result?.response?.cloudaicompanionProject
+                || result?.cloudaicompanionProject?.id
+                || result?.cloudaicompanionProject
+                || "";
+              const normalized = typeof pid === "string" ? pid.trim() : (pid?.id || "");
+              if (normalized) {
+                projectId = normalized;
+                break;
+              }
+              if (result.done === true) break;
+            } else {
+              console.log("onboardUser HTTP", onboardRes.status);
+              break;
+            }
+          } catch (e) {
+            console.log("onboardUser error:", e?.message || e);
+            break;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+      } else {
+        // Project already exists — best-effort background onboard (legacy behavior)
         const doOnboard = async () => {
-          for (let i = 0; i < 10; i++) {
+          for (let i = 0; i < 5; i++) {
             try {
               const onboardRes = await fetch(ANTIGRAVITY_CONFIG.onboardUserEndpoint, {
                 method: "POST",
@@ -553,13 +594,17 @@ const PROVIDERS = {
                 const result = await onboardRes.json();
                 if (result.done === true) break;
               }
-            } catch (e) {
+            } catch {
               break;
             }
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            await new Promise((resolve) => setTimeout(resolve, 5000));
           }
         };
         doOnboard().catch(() => {});
+      }
+
+      if (!projectId) {
+        console.warn("[antigravity OAuth] No Cloud Code projectId after loadCodeAssist/onboardUser — generate will fail until repaired");
       }
 
       return { userInfo, projectId };

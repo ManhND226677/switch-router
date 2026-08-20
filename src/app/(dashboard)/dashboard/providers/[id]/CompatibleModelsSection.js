@@ -3,76 +3,16 @@
 import { useState } from "react";
 import PropTypes from "prop-types";
 import { Button } from "@/shared/components";
+import { useNotificationStore } from "@/store/notificationStore";
 import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
 import { fetchWithTimeout } from "@/shared/utils/fetchWithTimeout";
-function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias, onTest, testStatus, isTesting }) {
-  const borderColor = testStatus === "ok"
-    ? "border-green-500/40"
-    : testStatus === "error"
-    ? "border-red-500/40"
-    : "border-border";
-
-  const iconColor = testStatus === "ok"
-    ? "#22c55e"
-    : testStatus === "error"
-    ? "#ef4444"
-    : undefined;
-
-  return (
-    <div className={`flex items-center gap-3 p-3 rounded-lg border ${borderColor} hover:bg-sidebar/50`}>
-      <span
-        className="material-symbols-outlined text-base text-text-muted"
-        style={iconColor ? { color: iconColor } : undefined}
-      >
-        {testStatus === "ok" ? "check_circle" : testStatus === "error" ? "cancel" : "smart_toy"}
-      </span>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{modelId}</p>
-        <div className="flex items-center gap-1 mt-1">
-          <code className="text-xs text-text-muted font-mono bg-sidebar px-1.5 py-0.5 rounded">{fullModel}</code>
-          <div className="relative group/btn">
-            <button
-              onClick={() => onCopy(fullModel, `model-${modelId}`)}
-              className="p-0.5 hover:bg-sidebar rounded text-text-muted hover:text-primary"
-            >
-              <span className="material-symbols-outlined text-sm">
-                {copied === `model-${modelId}` ? "check" : "content_copy"}
-              </span>
-            </button>
-            <span className="pointer-events-none absolute top-5 left-1/2 -translate-x-1/2 text-xs text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
-              {copied === `model-${modelId}` ? "Copied!" : "Copy"}
-            </span>
-          </div>
-          {onTest && (
-            <div className="relative group/btn">
-              <button
-                onClick={onTest}
-                disabled={isTesting}
-                className="p-0.5 hover:bg-sidebar rounded text-text-muted hover:text-primary transition-colors"
-              >
-                <span className="material-symbols-outlined text-sm" style={isTesting ? { animation: "spin 1s linear infinite" } : undefined}>
-                  {isTesting ? "progress_activity" : "science"}
-                </span>
-              </button>
-              <span className="pointer-events-none absolute top-5 left-1/2 -translate-x-1/2 text-xs text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
-                {isTesting ? "Testing..." : "Test"}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-      <button
-        onClick={onDeleteAlias}
-        className="p-1 hover:bg-red-50 rounded text-red-500"
-        title="Remove model"
-      >
-        <span className="material-symbols-outlined text-sm">delete</span>
-      </button>
-    </div>
-  );
-}
+import ProviderModelRow from "./ProviderModelRow";
 
 export default function CompatibleModelsSection({ providerStorageAlias, providerDisplayAlias, modelAliases, customModels, copied, onCopy, onDeleteAlias, onAddCustomModel, onDeleteCustomModel, connections, isAnthropic }) {
+  const notifySuccess = useNotificationStore((s) => s.success);
+  const notifyError = useNotificationStore((s) => s.error);
+  const notifyWarning = useNotificationStore((s) => s.warning);
+  const notifyInfo = useNotificationStore((s) => s.info);
   const [newModel, setNewModel] = useState("");
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -83,11 +23,18 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
     if (testingModelId) return;
     setTestingModelId(modelId);
     try {
-      const res = await fetchWithTimeout("/api/models/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: `${providerStorageAlias}/${modelId}` }),
-      });
+      const full = `${providerStorageAlias}/${modelId}`;
+      const isSlow = /^(ag|antigravity|gc|gemini-cli)\//i.test(full)
+        || /gemini-3\.|gemini-pro-agent/i.test(modelId);
+      const res = await fetchWithTimeout(
+        "/api/models/test",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model: full }),
+        },
+        isSlow ? 100000 : 35000,
+      );
       const data = await res.json();
       setModelTestResults((prev) => ({ ...prev, [modelId]: data.ok ? "ok" : "error" }));
     } catch {
@@ -108,7 +55,7 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
     if (!newModel.trim() || adding) return;
     const modelId = newModel.trim();
     if (allModels.some((model) => model.id === modelId)) {
-      alert("Model already exists for this provider.");
+      notifyWarning("Model already exists for this provider.");
       return;
     }
 
@@ -133,12 +80,12 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
       const res = await fetch(`/api/providers/${activeConnection.id}/models`);
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error || "Failed to import models");
+        notifyError(data.error || "Failed to import models");
         return;
       }
       const models = data.models || [];
       if (models.length === 0) {
-        alert("No models returned from /models.");
+        notifyWarning("No models returned from /models.");
         return;
       }
       let importedCount = 0;
@@ -150,7 +97,7 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
         importedCount += 1;
       }
       if (importedCount === 0) {
-        alert("No new models were added.");
+        notifyInfo("No new models were added.");
       }
     } catch (error) {
       console.log("Error importing models:", error);
@@ -197,14 +144,14 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
       {allModels.length > 0 && (
         <div className="flex flex-col gap-3">
           {allModels.map(({ id, alias, source }) => (
-            <CompatibleModelRow
+            <ProviderModelRow
               key={`${source}-${providerStorageAlias}/${id}`}
               modelId={id}
               fullModel={`${providerDisplayAlias}/${id}`}
               copied={copied}
               onCopy={onCopy}
-              onDeleteAlias={() => source === "custom" ? onDeleteCustomModel(id) : onDeleteAlias(alias)}
-              onTest={connections.length > 0 ? () => handleTestModel(id) : undefined}
+              onDelete={() => source === "custom" ? onDeleteCustomModel(id) : onDeleteAlias(alias)}
+              onTest={() => handleTestModel(id)}
               testStatus={modelTestResults[id]}
               isTesting={testingModelId === id}
             />

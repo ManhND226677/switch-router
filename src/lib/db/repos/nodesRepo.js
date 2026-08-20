@@ -3,6 +3,8 @@ import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
 import { invalidateSettingsCache } from "./settingsRepo.js";
 import { invalidateConnectionsCache } from "./connectionsRepo.js";
+import { invalidateCombosCache } from "./combosRepo.js";
+import { invalidateModelAliasesCache } from "./aliasRepo.js";
 
 function rowToNode(row) {
   if (!row) return null;
@@ -40,13 +42,36 @@ function upsert(db, n) {
   );
 }
 
+// Hot-path cache for chat model resolution (compatible-node prefix lookup).
+// Invalidated on every write; TTL is a safety net only.
+if (!global._providerNodesListCache) global._providerNodesListCache = new Map();
+const listCache = global._providerNodesListCache;
+const LIST_CACHE_TTL_MS = 5000;
+
+function listCacheKey(filter = {}) {
+  return filter.type || "*";
+}
+
+export function invalidateProviderNodesCache() {
+  listCache.clear();
+}
+
 export async function getProviderNodes(filter = {}) {
+  const key = listCacheKey(filter);
+  const hit = listCache.get(key);
+  const now = Date.now();
+  if (hit && now - hit.at < LIST_CACHE_TTL_MS) {
+    return hit.list.map((n) => ({ ...n }));
+  }
+
   const db = await getAdapter();
   const where = [];
   const params = [];
   if (filter.type) { where.push("type = ?"); params.push(filter.type); }
   const sql = `SELECT * FROM providerNodes${where.length ? ` WHERE ${where.join(" AND ")}` : ""}`;
-  return db.all(sql, params).map(rowToNode);
+  const list = db.all(sql, params).map(rowToNode);
+  listCache.set(key, { at: now, list });
+  return list.map((n) => ({ ...n }));
 }
 
 export async function getProviderNodeById(id) {
@@ -68,6 +93,7 @@ export async function createProviderNode(data) {
     updatedAt: now,
   };
   upsert(db, node);
+  invalidateProviderNodesCache();
   return node;
 }
 
@@ -81,6 +107,7 @@ export async function updateProviderNode(id, data) {
     upsert(db, merged);
     result = merged;
   });
+  if (result) invalidateProviderNodesCache();
   return result;
 }
 
@@ -148,10 +175,13 @@ export async function deleteProviderNode(id) {
 
     db.run(`DELETE FROM providerNodes WHERE id = ?`, [id]);
   });
-  // Direct SQL writes bypass settingsRepo/connectionsRepo — drop hot caches.
+  // Direct SQL writes bypass settings/connections/combos/alias repos — drop hot caches.
   if (removed) {
     invalidateSettingsCache();
     invalidateConnectionsCache();
+    invalidateProviderNodesCache();
+    invalidateCombosCache();
+    invalidateModelAliasesCache();
   }
   return removed;
 }
