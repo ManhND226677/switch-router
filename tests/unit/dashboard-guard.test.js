@@ -73,10 +73,11 @@ describe("dashboard guard public LLM API access", () => {
   });
 
   it("rejects remote rewritten public LLM API without API key", async () => {
+    // /api/v1* is no longer a public surface — remote callers hit the local-only wall.
     const response = await proxy(request("/api/v1/chat/completions", { host: "router.example.com" }));
 
-    expect(response.status).toBe(401);
-    expect(response.body.error).toBe("API key required for API access");
+    expect(response.status).toBe(403);
+    expect(response.body.error).toBe("Switch-Router is local-only");
   });
 
   it("allows loopback rewritten public LLM API without API key", async () => {
@@ -86,43 +87,34 @@ describe("dashboard guard public LLM API access", () => {
     expect(mocks.validateApiKey).not.toHaveBeenCalled();
   });
 
-  it("rejects remote beta public LLM API without API key", async () => {
+  it("removed /v1beta surface falls through to Next (404), guarded nowhere", async () => {
+    // Since 0.10.0 /v1beta is neither a public prefix nor an /api path:
+    // middleware passes it through and Next itself answers 404 — remote and
+    // loopback callers see the same dead end.
     const response = await proxy(request("/v1beta/models", { host: "router.example.com" }));
 
-    expect(response.status).toBe(401);
-    expect(response.body.error).toBe("API key required for API access");
+    expect(response).toBe(mocks.nextResponse);
   });
 
   it("rejects remote rewritten beta public LLM API without API key", async () => {
+    // /api/v1beta is no longer public either — same local-only wall as /api/v1.
     const response = await proxy(request("/api/v1beta/models", { host: "router.example.com" }));
 
-    expect(response.status).toBe(401);
-    expect(response.body.error).toBe("API key required for API access");
+    expect(response.status).toBe(403);
+    expect(response.body.error).toBe("Switch-Router is local-only");
   });
 
-  it("rejects remote codex rewrite without API key", async () => {
+  it("removed /codex surface falls through to Next (404) for remote too", async () => {
+    // Same as /v1beta: the rewrite is gone, Codex CLI must use /v1/responses.
     const response = await proxy(request("/codex/x", { host: "router.example.com" }));
 
-    expect(response.status).toBe(401);
-    expect(response.body.error).toBe("API key required for API access");
-  });
-
-  it("allows remote codex rewrite with valid API key", async () => {
-    mocks.validateApiKey.mockResolvedValue(true);
-
-    const response = await proxy(request("/codex/x", {
-      host: "router.example.com",
-      authorization: "Bearer sk-valid",
-    }));
-
     expect(response).toBe(mocks.nextResponse);
-    expect(mocks.validateApiKey).toHaveBeenCalledWith("sk-valid");
   });
 
   it("allows remote public LLM API with valid bearer API key", async () => {
     mocks.validateApiKey.mockResolvedValue(true);
 
-    const response = await proxy(request("/api/v1/chat/completions", {
+    const response = await proxy(request("/v1/chat/completions", {
       host: "router.example.com",
       authorization: "Bearer sk-valid",
     }));
@@ -134,7 +126,7 @@ describe("dashboard guard public LLM API access", () => {
   it("allows remote public LLM API with valid x-api-key", async () => {
     mocks.validateApiKey.mockResolvedValue(true);
 
-    const response = await proxy(request("/v1/web/fetch", {
+    const response = await proxy(request("/v1/messages", {
       host: "router.example.com",
       "x-api-key": "sk-valid",
     }));
@@ -143,34 +135,12 @@ describe("dashboard guard public LLM API access", () => {
     expect(mocks.validateApiKey).toHaveBeenCalledWith("sk-valid");
   });
 
-  it("allows remote rewritten beta public LLM API with valid API key", async () => {
+  it("still accepts Google-style key headers on plain /v1 paths", async () => {
+    // Gemini-native clients were migrated to /v1 in 0.10.0 — the Google key
+    // extraction (x-goog-api-key / ?key=) must keep working there.
     mocks.validateApiKey.mockResolvedValue(true);
 
-    const response = await proxy(request("/api/v1beta/models", {
-      host: "router.example.com",
-      "x-api-key": "sk-valid",
-    }));
-
-    expect(response).toBe(mocks.nextResponse);
-    expect(mocks.validateApiKey).toHaveBeenCalledWith("sk-valid");
-  });
-
-  it("allows remote beta public LLM API with valid Google API key header", async () => {
-    mocks.validateApiKey.mockResolvedValue(true);
-
-    const response = await proxy(request("/v1beta/models", {
-      host: "router.example.com",
-      "x-goog-api-key": "sk-valid",
-    }));
-
-    expect(response).toBe(mocks.nextResponse);
-    expect(mocks.validateApiKey).toHaveBeenCalledWith("sk-valid");
-  });
-
-  it("allows remote beta public LLM API with valid Google key query parameter", async () => {
-    mocks.validateApiKey.mockResolvedValue(true);
-
-    const response = await proxy(request("/v1beta/models?key=sk-valid", {
+    const response = await proxy(request("/v1/models?key=sk-valid", {
       host: "router.example.com",
     }));
 
@@ -272,7 +242,7 @@ describe("dashboard guard helpers", () => {
   });
 
   it("extracts Google API keys after x-api-key", () => {
-    const apiRequest = request("/v1beta/models?key=query-key", {
+    const apiRequest = request("/v1/models?key=query-key", {
       "x-api-key": "header-key",
       "x-goog-api-key": "google-key",
     });

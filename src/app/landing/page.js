@@ -12,20 +12,16 @@ export default function LandingPage() {
   const router = useRouter();
   return (
     <div className="relative text-white font-sans overflow-x-hidden antialiased selection:bg-brand-500 selection:text-white">
-      {/* Animated Background */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none bg-[#1a1a1a]">
-        {/* Grid pattern */}
         <div className="absolute inset-0 opacity-[0.06]" style={{
           backgroundImage: `linear-gradient(to right, var(--color-brand-500) 1px, transparent 1px), linear-gradient(to bottom, var(--color-brand-500) 1px, transparent 1px)`,
           backgroundSize: '50px 50px'
         }}></div>
         
-        {/* Animated gradient orbs */}
         <div className="absolute top-0 left-1/4 w-[700px] h-[700px] bg-brand-500/12 rounded-full blur-[130px] animate-blob"></div>
         <div className="absolute top-1/3 right-1/4 w-[600px] h-[600px] bg-purple-500/10 rounded-full blur-[130px] animate-blob" style={{ animationDelay: '2s', animationDuration: '22s' }}></div>
         <div className="absolute bottom-0 left-1/2 w-[650px] h-[650px] bg-blue-500/8 rounded-full blur-[130px] animate-blob" style={{ animationDelay: '4s', animationDuration: '25s' }}></div>
         
-        {/* Vignette effect */}
         <div className="absolute inset-0" style={{
           background: 'radial-gradient(circle at center, transparent 0%, rgba(24, 20, 17, 0.4) 100%)'
         }}></div>
@@ -35,7 +31,6 @@ export default function LandingPage() {
         <Navigation />
         
         <main>
-          {/* Hero with Flow Animation */}
           <div className="relative">
           <HeroSection />
           <div className="flex justify-center pb-20">
@@ -47,20 +42,19 @@ export default function LandingPage() {
         <HowItWorks />
         <Features />
         
-        {/* CTA Section */}
         <section className="py-32 px-6 relative overflow-hidden">
           <div className="absolute inset-0 bg-linear-to-t from-brand-500/5 to-transparent pointer-events-none"></div>
           <div className="max-w-4xl mx-auto text-center relative z-10">
-            <h2 className="text-4xl md:text-5xl font-black mb-6">Ready to Simplify Your AI Infrastructure?</h2>
+            <h2 className="text-4xl md:text-5xl font-black mb-6">Sẵn sàng đơn giản hóa hạ tầng AI?</h2>
             <p className="text-xl text-gray-400 mb-10 max-w-2xl mx-auto">
-              Switch between your configured AI providers from one local endpoint. Ready to use without a cloud account.
+              Chuyển đổi giữa các nhà cung cấp AI đã cấu hình từ một đầu vào cục bộ. Dùng ngay không cần tài khoản đám mây.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <button 
                 onClick={() => router.push("/dashboard")}
                 className="w-full sm:w-auto h-14 px-10 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-lg font-bold transition-all shadow-[0_0_20px_rgba(229,106,74,0.5)]"
               >
-                Open Dashboard
+                Mở bảng điều khiển
               </button>
             </div>
           </div>
@@ -70,7 +64,6 @@ export default function LandingPage() {
         <Footer />
       </div>
       
-      {/* Global styles for keyframes */}
       <style jsx global>{`
         @keyframes float {
           0%, 100% { transform: translateY(0); }

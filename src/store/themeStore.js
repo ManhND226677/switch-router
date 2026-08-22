@@ -4,20 +4,12 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { THEME_CONFIG } from "@/shared/constants/config";
 
-export const DESIGN_OPTIONS = [
-  { id: "classic", label: "Classic", icon: "dashboard" },
-  { id: "minimal", label: "Minimal", icon: "crop_square" },
-  { id: "vivid", label: "Vivid", icon: "auto_awesome" },
-  { id: "soft", label: "Soft", icon: "blur_on" },
-];
-
-const DEFAULT_DESIGN = DESIGN_OPTIONS[0].id;
-
+// Chỉ còn một giao diện (Minimal — nấu sẵn trong globals.css), nên toàn bộ
+// cơ chế design-preset đã tháo dỡ; store chỉ quản lý sáng/tối.
 const useThemeStore = create(
   persist(
     (set, get) => ({
       theme: THEME_CONFIG.defaultTheme,
-      design: DEFAULT_DESIGN,
       setTheme: (theme) => {
         set({ theme });
         applyTheme(theme);
@@ -27,17 +19,13 @@ const useThemeStore = create(
         set({ theme: newTheme });
         applyTheme(newTheme);
       },
-      setDesign: (design) => {
-        const nextDesign = DESIGN_OPTIONS.some((option) => option.id === design)
-          ? design
-          : DEFAULT_DESIGN;
-        set({ design: nextDesign });
-        applyDesign(nextDesign);
-      },
       initTheme: () => {
-        const { theme, design } = get();
+        const { theme } = get();
         applyTheme(theme);
-        applyDesign(design);
+        // Dọn rác data-design của phiên bản cũ còn sót trong DOM
+        if (typeof document !== "undefined") {
+          delete document.documentElement.dataset.design;
+        }
       },
     }),
     { name: THEME_CONFIG.storageKey },
@@ -53,11 +41,6 @@ function applyTheme(theme) {
   const effectiveTheme = theme === "system" ? systemTheme : theme;
   root.classList.toggle("dark", effectiveTheme === "dark");
   root.dataset.theme = effectiveTheme;
-}
-
-function applyDesign(design) {
-  if (typeof document === "undefined") return;
-  document.documentElement.dataset.design = design || DEFAULT_DESIGN;
 }
 
 export default useThemeStore;

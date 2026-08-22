@@ -46,7 +46,7 @@ describe("model test route kind routing", () => {
     global.fetch = originalFetch;
   });
 
-  it("routes llm model tests to /api/v1/chat/completions", async () => {
+  it("routes llm model tests to /v1/chat/completions", async () => {
     const { POST } = await import("../../src/app/api/models/test/route.js");
 
     const req = new Request("http://localhost/api/models/test", {
@@ -63,7 +63,7 @@ describe("model test route kind routing", () => {
 
     expect(body.ok).toBe(true);
     expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/v1/chat/completions"),
+      expect.stringContaining("/v1/chat/completions"),
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
@@ -89,7 +89,7 @@ describe("model test route kind routing", () => {
       const res = await POST(req);
       expect((await res.json()).ok).toBe(true);
       expect(global.fetch).toHaveBeenLastCalledWith(
-        expect.stringContaining("/api/v1/chat/completions"),
+        expect.stringContaining("/v1/chat/completions"),
         expect.any(Object)
       );
     }

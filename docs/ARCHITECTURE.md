@@ -86,19 +86,22 @@ flowchart LR
 
 Main directories:
 
-- `src/app/api/v1/*` and `src/app/api/v1beta/*` for compatibility APIs
+- `src/app/api/v1/*` for the compatibility APIs (the `/v1beta` route dir was removed in 0.10.0)
 - `src/app/api/*` for management/configuration APIs
 - Next rewrites in `next.config.mjs` map `/v1/*` to `/api/v1/*`
+- Since 0.10.0 the PUBLIC gateway surface is `/v1` only (the `/codex`,
+  `/responses` and `/v1beta` client surfaces were removed — rewrites deleted
+  from `next.config.mjs`, `src/app/api/v1beta/` removed). Codex CLI talks
+  Responses API through `<origin>/v1/responses`; Gemini-native clients must
+  use `/v1`. Direct `/api/v1*` calls stay local-only (403 from remote) per `dashboardGuard.js`
 
-Important compatibility routes:
+Important compatibility routes (local-only from outside, reached via `/v1/*` rewrites):
 
 - `src/app/api/v1/chat/completions/route.js`
 - `src/app/api/v1/messages/route.js`
 - `src/app/api/v1/responses/route.js`
 - `src/app/api/v1/models/route.js`
 - `src/app/api/v1/messages/count_tokens/route.js`
-- `src/app/api/v1beta/models/route.js`
-- `src/app/api/v1beta/models/[...path]/route.js`
 
 Management domains:
 
@@ -161,7 +164,7 @@ Usage DB:
 sequenceDiagram
     autonumber
     participant Client as CLI/SDK Client
-    participant Route as /api/v1/chat/completions
+    participant Route as /v1/chat/completions → /api/v1 rewrite
     participant Chat as src/sse/handlers/chat
     participant Core as open-sse/handlers/chatCore
     participant Model as Model Resolver
@@ -374,7 +377,7 @@ flowchart LR
 
 ### Route and API Modules
 
-- `src/app/api/v1/*`, `src/app/api/v1beta/*`: compatibility APIs
+- `src/app/api/v1/*`: compatibility APIs
 - `src/app/api/providers*`: provider CRUD, validation, testing
 - `src/app/api/provider-nodes*`: custom compatible node management
 - `src/app/api/oauth/*`: OAuth/device-code flows

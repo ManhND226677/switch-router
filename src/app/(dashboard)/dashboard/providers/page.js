@@ -30,7 +30,7 @@ function getStatusDisplay(connected, error, errorCode) {
   if (connected > 0) {
     parts.push(
       <Badge key="connected" variant="success" size="sm" dot>
-        {connected} Connected
+        {connected} {"Connected"}
       </Badge>,
     );
   }
@@ -484,6 +484,24 @@ export default function ProvidersPage() {
 
   return (
     <div className="flex min-w-0 flex-col gap-6 px-1 sm:px-0">
+      {/* Global test-all: runs the existing test-batch API in "all" mode across
+          every active connection (OAuth + free + API key + compatible). */}
+      {hasAnyResult && (
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            icon="play_circle"
+            loading={testingMode === "all"}
+            disabled={!!testingMode && testingMode !== "all"}
+            onClick={() => handleBatchTest("all")}
+            title="Test every active connection (all providers)"
+            aria-label="Test all connections"
+          >
+            {testingMode === "all" ? "Testing all..." : "Test All Connections"}
+          </Button>
+        </div>
+      )}
       {!hasAnyResult && (
         <div className="text-center py-8 border border-dashed border-border rounded-xl">
           <span className="material-symbols-outlined text-4xl text-text-muted mb-2">

@@ -6,7 +6,6 @@ import { Card, Button, Toggle, Input } from "@/shared/components";
 import { ConfirmModal } from "@/shared/components/Modal";
 import LanguageSwitcher from "@/shared/components/LanguageSwitcher";
 import { useTheme } from "@/shared/hooks/useTheme";
-import DesignSwitcher from "@/shared/components/DesignSwitcher";
 import { cn } from "@/shared/utils/cn";
 import { APP_CONFIG } from "@/shared/constants/config";
 import { LOCALE_COOKIE, normalizeLocale } from "@/i18n/config";
@@ -417,7 +416,6 @@ export default function ProfilePage() {
               </p>
             )}
           </div>
-        <DesignSwitcher />
           </Card>
 
         {/* Language */}
@@ -521,34 +519,12 @@ export default function ProfilePage() {
 
             <p className="text-xs text-text-muted italic pt-2 border-t border-border/50">
               {settings.fallbackStrategy === "round-robin"
-                ? `Currently distributing requests across all available accounts with ${settings.stickyRoundRobinLimit || 3} calls per account.`
-                : "Currently using accounts in priority order (Fill First)."}
+                ? `Hiện đang phân bổ request đều trên các tài khoản khả dụng, ${settings.stickyRoundRobinLimit || 3} lời gọi mỗi tài khoản.`
+                : "Hiện đang dùng tài khoản theo thứ tự ưu tiên (Lấp đầy trước)."}
               {settings.comboStrategy === "round-robin"
-                ? ` Combos rotate after ${settings.comboStickyRoundRobinLimit || 1} call${(settings.comboStickyRoundRobinLimit || 1) === 1 ? "" : "s"} per model.`
-                : " Combos always start with their first model."}
+                ? ` Combo xoay vòng sau ${settings.comboStickyRoundRobinLimit || 1} lời gọi mỗi model.`
+                : " Combo luôn bắt đầu với model đầu tiên."}
             </p>
-          </div>
-        </Card>
-
-        {/* Pricing */}
-        <Card>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3 min-w-0">
-              <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500 shrink-0">
-                <span className="material-symbols-outlined text-xl">payments</span>
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-base sm:text-lg font-semibold">Model Pricing</h3>
-                <p className="text-xs sm:text-sm text-text-muted">
-                  Edit per-model rates used for estimated cost on the Usage page.
-                </p>
-              </div>
-            </div>
-            <Link href="/dashboard/settings/pricing" className="shrink-0">
-              <Button variant="secondary" size="sm" iconRight="arrow_forward" className="w-full sm:w-auto">
-                Open Pricing
-              </Button>
-            </Link>
           </div>
         </Card>
 

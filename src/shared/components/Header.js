@@ -52,10 +52,10 @@ const getPageInfo = (pathname) => {
     };
   if (pathname.includes("/usage"))
     return {
-      title: "Usage & Analytics",
+      title: "Dashboard",
       description:
         "Monitor your API usage, token consumption, and request logs",
-      icon: "bar_chart",
+      icon: "dashboard",
       breadcrumbs: [],
     };
   if (pathname.includes("/auth-files"))
@@ -93,22 +93,19 @@ const getPageInfo = (pathname) => {
       icon: "lan",
       breadcrumbs: [],
     };
-  if (pathname.includes("/endpoint"))
+  if (pathname === "/dashboard")
     return {
-      title: "Endpoint & Key",
-      description: "Manage client access, API keys and protocol base URLs",
-      icon: "api",
+      title: "Dashboard",
+      description: "Usage overview, billing and request activity",
+      icon: "dashboard",
       breadcrumbs: [],
     };
-  if (pathname.includes("/settings/pricing"))
+  if (pathname.includes("/virtual-keys"))
     return {
-      title: "Pricing",
-      description: "Configure model rates for cost tracking",
-      icon: "payments",
-      breadcrumbs: [
-        { label: "Settings", href: "/dashboard/profile" },
-        { label: "Pricing" },
-      ],
+      title: "Virtual Keys & Connect",
+      description: "Manage API keys and connect clients to the gateway",
+      icon: "vpn_key",
+      breadcrumbs: [],
     };
   if (pathname.includes("/profile"))
     return {
@@ -129,13 +126,6 @@ const getPageInfo = (pathname) => {
       title: "Console Log",
       description: "Live server console output",
       icon: "monitor",
-      breadcrumbs: [],
-    };
-  if (pathname === "/dashboard")
-    return {
-      title: "Endpoint & Key",
-      description: "Manage client access, API keys and protocol base URLs",
-      icon: "api",
       breadcrumbs: [],
     };
   return { title: "", description: "", breadcrumbs: [] };

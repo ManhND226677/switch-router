@@ -2,11 +2,10 @@ import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import React from "react";
 
-import RuntimeStatusCard from "../../src/app/(dashboard)/dashboard/endpoint/components/RuntimeStatusCard.js";
-import QuickStartCard from "../../src/app/(dashboard)/dashboard/endpoint/components/QuickStartCard.js";
-import OfficeGatewayCard from "../../src/app/(dashboard)/dashboard/endpoint/components/OfficeGatewayCard.js";
-import AccessSecurityCard from "../../src/app/(dashboard)/dashboard/endpoint/components/AccessSecurityCard.js";
+import AccessSecurityCard from "../../src/app/(dashboard)/dashboard/endpoint/components/AccessSecurityCard.js";import BaseUrlsCard from "../../src/app/(dashboard)/dashboard/endpoint/components/BaseUrlsCard.js";
 import EndpointRow from "../../src/app/(dashboard)/dashboard/endpoint/components/EndpointRow.js";
+import ProviderDistribution from "../../src/app/(dashboard)/dashboard/endpoint/components/ProviderDistribution.js";
+import TopModelBilling from "../../src/app/(dashboard)/dashboard/endpoint/components/TopModelBilling.js";
 
 const ORIGIN = "http://127.0.0.1:28701";
 const noop = () => {};
@@ -17,84 +16,67 @@ const noop = () => {};
  * static markup instead: that executes the component body for real.
  */
 describe("endpoint page cards render", () => {
-  it("renders the runtime status card with live values", () => {
+  it("renders provider distribution with ranked providers", () => {
     const html = renderToStaticMarkup(
-      React.createElement(RuntimeStatusCard, {
-        health: "ok",
-        origin: ORIGIN,
-        requireApiKey: true,
-        modelCount: 698,
-        activeKeyCount: 1,
-        officeGatewayEnabled: true,
+      React.createElement(ProviderDistribution, {
+        byProvider: {
+          openai: { requests: 7, promptTokens: 1000, completionTokens: 500 },
+          claude: { requests: 3, promptTokens: 200, completionTokens: 100 },
+        },
       }),
     );
-    expect(html).toContain("127.0.0.1:28701");
-    expect(html).toContain("698");
-    expect(html).toContain("Listening on");
-    expect(html).toContain("running");
+    expect(html).toContain("openai");
+    expect(html).toContain("claude");
+    expect(html).toContain("70%");
+    expect(html).toContain("30%");
   });
 
-  it("renders the runtime status card while values are still unknown", () => {
+  it("renders top model billing sorted by cost", () => {
     const html = renderToStaticMarkup(
-      React.createElement(RuntimeStatusCard, {
-        health: "checking",
-        origin: ORIGIN,
-        requireApiKey: false,
-        modelCount: null,
-        activeKeyCount: null,
-        officeGatewayEnabled: false,
+      React.createElement(TopModelBilling, {
+        byModel: {
+          "m-cheap (openai)": { rawModel: "m-cheap", provider: "openai", cost: 0.01, promptTokens: 10, completionTokens: 5, cachedTokens: 0, requests: 1 },
+          "m-pricey (anthropic)": { rawModel: "m-pricey", provider: "anthropic", cost: 1.25, promptTokens: 200, completionTokens: 100, cachedTokens: 20, requests: 4 },
+        },
+        modelNames: {},
       }),
     );
-    expect(html).toContain("—");
-    expect(html).toContain("checking...");
+    // The pricier model must appear first in the document.
+    expect(html.indexOf("m-pricey")).toBeGreaterThan(-1);
+    expect(html.indexOf("m-pricey")).toBeLessThan(html.indexOf("m-cheap"));
+    expect(html).toContain("$1.25");
   });
 
-  it("renders the quick-start card without leaking a key by default", () => {
+  it("renders base URLs with the OpenAI and Anthropic rows on the /v1 surface", () => {
     const html = renderToStaticMarkup(
-      React.createElement(QuickStartCard, {
-        origin: ORIGIN,
-        keys: [{ id: "k1", name: "Local CLI", key: "sk-secret-abc", isActive: true }],
-        copied: null,
-        onCopy: noop,
-      }),
+      React.createElement(BaseUrlsCard, { origin: ORIGIN }),
     );
-    expect(html).toContain("&lt;YOUR_API_KEY&gt;");
-    expect(html).not.toContain("sk-secret-abc");
-    // The key picker is offered, but selecting it is an explicit user action.
-    expect(html).toContain("Insert real key: Local CLI");
+    // Row 1 — OpenAI-compatible (no Anthropic routes leaked in).
+    expect(html).toContain("http://127.0.0.1:28701/v1");
+    expect(html).toContain("POST /v1/responses");
+    // Row 2 — Anthropic Messages, same surface, own copy URL.
+    expect(html).toContain("http://127.0.0.1:28701/v1/messages");
+    expect(html).toContain("POST /v1/messages/count_tokens");
+    // Removed surfaces must never be advertised again.
+    expect(html).not.toContain("/codex");
+    expect(html).not.toContain("/v1beta");
   });
 
-  it("renders the quick-start card with no keys at all", () => {
-    const html = renderToStaticMarkup(
-      React.createElement(QuickStartCard, { origin: ORIGIN, keys: [], copied: null, onCopy: noop }),
-    );
-    expect(html).toContain("curl");
-    expect(html).not.toContain("Insert real key");
-  });
-
-  it("renders the office card in both flag states", () => {
+  it("renders the office namespace inside base URLs in both flag states", () => {
+    // Office is now a row of BaseUrlsCard (gated), not a standalone card.
     const enabled = renderToStaticMarkup(
-      React.createElement(OfficeGatewayCard, {
-        origin: ORIGIN,
-        enabled: true,
-        allowlistCount: 2,
-        copied: null,
-        onCopy: noop,
-      }),
+      React.createElement(BaseUrlsCard, { origin: ORIGIN, officeEnabled: true }),
     );
     expect(enabled).toContain("/office/v1/messages");
+    expect(enabled).toContain("Đã bật");
 
     const disabled = renderToStaticMarkup(
-      React.createElement(OfficeGatewayCard, {
-        origin: ORIGIN,
-        enabled: false,
-        allowlistCount: 0,
-        copied: null,
-        onCopy: noop,
-      }),
+      React.createElement(BaseUrlsCard, { origin: ORIGIN, officeEnabled: false }),
     );
     expect(disabled).toContain("OFFICE_GATEWAY_ENABLED=true");
     expect(disabled).not.toContain("/office/v1/messages");
+    // The /v1 rows must survive regardless of the office flag.
+    expect(disabled).toContain("/v1/messages");
   });
 
   it("flags a non-loopback bind without API-key enforcement", () => {

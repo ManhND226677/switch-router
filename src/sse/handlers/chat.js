@@ -11,6 +11,9 @@ import { isModelLockActive } from "open-sse/services/accountFallback.js";
 import { getProviderConnections } from "@/lib/localDb";
 import { cacheClaudeHeaders } from "open-sse/utils/claudeHeaderCache.js";
 import { getSettings } from "@/lib/localDb";
+import { getApiKeyByKey, getKeyMonthlySpendUsd, updateApiKey } from "@/lib/localDb";
+import { checkKeyPolicy, checkBudget } from "../services/keyPolicy.js";
+import { consumeRateLimit } from "../services/keyRateLimiter.js";
 import { getModelInfo, getComboModels } from "../services/model.js";
 import { handleChatCore } from "open-sse/handlers/chatCore.js";
 import { getTransform as getPxpipeTransform } from "@/lib/pxpipe/loader.js";
@@ -97,6 +100,46 @@ export async function handleChat(request, clientRawRequest = null) {
   if (!modelStr) {
     log.warn("CHAT", "Missing model");
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing model");
+  }
+
+  // Virtual key policy (migration 004) — chỉ áp dụng khi bật khoá và client
+  // đưa key hợp lệ. Allowlist so theo id client yêu cầu (model/combo public).
+  if (settings.requireApiKey && apiKey) {
+    try {
+      const virtualKeyRecord = await getApiKeyByKey(apiKey);
+      if (virtualKeyRecord?.isActive) {
+        const policyResult = checkKeyPolicy(virtualKeyRecord, modelStr);
+        if (!policyResult.ok) {
+          if (policyResult.code === "expired") {
+            log.warn("AUTH", `Virtual key expired: ${virtualKeyRecord.name || virtualKeyRecord.id}`);
+            return errorResponse(HTTP_STATUS.FORBIDDEN, "Khóa đã hết hạn");
+          }
+          log.warn("AUTH", `Model not allowed for key "${virtualKeyRecord.name}": ${modelStr}`);
+          return errorResponse(HTTP_STATUS.FORBIDDEN, `Model không được phép cho khóa này: ${modelStr}`);
+        }
+        if (virtualKeyRecord.monthlyBudgetUsd != null) {
+          const spentUsd = await getKeyMonthlySpendUsd(virtualKeyRecord);
+          const budget = checkBudget(virtualKeyRecord.monthlyBudgetUsd, spentUsd);
+          if (!budget.ok) {
+            log.warn("AUTH", `Monthly budget exceeded for key "${virtualKeyRecord.name}" (${spentUsd.toFixed(4)}/${virtualKeyRecord.monthlyBudgetUsd} USD)`);
+            return errorResponse(HTTP_STATUS.PAYMENT_REQUIRED, "Vượt ngân sách tháng của khóa này");
+          }
+        }
+        const rateLimitCheck = consumeRateLimit(virtualKeyRecord.id, virtualKeyRecord.rateLimitRpm);
+        if (rateLimitCheck.limited) {
+          log.warn("AUTH", `RPM limited key "${virtualKeyRecord.name}", retry after ${rateLimitCheck.retryAfterSec}s`);
+          return errorResponse(HTTP_STATUS.RATE_LIMITED, `Quá giới hạn ${virtualKeyRecord.rateLimitRpm} request/phút, thử lại sau ${rateLimitCheck.retryAfterSec}s`);
+        }
+        // Ghi lastUsedAt tối đa 1 lần/phút/key — tránh ghi DB mỗi request
+        const lastUsedMs = Date.parse(virtualKeyRecord.lastUsedAt || "");
+        if (!Number.isFinite(lastUsedMs) || Date.now() - lastUsedMs > 60_000) {
+          updateApiKey(virtualKeyRecord.id, { lastUsedAt: new Date().toISOString() }).catch(() => {});
+        }
+      }
+    } catch (policyError) {
+      // Lỗi hạ tầng đọc policy → fail-open như trước khi có tính năng, không chặn chat
+      log.warn("AUTH", `Virtual key policy skipped: ${policyError?.message}`);
+    }
   }
 
   // Bypass naming/warmup requests before combo rotation to avoid wasting rotation slots

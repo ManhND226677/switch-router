@@ -1,5 +1,9 @@
-import EndpointPageClient from "./EndpointPageClient";
+import { redirect } from "next/navigation";
 
-export default function EndpointPage() {
-  return <EndpointPageClient />;
+export const dynamic = "force-dynamic";
+
+// The endpoint view moved into the merged /dashboard page (default tab).
+// Kept as an alias so existing bookmarks and landing-page links keep working.
+export default function EndpointRedirect() {
+  redirect("/dashboard");
 }

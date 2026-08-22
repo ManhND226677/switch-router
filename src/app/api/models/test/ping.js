@@ -44,7 +44,7 @@ export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:$
 
   let res;
   try {
-    res = await fetch(`${baseUrl}/api/v1/chat/completions`, {
+    res = await fetch(`${baseUrl}/v1/chat/completions`, {
       method: "POST",
       headers,
       body: JSON.stringify({

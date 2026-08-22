@@ -129,13 +129,16 @@ export default function ClaudeToolCard({
   };
 
   const getEffectiveBaseUrl = () => {
+    // The Anthropic SDK appends /v1 itself — the base URL must stay bare
+    // (no /v1 suffix), otherwise requests hit /v1/v1/* and 404 since 0.9.0.
     const url = customBaseUrl || baseUrl;
-    return url.endsWith("/v1") ? url : `${url}/v1`;
+    return url.replace(/\/+$/, "").replace(/\/v1$/i, "");
   };
 
   const getDisplayUrl = () => {
+    // Mirror getEffectiveBaseUrl: show exactly what will be written to settings.
     const url = customBaseUrl || baseUrl;
-    return url.endsWith("/v1") ? url : `${url}/v1`;
+    return url.replace(/\/+$/, "").replace(/\/v1$/i, "");
   };
 
   const handleApplySettings = async () => {

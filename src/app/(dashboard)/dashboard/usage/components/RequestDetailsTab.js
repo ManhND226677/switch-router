@@ -112,10 +112,12 @@ export default function RequestDetailsTab() {
   const [selectedDetail, setSelectedDetail] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [providers, setProviders] = useState([]);
+  const [virtualKeys, setVirtualKeys] = useState([]);
   const [providerNameCache, setProviderNameCache] = useState(null);
   const [modelNameCache, setModelNameCache] = useState(null);
   const [filters, setFilters] = useState({
     provider: "",
+    keyId: "",
     startDate: "",
     endDate: ""
   });
@@ -125,6 +127,15 @@ export default function RequestDetailsTab() {
       const res = await fetch("/api/usage/providers");
       const data = await res.json();
       setProviders(data.providers || []);
+
+      // Danh sách virtual key cho bộ lọc theo khóa
+      try {
+        const keysRes = await fetch("/api/keys");
+        const keysData = await keysRes.json();
+        setVirtualKeys(keysData.keys || []);
+      } catch {
+        // Không chặn trang nếu không tải được danh sách khóa
+      }
 
       const cache = await fetchProviderNames();
       setProviderNameCache(cache.providerNameCache);
@@ -146,6 +157,7 @@ export default function RequestDetailsTab() {
         _t: Date.now().toString() // Thêm timestamp để bypass hoàn toàn cache trình duyệt / proxy
       });
       if (filters.provider) params.append("provider", filters.provider);
+      if (filters.keyId) params.append("keyId", filters.keyId);
       if (filters.startDate) params.append("startDate", filters.startDate);
       if (filters.endDate) params.append("endDate", filters.endDate);
 
@@ -193,7 +205,7 @@ export default function RequestDetailsTab() {
   };
 
   const handleClearFilters = () => {
-    setFilters({ provider: "", startDate: "", endDate: "" });
+    setFilters({ provider: "", keyId: "", startDate: "", endDate: "" });
   };
 
   return (
@@ -201,7 +213,7 @@ export default function RequestDetailsTab() {
       <Card padding="md">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="flex min-w-0 flex-col gap-2">
-            <label htmlFor="provider-filter" className="text-sm font-medium text-text-main">Provider</label>
+            <label htmlFor="provider-filter" className="text-sm font-medium text-text-main">Nhà cung cấp</label>
             <select
               id="provider-filter"
               value={filters.provider}
@@ -213,7 +225,7 @@ export default function RequestDetailsTab() {
               )}
               style={{ colorScheme: 'auto' }}
             >
-              <option value="">All Providers</option>
+              <option value="">Tất cả nhà cung cấp</option>
               {providers.map((provider) => (
                 <option key={provider.id} value={provider.id}>
                   {provider.name}
@@ -223,7 +235,27 @@ export default function RequestDetailsTab() {
           </div>
           
           <div className="flex min-w-0 flex-col gap-2">
-            <label htmlFor="start-date-filter" className="text-sm font-medium text-text-main">Start Date</label>
+            <label htmlFor="key-filter" className="text-sm font-medium text-text-main">Khóa ảo</label>
+            <select
+              id="key-filter"
+              value={filters.keyId}
+              onChange={(e) => setFilters({ ...filters, keyId: e.target.value })}
+              className={cn(
+                "h-9 px-3 rounded-lg border border-black/10 dark:border-white/10 bg-surface",
+                "text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary/20",
+                "w-full min-w-0 cursor-pointer"
+              )}
+              style={{ colorScheme: 'auto' }}
+            >
+              <option value="">Tất cả khóa</option>
+              {virtualKeys.map((k) => (
+                <option key={k.id} value={k.id}>{k.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex min-w-0 flex-col gap-2">
+            <label htmlFor="start-date-filter" className="text-sm font-medium text-text-main">Từ ngày</label>
             <input
               id="start-date-filter"
               type="datetime-local"
@@ -237,7 +269,7 @@ export default function RequestDetailsTab() {
           </div>
 
           <div className="flex min-w-0 flex-col gap-2">
-            <label htmlFor="end-date-filter" className="text-sm font-medium text-text-main">End Date</label>
+            <label htmlFor="end-date-filter" className="text-sm font-medium text-text-main">Đến ngày</label>
             <input
               id="end-date-filter"
               type="datetime-local"
@@ -251,14 +283,14 @@ export default function RequestDetailsTab() {
           </div>
           
           <div className="flex min-w-0 flex-col gap-2 sm:col-span-2 lg:col-span-1">
-            <span className="hidden text-sm font-medium text-text-main opacity-0 lg:block" aria-hidden="true">Clear</span>
+            <span className="hidden text-sm font-medium text-text-main opacity-0 lg:block" aria-hidden="true">Xóa</span>
             <Button 
               variant="ghost" 
               onClick={handleClearFilters}
-              disabled={!filters.provider && !filters.startDate && !filters.endDate}
+              disabled={!filters.provider && !filters.keyId && !filters.startDate && !filters.endDate}
               className="w-full"
             >
-              Clear Filters
+              Xóa bộ lọc
             </Button>
           </div>
         </div>
@@ -269,15 +301,15 @@ export default function RequestDetailsTab() {
           <table className="w-full min-w-[880px]">
             <thead>
               <tr className="border-b border-black/5 dark:border-white/5">
-                <th className="text-left p-4 text-sm font-semibold text-text-main">Timestamp</th>
+                <th className="text-left p-4 text-sm font-semibold text-text-main">Thời điểm</th>
                 <th className="text-left p-4 text-sm font-semibold text-text-main">Model</th>
-                <th className="text-left p-4 text-sm font-semibold text-text-main">Provider</th>
-                <th className="text-right p-4 text-sm font-semibold text-text-main">Input Tokens</th>
-                <th className="text-right p-4 text-sm font-semibold text-text-main">Cached</th>
-                <th className="text-right p-4 text-sm font-semibold text-text-main">Cache Creation</th>
-                <th className="text-right p-4 text-sm font-semibold text-text-main">Output Tokens</th>
-                <th className="text-left p-4 text-sm font-semibold text-text-main">Latency</th>
-                <th className="text-center p-4 text-sm font-semibold text-text-main">Action</th>
+                <th className="text-left p-4 text-sm font-semibold text-text-main">Nhà cung cấp</th>
+                <th className="text-right p-4 text-sm font-semibold text-text-main">Token vào</th>
+                <th className="text-right p-4 text-sm font-semibold text-text-main">Đã cache</th>
+                <th className="text-right p-4 text-sm font-semibold text-text-main">Cache tạo mới</th>
+                <th className="text-right p-4 text-sm font-semibold text-text-main">Token ra</th>
+                <th className="text-left p-4 text-sm font-semibold text-text-main">Độ trễ</th>
+                <th className="text-center p-4 text-sm font-semibold text-text-main">Thao tác</th>
               </tr>
             </thead>
             <tbody>
@@ -286,14 +318,14 @@ export default function RequestDetailsTab() {
                   <td colSpan="9" className="p-8 text-center text-text-muted">
                     <div className="flex items-center justify-center gap-2">
                       <span className="material-symbols-outlined animate-spin text-xl">progress_activity</span>
-                      Loading...
+                      Đang tải…
                     </div>
                   </td>
                 </tr>
               ) : details.length === 0 ? (
                 <tr>
                   <td colSpan="9" className="p-8 text-center text-text-muted">
-                    No request details found
+                    Không có chi tiết request nào
                   </td>
                 </tr>
               ) : (
@@ -363,7 +395,7 @@ export default function RequestDetailsTab() {
       <Drawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
-        title="Request Details"
+        title="Chi tiết request"
         width="lg"
       >
         {selectedDetail && (
@@ -443,7 +475,7 @@ export default function RequestDetailsTab() {
                       ? "bg-green-500/15 text-green-600"
                       : "bg-amber-500/15 text-amber-600"
                   )}>
-                    {selectedDetail.pxpipe.applied ? "Activated" : "Skipped"}
+                    {selectedDetail.pxpipe.applied ? "Đã áp dụng" : "Bỏ qua"}
                   </span>
                 </div>
                 {selectedDetail.pxpipe.applied ? (
@@ -457,11 +489,11 @@ export default function RequestDetailsTab() {
                       <span className="font-mono">{(selectedDetail.pxpipe.tokensAfterEst || 0).toLocaleString()} tokens</span>
                     </div>
                     <div>
-                      <span className="text-text-muted block text-xs">Saved</span>
+                      <span className="text-text-muted block text-xs">Tiết kiệm</span>
                       <span className="font-mono text-green-600">{selectedDetail.pxpipe.savedPct || 0}%</span>
                     </div>
                     <div>
-                      <span className="text-text-muted block text-xs">Images</span>
+                      <span className="text-text-muted block text-xs">Ảnh</span>
                       <span className="font-mono">{selectedDetail.pxpipe.imageCount || 0} ({selectedDetail.pxpipe.durationMs || 0}ms)</span>
                     </div>
                   </div>
@@ -517,7 +549,7 @@ export default function RequestDetailsTab() {
                   Content
                 </h4>
                 <pre className="max-h-[300px] max-w-full overflow-auto rounded-lg border border-black/5 bg-black/5 p-3 font-mono text-xs text-text-main dark:border-white/5 dark:bg-white/5 sm:p-4">
-                  {selectedDetail.response?.content || "[No content]"}
+                  {selectedDetail.response?.content || "[Không có nội dung]"}
                 </pre>
               </CollapsibleSection>
             </div>

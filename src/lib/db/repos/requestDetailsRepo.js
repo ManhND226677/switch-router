@@ -194,6 +194,19 @@ export async function getRequestDetails(filter = {}) {
   if (filter.provider) { conds.push("provider = ?"); params.push(filter.provider); }
   if (filter.model) { conds.push("model = ?"); params.push(filter.model); }
   if (filter.connectionId) { conds.push("connectionId = ?"); params.push(filter.connectionId); }
+  if (filter.keyId) {
+    // Lọc theo virtual key: usageHistory/requestDetails lưu fingerprint
+    // (xem helpers/apiKeyPrivacy.js), so cả raw cho dữ liệu cũ.
+    const { getApiKeyById } = await import("./apiKeysRepo.js");
+    const { fingerprintApiKey } = await import("../helpers/apiKeyPrivacy.js");
+    const keyRow = await getApiKeyById(String(filter.keyId));
+    if (keyRow?.key) {
+      conds.push("(apiKey = ? OR apiKey = ?)");
+      params.push(fingerprintApiKey(keyRow.key), keyRow.key);
+    } else {
+      conds.push("0 = 1");
+    }
+  }
   // Status vocabulary differs by writer: usageHistory stores "ok"
   // (src/lib/db/repos/usageRepo.js) while requestDetails stores "success"
   // (open-sse/handlers/chatCore/*Handler.js). A UI filtering for one term would

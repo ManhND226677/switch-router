@@ -1,30 +1,73 @@
 # Switch-Router
 
-Switch-Router is a local-first, single-user AI gateway and Web dashboard. It exposes one OpenAI-compatible API while routing requests across configured providers, models, accounts, and combos.
+Switch-Router is a local-first, single-user AI gateway and Web dashboard. It exposes one OpenAI-compatible API (`/v1`) while routing requests across configured providers, models, accounts, and combos — with format translation, multi-account fallback, token refresh, quota tracking, and a SQLite persistence layer. Default port: `28701`.
 
-The runtime retains mature provider and translation work from the upstream codebase, but this project is maintained as Switch-Router. The default Web port is `28701`.
+## Features
 
-## Start
+- **One gateway surface** — `/v1/chat/completions`, `/v1/messages` (Anthropic-compatible), `/v1/responses`, plus an isolated `/office/v1` namespace for Claude for M365.
+- **Virtual API keys** — per-key model allowlist, monthly USD budget, RPM rate limit, expiry, and last-used tracking.
+- **Combos & fallback** — ordered model fallback or round-robin across providers and accounts.
+- **Local-only dashboard** — loopback-gated, no password/OIDC login; gateway auth stays separate.
+- **SQLite storage** — driver chain `bun:sqlite` → `better-sqlite3` → `node:sqlite` → `sql.js` (pure-JS fallback always works).
+
+## Requirements
+
+| Tool | Version |
+|------|---------|
+| Node.js | **≥ 24** (required, see `package.json` `engines`) |
+| npm | bundled with Node |
+| Bun *(optional)* | only for the `*:bun` script variants |
+| Python + `fonttools`/`brotli` *(optional)* | only to regenerate the icon font subset |
+
+Windows, macOS, and Linux are supported. Windows gets an optional tray launcher (see below).
+
+## Installation
 
 ```bash
+# 1. Clone
+git clone https://github.com/ManhND226677/switch-router.git
+cd switch-router
+
+# 2. Configure environment
+cp .env.example .env        # Windows PowerShell: Copy-Item .env.example .env
+
+# 3. Install dependencies
 npm install
+```
+
+`.env` is optional for local use — sensible defaults apply when absent. See `.env.example` for the full contract (`API_KEY_SECRET`, outbound proxy settings, …). Never commit your `.env`.
+
+## Running
+
+Development (dashboard + hot reload):
+
+```bash
 npm run dev
 ```
 
-Open the dashboard at:
+Production:
+
+```bash
+npm run build
+npm start                   # custom-server.js — required for correct client-IP handling
+```
+
+Bun variants: `npm run dev:bun`, `npm run build:bun`, `npm run start:bun`.
+
+Then open the dashboard:
 
 ```text
 http://127.0.0.1:28701/dashboard
 ```
 
-Production build:
+The server binds to `127.0.0.1` by default. Set `HOSTNAME`/`PORT` explicitly only when a different local runtime is required. Always start through `npm start` (not bare `next start`): `custom-server.js` derives the client IP from the TCP socket and strips spoofable `X-Forwarded-For` headers, which the local-only guard relies on.
 
-```bash
-npm run build
-npm start
-```
+### First-run checklist
 
-The server binds to `127.0.0.1` by default. Set `HOSTNAME` and `PORT` explicitly only when a different local runtime is required.
+1. Open `/dashboard` — it is reachable from this machine only.
+2. Add a provider (API key or OAuth) under **Providers**.
+3. Optionally create models aliases/combos under **Combos**.
+4. If you want to require API keys on the gateway, enable it in settings and create keys — regular keys under **Keys**, policy-limited virtual keys (allowlist / budget / RPM / expiry) under **Virtual Keys**.
 
 ## API
 
@@ -37,12 +80,13 @@ http://127.0.0.1:28701/v1
 Main endpoints:
 
 ```text
-POST /v1/chat/completions
-POST /v1/messages
+POST /v1/chat/completions     # OpenAI-compatible chat
+POST /v1/messages             # Anthropic Messages-compatible
+POST /v1/responses            # Responses API (Codex CLI: base_url <origin>/v1)
 GET  /v1/models
 ```
 
-API-key enforcement is optional for trusted loopback use. When enabled, send `Authorization: Bearer <key>`.
+API-key enforcement is optional for trusted loopback use. When enabled, send `Authorization: Bearer <key>` (or `x-api-key`). Virtual-key policies (expiry, allowlist, budget, RPM) are enforced on every request that presents a valid key.
 
 Claude for M365 gateway (disabled by default):
 
@@ -51,91 +95,71 @@ GET  /office/v1/models
 POST /office/v1/messages
 ```
 
-Set `OFFICE_GATEWAY_ENABLED=true` and configure Claude for M365 with the HTTPS
-base URL of a reverse proxy, `gateway_api_format=anthropic`, and a dedicated
-Switch-Router API key. The Office namespace requires that key even when the
-global loopback API-key setting is disabled. `OFFICE_MODEL_IDS` can restrict
-the Office model catalog to exact IDs.
+Set `OFFICE_GATEWAY_ENABLED=true` and configure Claude for M365 with the HTTPS base URL of a reverse proxy, `gateway_api_format=anthropic`, and a dedicated Switch-Router API key. The Office namespace requires that key even when global API-key enforcement is disabled. `OFFICE_MODEL_IDS` can restrict the Office catalog to exact IDs.
 
-See [docs/CLAUDE-OFFICE.vi.md](docs/CLAUDE-OFFICE.vi.md) for the isolated
-HTTPS reverse-proxy and Claude for M365 manifest setup.
-
-## Model discovery
+### Model discovery
 
 ```bash
 curl http://127.0.0.1:28701/v1/models
 ```
 
-Use a returned model id in requests. Combos and model aliases are managed from the dashboard.
+Use a returned model id in requests. Combos and aliases are managed from the dashboard.
 
-## Model Selection And Fallback
+## Model selection & fallback
 
 - Direct model ids use `provider/model`.
-- Combos provide ordered model fallback or round-robin behavior.
-- Account-level fallback, provider selection, and token refresh are handled by the account selection core.
-- Streaming chat responses use SSE and preserve the selected client format.
+- Combos provide ordered fallback or round-robin across models/accounts.
+- Account-level fallback, provider selection, and token refresh are handled by the routing core.
+- Streaming responses use SSE and preserve the selected client format.
 
 ## CLI-tool integrations
 
-The Web dashboard retains local CLI-tool configuration and auto-import integrations for Claude, OpenClaw, Codex, OpenCode, Cowork, and Hermes. The project does not ship a separate CLI launcher package.
+The dashboard configures local CLI tools (Claude, OpenClaw, Codex, OpenCode, Cowork, Hermes) and can auto-import their credentials. Existing external configuration keys named `9router` are preserved so applying Switch-Router settings does not invalidate existing tool files.
 
-Existing external tool configuration keys named `9router` are preserved so applying Switch-Router settings does not invalidate existing tool files.
-
-## Windows tray and auto-start
-
-Optional Windows-only launcher scripts under `scripts/windows/`. They wrap the same `npm start` runtime — no service, no Scheduled Task, no change to `HOSTNAME`, `PORT`, or any endpoint.
+## Windows tray & auto-start (optional)
 
 ```bash
 npm run icon              # regenerate public/icons/switch-router.ico
-npm run tray              # tray icon + start the server (console stays attached)
+npm run tray              # tray icon + start the server (console attached)
 npm run tray:hidden       # tray icon only, no console window
-npm run autostart         # add Startup shortcut for the CURRENT user
+npm run autostart         # Startup shortcut for the CURRENT user
 npm run autostart:status  # report enabled/disabled
 npm run autostart:remove  # delete the Startup shortcut
 ```
 
-Tray menu: open dashboard, copy base URL, start/stop/restart the server, open the
-logs folder, and toggle auto-start. Stop/restart only target node processes that
-belong to this checkout; a foreign listener on the port is reported, never killed.
-`PORT`/`HOSTNAME` are read from `.env.local`, then `.env`, exactly like `custom-server.js`.
+Stop/restart from the tray only targets node processes belonging to this checkout; a foreign listener on the port is reported, never killed. See [docs/WINDOWS-TRAY.md](docs/WINDOWS-TRAY.md).
 
-Auto-start creates one per-user shortcut:
+## Data & credentials
 
-```text
-%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\Switch-Router.lnk
+State lives in SQLite at `DATA_DIR/db/data.sqlite` (legacy installs fall back to `~/.9router/`). Provider credentials never leave the machine. Gateway API keys are stored fingerprinted in usage records; raw keys are never exported. Backups are taken automatically before schema migrations (see `src/lib/db/backup.js`).
+
+## Development
+
+```bash
+npm install                     # root deps first
+cd tests && npm install         # vitest lives in an independent ESM package
+npx vitest run                  # full suite (from tests/)
+npx eslint .                    # lint
+node scripts/qa-provider-drift.mjs
 ```
 
-See [docs/WINDOWS-TRAY.md](docs/WINDOWS-TRAY.md) for details and troubleshooting.
-
-## Data and credentials
-
-State is stored in SQLite under `DATA_DIR/db/data.sqlite`. Provider API keys and OAuth credentials remain local. New installations use the Switch-Router data directory; an existing `.9router` directory is reused automatically when no new directory exists.
+Regression gates compare against committed snapshots under `tests/__baseline__/`. See [docs/QA-WORKFLOW.md](docs/QA-WORKFLOW.md). Engine conventions (adding providers/translators) are documented in [`open-sse/AGENTS.md`](open-sse/AGENTS.md).
 
 ## Architecture
 
-- `src/app/api/v1/*`: compatibility API routes.
-- `src/sse/handlers/*`: request validation, combo orchestration, credential fallback, and chat streaming.
-- `src/core/routing/*`: account fallback and provider selection policy.
-- `src/core/providers/*`: stable boundary to provider executors.
-- `open-sse/*`: provider adapters, translation, streaming, and response normalization.
-- `src/lib/*`: local database, credentials, usage, settings, and runtime paths.
+- `src/app/api/v1/*` — Next.js route handlers behind the `/v1` rewrite.
+- `src/sse/handlers/*` — request validation, combo orchestration, credential/key-policy enforcement.
+- `src/core/routing/*` — account fallback and provider-selection policy.
+- `open-sse/*` — provider adapters, translation engine, streaming, normalization (usable standalone).
+- `src/lib/db/*` — SQLite layer: driver chain, migrations, repos.
 
-See [docs/SWITCH-ROUTER.md](docs/SWITCH-ROUTER.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the detailed request flow and model selection behavior.
+Full request flow and data model: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-## Verification
+## Security model
 
-```bash
-npm run build
-npm start
-```
-
-Then verify `http://127.0.0.1:28701/dashboard` and `/v1/models`.
-
-Windows launcher self-check (no UI, starts/stops nothing):
-
-```bash
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/tray.ps1 -SelfTest
-```
+- Dashboard and management APIs are **loopback-only**, enforced via the TCP-derived peer IP stamped by `custom-server.js`; forwarding headers from non-loopback sources are stripped.
+- `/v1/*` is the single public gateway surface and uses its own API-key/CLI-token auth.
+- Local-only routes additionally require the machine's CLI token (`x-9r-cli-token`), value-verified against the host.
 
 ## License
 

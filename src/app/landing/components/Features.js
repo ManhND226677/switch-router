@@ -3,8 +3,8 @@
 const FEATURES = [
   { 
     icon: "link", 
-    title: "Unified Endpoint", 
-    desc: "Access all providers via a single standard API URL.", 
+    title: "Điểm cuối thống nhất", 
+    desc: "Truy cập mọi nhà cung cấp qua một URL API duy nhất.", 
     colors: {
       border: "hover:border-blue-500/50",
       bg: "hover:bg-blue-500/5",
@@ -15,8 +15,8 @@ const FEATURES = [
   },
   { 
     icon: "bolt", 
-    title: "Easy Setup", 
-    desc: "Get up and running in minutes with npx command.", 
+    title: "Cài đặt nhanh", 
+    desc: "Vận hành trong vài phút với lệnh npm cơ bản.", 
     colors: {
       border: "hover:border-orange-500/50",
       bg: "hover:bg-orange-500/5",
@@ -27,8 +27,8 @@ const FEATURES = [
   },
   { 
     icon: "shield_with_heart", 
-    title: "Model Fallback", 
-    desc: "Automatically switch providers on failure or high latency.", 
+    title: "Dự phòng mô hình", 
+    desc: "Tự động chuyển nhà cung cấp khi lỗi hoặc độ trễ cao.", 
     colors: {
       border: "hover:border-rose-500/50",
       bg: "hover:bg-rose-500/5",
@@ -39,8 +39,8 @@ const FEATURES = [
   },
   { 
     icon: "monitoring", 
-    title: "Usage Tracking", 
-    desc: "Detailed analytics and cost monitoring across all models.", 
+    title: "Theo dõi sử dụng", 
+    desc: "Phân tích chi tiết và giám sát chi phí trên tất cả mô hình.", 
     colors: {
       border: "hover:border-purple-500/50",
       bg: "hover:bg-purple-500/5",
@@ -51,8 +51,8 @@ const FEATURES = [
   },
   { 
     icon: "key", 
-    title: "OAuth & API Keys", 
-    desc: "Securely manage credentials in one vault.", 
+    title: "OAuth & Khóa API", 
+    desc: "Quản lý credential an toàn tại một kho bảo mật.", 
     colors: {
       border: "hover:border-amber-500/50",
       bg: "hover:bg-amber-500/5",
@@ -63,8 +63,8 @@ const FEATURES = [
   },
   { 
     icon: "database", 
-    title: "Local Persistence", 
-    desc: "Keep providers, routing rules and usage data on this machine.", 
+    title: "Lưu cục bộ", 
+    desc: "Lưu nhà cung cấp, quy tắc định tuyến và dữ liệu sử dụng trên máy này.", 
     colors: {
       border: "hover:border-sky-500/50",
       bg: "hover:bg-sky-500/5",
@@ -75,8 +75,8 @@ const FEATURES = [
   },
   { 
     icon: "terminal", 
-    title: "CLI Support", 
-    desc: "Works with Claude Code, Codex, Open Claw, OpenCode, Cowork, and Hermes.",
+    title: "Hỗ trợ CLI", 
+    desc: "Hoạt động với Claude Code, Codex, Open Claw, OpenCode, Cowork và Hermes.", 
     colors: {
       border: "hover:border-emerald-500/50",
       bg: "hover:bg-emerald-500/5",
@@ -87,8 +87,8 @@ const FEATURES = [
   },
   { 
     icon: "dashboard", 
-    title: "Dashboard", 
-    desc: "Visual dashboard for real-time traffic analysis.", 
+    title: "Bảng điều khiển", 
+    desc: "Dashboard trực quan để theo dõi lưu lượng theo thời gian thực.", 
     colors: {
       border: "hover:border-fuchsia-500/50",
       bg: "hover:bg-fuchsia-500/5",
@@ -104,9 +104,9 @@ export default function Features() {
     <section className="py-24 px-6" id="features">
       <div className="max-w-7xl mx-auto">
         <div className="mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Powerful Features</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Tính năng nổi bật</h2>
           <p className="text-gray-400 max-w-xl text-lg">
-            Everything you need to manage your AI infrastructure in one place, built for scale.
+            Mọi thứ bạn cần để quản lý hạ tầng AI tại một nơi, sẵn sàng mở rộng.
           </p>
         </div>
         

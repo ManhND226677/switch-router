@@ -4,8 +4,6 @@ import path from "node:path";
 
 import {
   ENDPOINT_GROUPS,
-  SNIPPET_TABS,
-  buildSnippet,
 } from "../../src/app/(dashboard)/dashboard/endpoint/endpointConstants.js";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "..", "..");
@@ -47,13 +45,14 @@ describe("endpoint catalog", () => {
 
   it("keeps a catalog entry for each client-facing rewrite family", () => {
     const advertised = ENDPOINT_GROUPS.map((group) => group.path);
-    // Guards against the catalog silently losing a surface during a refactor.
-    expect(advertised).toContain("/v1");
-    expect(advertised).toContain("/v1/messages");
-    expect(advertised).toContain("/v1beta");
-    expect(advertised).toContain("/codex");
-    expect(advertised).toContain("/v1/v1");
-    expect(advertised).toContain("/office/v1");
+    // Since 0.10.0 the gateway serves ONE public surface (/v1); the catalog
+    // splits it into OpenAI-compatible and Anthropic rows plus the Office
+    // namespace. Guards against silently losing or re-adding a surface.
+    expect(advertised).toEqual(["/v1", "/v1/messages", "/office/v1"]);
+    expect(advertised).not.toContain("/v1beta");
+    expect(advertised).not.toContain("/codex");
+    // The /v1/v1 double-prefix compat surface was removed in 0.9.0.
+    expect(advertised).not.toContain("/v1/v1");
   });
 
   it("hides the Office group behind its feature flag", () => {
@@ -67,30 +66,5 @@ describe("endpoint catalog", () => {
   });
 });
 
-describe("quick-start snippets", () => {
-  it("uses the placeholder when no key is chosen", () => {
-    for (const tab of SNIPPET_TABS) {
-      const snippet = buildSnippet(tab.value, ORIGIN);
-      expect(snippet).toContain("<YOUR_API_KEY>");
-      expect(snippet).not.toContain("sk-");
-    }
-  });
-
-  it("inlines a real key only when one is passed", () => {
-    const snippet = buildSnippet("curl", ORIGIN, "sk-test-123");
-    expect(snippet).toContain("sk-test-123");
-    expect(snippet).not.toContain("<YOUR_API_KEY>");
-  });
-
-  it("points OpenAI clients at /v1 and Anthropic clients at the origin", () => {
-    expect(buildSnippet("openai", ORIGIN)).toContain(`base_url="${ORIGIN}/v1"`);
-    // The Anthropic SDK appends /v1/messages itself, so its base must be the origin.
-    expect(buildSnippet("anthropic", ORIGIN)).toContain(`base_url="${ORIGIN}"`);
-  });
-
-  it("emits both env var families", () => {
-    const env = buildSnippet("env", ORIGIN);
-    expect(env).toContain(`OPENAI_BASE_URL=${ORIGIN}/v1`);
-    expect(env).toContain(`ANTHROPIC_BASE_URL=${ORIGIN}`);
-  });
-});
+// NOTE: the quick-start snippet builder + SNIPPET_TABS were removed along with
+// the QuickStartCard (redundant with Base URLs) — no snippet tests remain.

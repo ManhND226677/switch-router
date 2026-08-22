@@ -532,6 +532,19 @@ export async function getUsageHistory(filter = {}) {
 
   if (filter.provider) { conds.push("provider = ?"); params.push(filter.provider); }
   if (filter.model) { conds.push("model = ?"); params.push(filter.model); }
+  if (filter.keyId) {
+    // Lọc theo virtual key: usageHistory lưu fingerprint của raw key
+    // (xem helpers/apiKeyPrivacy.js), so cả raw cho dữ liệu cũ.
+    const { getApiKeyById } = await import("./apiKeysRepo.js");
+    const { fingerprintApiKey } = await import("../helpers/apiKeyPrivacy.js");
+    const keyRow = await getApiKeyById(String(filter.keyId));
+    if (keyRow?.key) {
+      conds.push("(apiKey = ? OR apiKey = ?)");
+      params.push(fingerprintApiKey(keyRow.key), keyRow.key);
+    } else {
+      conds.push("0 = 1");
+    }
+  }
   if (filter.startDate) {
     const iso = toValidDateIso(filter.startDate);
     if (iso) { conds.push("timestamp >= ?"); params.push(iso); }
@@ -558,6 +571,17 @@ export async function getUsageHistoryPage(filter = {}, { limit = 100, cursor = n
 
   if (filter.provider) { conds.push("provider = ?"); params.push(filter.provider); }
   if (filter.model) { conds.push("model = ?"); params.push(filter.model); }
+  if (filter.keyId) {
+    const { getApiKeyById } = await import("./apiKeysRepo.js");
+    const { fingerprintApiKey } = await import("../helpers/apiKeyPrivacy.js");
+    const keyRow = await getApiKeyById(String(filter.keyId));
+    if (keyRow?.key) {
+      conds.push("(apiKey = ? OR apiKey = ?)");
+      params.push(fingerprintApiKey(keyRow.key), keyRow.key);
+    } else {
+      conds.push("0 = 1");
+    }
+  }
   if (filter.startDate) {
     const iso = toValidDateIso(filter.startDate);
     if (iso) { conds.push("timestamp >= ?"); params.push(iso); }
@@ -644,6 +668,7 @@ async function calculateUsageStats(period = "all") {
     if (period === "7d") return nowMs - 7 * 86400000;
     if (period === "30d") return nowMs - 30 * 86400000;
     if (period === "60d") return nowMs - 60 * 86400000;
+    if (period === "90d") return nowMs - 90 * 86400000;
     return 0;
   })();
   let avgLatencyMs = 0;
@@ -692,6 +717,34 @@ async function calculateUsageStats(period = "all") {
     errorProvider: (Date.now() - lastErrorProvider.ts < 10000) ? lastErrorProvider.provider : "",
   };
 
+  // Success rate over the same window the KPI cards show. usageHistory only
+  // stores failures (successes are the default "ok"), so failed = rows whose
+  // status is neither ok nor success. Cheap COUNT with a covering timestamp
+  // index; fail-open to null so the UI hides the badge on any query error.
+  try {
+    const nowD = new Date();
+    let startIso = null;
+    if (period === "today") {
+      const sd = new Date(); sd.setHours(0, 0, 0, 0); startIso = sd.toISOString();
+    } else if (period === "24h") startIso = new Date(nowD.getTime() - 24 * 3600000).toISOString();
+    else if (period === "7d") startIso = new Date(nowD.getTime() - 7 * 86400000).toISOString();
+    else if (period === "30d") startIso = new Date(nowD.getTime() - 30 * 86400000).toISOString();
+    else if (period === "60d") startIso = new Date(nowD.getTime() - 60 * 86400000).toISOString();
+    else if (period === "90d") startIso = new Date(nowD.getTime() - 90 * 86400000).toISOString();
+
+    const statusRow = startIso
+      ? db.get(`SELECT COUNT(*) AS total, SUM(CASE WHEN status IN ('ok','success') THEN 1 ELSE 0 END) AS ok FROM usageHistory WHERE timestamp >= ?`, [startIso])
+      : db.get(`SELECT COUNT(*) AS total, SUM(CASE WHEN status IN ('ok','success') THEN 1 ELSE 0 END) AS ok FROM usageHistory`);
+    const total = Number(statusRow?.total) || 0;
+    const okCount = Number(statusRow?.ok) || 0;
+    stats.successRate = total > 0 ? Math.round((okCount / total) * 1000) / 10 : null;
+    stats.totalFailed = total - okCount;
+  } catch (e) {
+    console.warn("[usageRepo] successRate query failed:", e.message);
+    stats.successRate = null;
+    stats.totalFailed = null;
+  }
+
   // Active requests
   for (const [connectionId, models] of Object.entries(pendingRequests.byAccount)) {
     for (const [modelKey, count] of Object.entries(models)) {
@@ -736,7 +789,7 @@ async function calculateUsageStats(period = "all") {
   const dailyLastUsedReady = useDailySummary ? await ensureDailyLastUsed(db) : false;
 
   if (useDailySummary) {
-    const periodDays = { "7d": 7, "30d": 30, "60d": 60 };
+    const periodDays = { "7d": 7, "30d": 30, "60d": 60, "90d": 90 };
     const maxDays = periodDays[period] || null;
     const dayRows = loadDaysInRange(db, maxDays);
 
@@ -996,7 +1049,7 @@ async function calculateChartData(period = "7d") {
     const startTime = startOfDay.getTime();
     const endTime = startTime + bucketCount * bucketMs;
     const labelFn = (ts) => new Date(ts).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
-    const buckets = Array.from({ length: bucketCount }, (_, i) => ({ label: labelFn(startTime + i * bucketMs), tokens: 0, cost: 0 }));
+    const buckets = Array.from({ length: bucketCount }, (_, i) => ({ label: labelFn(startTime + i * bucketMs), tokens: 0, cost: 0, requests: 0 }));
 
     const rows = db.all(
       `SELECT timestamp, promptTokens, completionTokens, cost FROM usageHistory WHERE timestamp >= ?`,
@@ -1009,6 +1062,7 @@ async function calculateChartData(period = "7d") {
       if (idx >= 0 && idx < bucketCount) {
         buckets[idx].tokens += (r.promptTokens || 0) + (r.completionTokens || 0);
         buckets[idx].cost += r.cost || 0;
+        buckets[idx].requests += 1;
       }
     }
     return buckets;
@@ -1019,7 +1073,7 @@ async function calculateChartData(period = "7d") {
     const bucketMs = 3600000;
     const labelFn = (ts) => new Date(ts).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
     const startTime = now - bucketCount * bucketMs;
-    const buckets = Array.from({ length: bucketCount }, (_, i) => ({ label: labelFn(startTime + i * bucketMs), tokens: 0, cost: 0 }));
+    const buckets = Array.from({ length: bucketCount }, (_, i) => ({ label: labelFn(startTime + i * bucketMs), tokens: 0, cost: 0, requests: 0 }));
 
     const rows = db.all(
       `SELECT timestamp, promptTokens, completionTokens, cost FROM usageHistory WHERE timestamp >= ?`,
@@ -1031,11 +1085,12 @@ async function calculateChartData(period = "7d") {
       const idx = Math.min(Math.floor((t - startTime) / bucketMs), bucketCount - 1);
       buckets[idx].tokens += (r.promptTokens || 0) + (r.completionTokens || 0);
       buckets[idx].cost += r.cost || 0;
+      buckets[idx].requests += 1;
     }
     return buckets;
   }
 
-  const bucketCount = period === "7d" ? 7 : period === "30d" ? 30 : 60;
+  const bucketCount = period === "7d" ? 7 : period === "30d" ? 30 : period === "90d" ? 90 : 60;
   const today = new Date();
   const labelFn = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
@@ -1049,10 +1104,17 @@ async function calculateChartData(period = "7d") {
     d.setDate(d.getDate() - (bucketCount - 1 - i));
     const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     const dayData = dayMap[dateKey];
+    // requests per day = sum over byProvider entries (daily rollup keeps no
+    // top-level request counter; byProvider always exists for non-empty days)
+    let requests = 0;
+    if (dayData) {
+      for (const p of Object.values(dayData.byProvider || {})) requests += p.requests || 0;
+    }
     return {
       label: labelFn(d),
       tokens: dayData ? (dayData.promptTokens || 0) + (dayData.completionTokens || 0) : 0,
       cost: dayData ? (dayData.cost || 0) : 0,
+      requests,
     };
   });
 }

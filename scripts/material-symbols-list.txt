@@ -7,6 +7,7 @@ arrow_forward
 arrow_upward
 assistant
 auto_awesome
+av_timer
 balance
 bar_chart
 block
@@ -62,6 +63,7 @@ http
 hub
 image
 info
+insights
 input
 key
 keyboard_arrow_down
@@ -93,7 +95,9 @@ pause_circle
 payments
 pending
 play_arrow
+play_circle
 playlist_add
+receipt_long
 poll
 pool
 power_settings_new

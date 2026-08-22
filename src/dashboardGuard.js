@@ -27,7 +27,11 @@ const PUBLIC_API_PATHS = [
 ];
 
 // Public top-level prefixes (LLM API endpoints with their own API key auth).
-const PUBLIC_PREFIXES = ["/v1", "/v1beta", "/api/v1", "/api/v1beta", "/codex"];
+// NOTE: /v1 is the ONE public gateway surface since 0.10.0 — the /codex,
+// /responses and /v1beta client surfaces were removed (rewrites gone from
+// next.config.mjs, /api/v1beta routes deleted). Codex CLI talks Responses API
+// through <origin>/v1/responses; Gemini-native clients must use /v1 instead.
+const PUBLIC_PREFIXES = ["/v1"];
 
 // Host-secret and process-control routes remain local/CLI-token protected.
 const ALWAYS_PROTECTED = [

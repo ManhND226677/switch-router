@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Switch-Router system tray launcher (Windows only).
 
@@ -86,74 +86,74 @@ $script:TrayIcon.Visible = $true
 
 $menu = New-Object System.Windows.Forms.ContextMenuStrip
 
-$statusItem = $menu.Items.Add('Checking status...')
+$statusItem = $menu.Items.Add('Đang kiểm tra trạng thái...')
 $statusItem.Enabled = $false
 $menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator)) | Out-Null
 
-$openItem = $menu.Items.Add('Open dashboard')
+$openItem = $menu.Items.Add('Mở dashboard')
 $openItem.add_Click({ Start-Process $runtime.DashboardUrl })
 
-$copyItem = $menu.Items.Add('Copy base URL')
+$copyItem = $menu.Items.Add('Sao chép base URL')
 $copyItem.add_Click({
     Set-Clipboard -Value $runtime.BaseUrl
-    Show-Balloon -Text ("Copied " + $runtime.BaseUrl)
+    Show-Balloon -Text ("Đã sao chép " + $runtime.BaseUrl)
 })
 
 $menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator)) | Out-Null
 
-$startItem = $menu.Items.Add('Start server')
+$startItem = $menu.Items.Add('Khởi động server')
 $startItem.add_Click({
     $result = Start-Router
     switch ($result.Reason) {
-        'started'         { Show-Balloon -Text ("Starting Switch-Router on " + $runtime.BaseUrl) }
-        'already-running' { Show-Balloon -Text 'Server is already running.' }
-        'build-missing'   { Show-Balloon -Text 'Standalone build not found. Run `npm run build` first.' -Level Warning }
+        'started'         { Show-Balloon -Text ("Đang khởi động Switch-Router tại " + $runtime.BaseUrl) }
+        'already-running' { Show-Balloon -Text 'Server đang chạy sẵn rồi.' }
+        'build-missing'   { Show-Balloon -Text 'Chưa có bản build standalone. Hãy chạy `npm run build` trước.' -Level Warning }
     }
 })
 
-$stopItem = $menu.Items.Add('Stop server')
+$stopItem = $menu.Items.Add('Dừng server')
 $stopItem.add_Click({
     $result = Stop-Router
     if ($result.StoppedPids.Count) {
-        Show-Balloon -Text ("Stopped PID " + ($result.StoppedPids -join ', '))
+        Show-Balloon -Text ("Đã dừng PID " + ($result.StoppedPids -join ', '))
     } elseif ($result.ForeignListener) {
-        Show-Balloon -Text ("Port " + $runtime.Port + " is held by PID " + $result.ForeignListener + ", which is not this checkout. Left untouched.") -Level Warning
+        Show-Balloon -Text ("Cổng " + $runtime.Port + " đang bị PID " + $result.ForeignListener + " giữ, không thuộc checkout này. Không đụng vào.") -Level Warning
     } else {
-        Show-Balloon -Text 'No Switch-Router process from this folder is running.' -Level Warning
+        Show-Balloon -Text 'Không có tiến trình Switch-Router nào từ thư mục này đang chạy.' -Level Warning
     }
 })
 
-$restartItem = $menu.Items.Add('Restart server')
+$restartItem = $menu.Items.Add('Khởi động lại server')
 $restartItem.add_Click({
     $result = Restart-Router
-    if ($result.Started) { Show-Balloon -Text 'Switch-Router restarting...' }
-    else { Show-Balloon -Text ("Restart skipped: " + $result.Reason) -Level Warning }
+    if ($result.Started) { Show-Balloon -Text 'Switch-Router đang khởi động lại...' }
+    else { Show-Balloon -Text ("Bỏ qua khởi động lại: " + $result.Reason) -Level Warning }
 })
 
 $menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator)) | Out-Null
 
-$logsItem = $menu.Items.Add('Open logs folder')
+$logsItem = $menu.Items.Add('Mở thư mục log')
 $logsItem.add_Click({
     New-Item -ItemType Directory -Path $runtime.LogDir -Force | Out-Null
     Start-Process explorer.exe $runtime.LogDir
 })
 
-$autostartItem = $menu.Items.Add('Start with Windows')
+$autostartItem = $menu.Items.Add('Chạy cùng Windows')
 $autostartItem.add_Click({
     $enabled = Set-RouterAutostart -Enabled (-not (Test-RouterAutostartEnabled))
-    if ($enabled) { Show-Balloon -Text 'Auto-start enabled for the current Windows user.' }
-    else { Show-Balloon -Text 'Auto-start disabled.' }
+    if ($enabled) { Show-Balloon -Text 'Đã bật tự khởi động cho user Windows hiện tại.' }
+    else { Show-Balloon -Text 'Đã tắt tự khởi động.' }
 })
 
 $menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator)) | Out-Null
 
-$hideItem = $menu.Items.Add('Exit tray (keep server running)')
+$hideItem = $menu.Items.Add('Thoát tray (giữ server chạy)')
 $hideItem.add_Click({
     $script:TrayIcon.Visible = $false
     [System.Windows.Forms.Application]::Exit()
 })
 
-$quitItem = $menu.Items.Add('Quit server and tray')
+$quitItem = $menu.Items.Add('Tắt cả server và tray')
 $quitItem.add_Click({
     Stop-Router | Out-Null
     $script:TrayIcon.Visible = $false
@@ -167,7 +167,7 @@ $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 4000
 $timer.add_Tick({
     $status = Get-RouterStatus
-    $statusItem.Text = "Status: " + $status.State + "  (" + $runtime.BaseUrl + ")"
+    $statusItem.Text = "Trạng thái: " + $status.State + "  (" + $runtime.BaseUrl + ")"
     $script:TrayIcon.Text = "Switch-Router - " + $status.State
     $startItem.Enabled = -not $status.Running
     $stopItem.Enabled = $status.Running
@@ -178,8 +178,8 @@ $timer.Start()
 
 if (-not $NoStart) {
     $initial = Start-Router
-    if ($initial.Started) { Show-Balloon -Text ("Starting Switch-Router on " + $runtime.BaseUrl) }
-    elseif ($initial.Reason -eq 'build-missing') { Show-Balloon -Text 'Standalone build not found. Run `npm run build` first.' -Level Warning }
+    if ($initial.Started) { Show-Balloon -Text ("Đang khởi động Switch-Router tại " + $runtime.BaseUrl) }
+    elseif ($initial.Reason -eq 'build-missing') { Show-Balloon -Text 'Chưa có bản build standalone. Hãy chạy `npm run build` trước.' -Level Warning }
 }
 
 try {
