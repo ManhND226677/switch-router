@@ -8,7 +8,7 @@ Switch-Router (`switch-router-app`) — a local AI routing gateway + Next.js das
 
 This repository contains one runtime artifact: the Web dashboard and gateway in the root `package.json`. The project does not ship a separate CLI launcher or tray package.
 
-**Chat-only surface:** media providers and endpoints (image/TTS/STT/embedding/video generation, web search/fetch, agent skills) were removed — the gateway serves chat (`/v1/chat/completions`, `/v1/messages`, `/v1beta`, `/codex`, `/office/v1`) only. Registry entries, executors, handlers, dashboard pages, and tests for removed providers must not be resurrected.
+**Chat-only surface:** media providers and endpoints (image/TTS/STT/embedding/video generation, web search/fetch, agent skills) were removed — the gateway serves chat (`/v1/chat/completions`, `/v1/messages`, `/v1/responses`, `/office/v1`) only. Registry entries, executors, handlers, dashboard pages, and tests for removed providers must not be resurrected.
 
 The code lives in `src/` (Next.js app + dashboard/compat APIs), `open-sse/` (the provider-agnostic routing/translation engine), and `tests/`.
 
@@ -61,7 +61,7 @@ Two authoritative docs already exist — read them before working in these areas
 ### Dashboard access model
 - The dashboard is deliberately **local-only** and does not have a password or OIDC login flow.
 - `/dashboard` and dashboard management APIs are gated by `src/dashboardGuard.js`, which trusts the TCP-derived `x-9r-real-ip` stamp from `custom-server.js` and rejects non-loopback requests.
-- Gateway authentication remains separate: `/v1/*`, `/v1beta/*`, `/codex/*`, and `/office/v1/*` use their own API-key/CLI-token semantics. Do not add dashboard authentication checks to the LLM request path.
+- Gateway authentication remains separate: `/v1/*` and `/office/v1/*` use their own API-key/CLI-token semantics. The `/codex`, `/responses` and `/v1beta` client surfaces were removed in 0.10.0 — Codex CLI uses `<origin>/v1/responses`; do not re-add separate rewrite aliases for them. Do not add dashboard authentication checks to the LLM request path.
 - Legacy `/login`, `/api/auth/login`, and OIDC routes are compatibility endpoints only; they must never create a dashboard session or call an identity provider.
 
 ### Translator engine (`open-sse/translator/`)

@@ -7,15 +7,11 @@ import { cn } from "@/shared/utils/cn";
 import { APP_CONFIG } from "@/shared/constants/config";
 
 const providerModelItems = [
-  { href: "/dashboard/endpoint", label: "Endpoint & Key", icon: "api" },
+  { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
   { href: "/dashboard/providers", label: "Providers", icon: "dns" },
   { href: "/dashboard/combos", label: "Combos", icon: "layers" },
+  { href: "/dashboard/virtual-keys", label: "Virtual Keys", icon: "vpn_key" },
   { href: "/dashboard/cli-tools", label: "CLI Tools", icon: "terminal" },
-];
-
-const observabilityItems = [
-  { href: "/dashboard/usage", label: "Usage", icon: "bar_chart" },
-  { href: "/dashboard/quota", label: "Quota Tracker", icon: "data_usage" },
 ];
 
 // Pricing is reachable from Settings (profile page) but deliberately not in
@@ -70,8 +66,8 @@ export default function Sidebar({ onClose, isMini = false }) {
   const pathname = usePathname();
 
   const isActive = (href) => {
-    if (href === "/dashboard/endpoint") {
-      return pathname === "/dashboard" || pathname.startsWith("/dashboard/endpoint");
+    if (href === "/dashboard") {
+      return pathname === "/dashboard" || pathname.startsWith("/dashboard/endpoint") || pathname.startsWith("/dashboard/usage");
     }
     return pathname.startsWith(href);
   };
@@ -116,16 +112,16 @@ export default function Sidebar({ onClose, isMini = false }) {
             ))}
           </NavSection>
 
-          <NavSection title="Observability" isMini={isMini}>
-            {observabilityItems.map((item) => (
-              <NavLink key={item.href} item={item} active={isActive(item.href)} onClose={onClose} isMini={isMini} />
-            ))}
-          </NavSection>
-
           <NavSection title="System" isMini={isMini}>
             {systemItems.map((item) => (
               <NavLink key={item.href} item={item} active={isActive(item.href)} onClose={onClose} isMini={isMini} />
             ))}
+            <NavLink
+              item={{ href: "/dashboard/quota", label: "Quota Tracker", icon: "data_usage" }}
+              active={isActive("/dashboard/quota")}
+              onClose={onClose}
+              isMini={isMini}
+            />
             <NavLink
               item={{ href: "/dashboard/profile", label: "Settings", icon: "settings" }}
               active={isActive("/dashboard/profile")}

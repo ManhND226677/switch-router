@@ -25,8 +25,6 @@ export function useTheme() {
     setTheme,
     toggleTheme,
     initTheme,
-    design,
-    setDesign,
   } = useThemeStore();
 
   useEffect(() => {
@@ -56,8 +54,6 @@ export function useTheme() {
     setTheme,
     toggleTheme,
     isDark,
-    design,
-    setDesign,
     initTheme,
   };
 }

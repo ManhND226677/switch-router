@@ -40,30 +40,12 @@ const nextConfig = {
   },
   async rewrites() {
     return [
-      {
-        source: "/v1/v1/:path*",
-        destination: "/api/v1/:path*"
-      },
-      {
-        source: "/v1/v1",
-        destination: "/api/v1"
-      },
-      {
-        source: "/codex/:path*",
-        destination: "/api/v1/responses"
-      },
-      {
-        source: "/responses",
-        destination: "/api/v1/responses"
-      },
-      {
-        source: "/v1beta/:path*",
-        destination: "/api/v1beta/:path*"
-      },
-      {
-        source: "/v1beta",
-        destination: "/api/v1beta"
-      },
+      // NOTE: the legacy /v1/v1 double-prefix compat rewrite was removed in
+      // 0.9.0 — clients must use the canonical /v1 base URL (no doubled /v1).
+      // NOTE: the /codex, /responses and /v1beta client surfaces were removed
+      // in 0.10.0 — /v1 is the ONE public gateway surface (OpenAI-compatible,
+      // Anthropic Messages and Responses API all live under /v1). Codex CLI is
+      // configured with base_url <origin>/v1 + wire_api "responses".
       {
         source: "/v1/:path*",
         destination: "/api/v1/:path*"

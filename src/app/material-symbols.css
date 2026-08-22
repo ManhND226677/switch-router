@@ -23,5 +23,7 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  font-feature-settings: "liga";
+  /* Material Symbols exposes its icon ligatures under `rlig` (required
+     ligatures), not `liga` — enabling only `liga` renders the literal text. */
+  font-feature-settings: "liga", "rlig";
 }

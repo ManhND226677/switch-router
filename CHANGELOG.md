@@ -2,6 +2,46 @@
 
 This file tracks changes for the local personal build only.
 
+## 0.10.0 - 2026-08-22
+
+### Changed
+
+- **Một surface gateway duy nhất `/v1`:** gỡ hẳn 3 surface client còn lại — xoá rewrite `/codex`, `/responses`, `/v1beta` trong `next.config.mjs` và xoá thư mục route `src/app/api/v1beta/` (Gemini generateContent native). `dashboardGuard.js` chỉ còn public prefix `/v1`; gọi `/codex` hay `/v1beta` (remote lẫn loopback) giờ nhận 404 từ Next vì surface không còn tồn tại. Riêng đường `/api/v1*` trực tiếp vẫn bị chặn 403 "local-only" từ xa như cũ.
+- **Codex CLI không đổi cách cấu hình:** trang CLI Tools vẫn ghi `base_url = <origin>/v1` + `wire_api = "responses"` vào `~/.codex/config.toml` — Codex CLI nói Responses API qua `/v1/responses` (route có sẵn), không cần alias riêng.
+- **Card Base URLs tách 2 hàng trên cùng surface `/v1`:** hàng OpenAI-compatible (chat/completions · responses · models) và hàng Anthropic Messages (`/v1/messages`, kèm cảnh báo Claude Code/SDK phải trỏ base KHÔNG kèm `/v1`) + group Office (flag riêng). Header Google (`x-goog-api-key`, `?key=`) vẫn được accept trên `/v1`.
+
+### Breaking
+
+- Client gọi Gemini-native (`/v1beta/models/{model}:generateContent`) hoặc alias cũ (`/codex`, `/responses`) phải trỏ lại về `/v1`. Connection/provider Gemini bên trong gateway **không bị ảnh hưởng** — chỉ đổi chỗ client gọi vào.
+
+## 0.9.0 - 2026-08-21
+
+### Added
+
+- **Export CSV lịch sử usage:** `GET /api/usage/export` tải toàn bộ usageHistory dưới dạng CSV (UTF-8 BOM — Excel mở tiếng Việt đúng), hỗ trợ filter `provider`, `model`, `startDate`, `endDate`; API key luôn xuất dạng masked. Nút **CSV** trên trang Usage xuất theo period đang chọn (Today/24h/7D/30D/60D).
+- **Test All Connections:** nút toàn cục trên trang Providers chạy batch test mọi connection đang bật (OAuth + Free + API key + Compatible) qua `/api/providers/test-batch` mode `all`, tái dùng modal kết quả sẵn có.
+
+### Changed
+
+- **Một bề mặt gateway duy nhất:** bỏ `/api/v1` và `/api/v1beta` khỏi danh sách public trong `dashboardGuard.js` — từ xa gọi các path rewrite này nhận 403 "local-only", loopback vẫn hoạt động. Client chỉ cần nhớ `/v1/*`, `/v1beta/*`, `/codex/*`. Self-call nội bộ (model test ping) chuyển sang `/v1/chat/completions`.
+
+## 0.8.0 - 2026-08-21
+
+### Added
+
+- **Virtual API Keys:** mỗi khóa con giờ có chính sách riêng — allowlist model/combo, ngân sách tháng (USD), giới hạn RPM (sliding window 60s) và thời hạn hiệu lực. Gateway trả 403/402/429 với thông điệp tiếng Việt khi vi phạm; lỗi hạ tầng đọc policy fail-open để không chặn chat.
+- **Trang quản lý Virtual Keys** (`/dashboard/virtual-keys`): bảng khóa với mask/reveal/copy, KPI strip kiểu workbench, dialog tạo/sửa cho phép chọn model từ `/v1/models`, key đầy đủ chỉ hiển thị đúng 1 lần lúc tạo.
+- **Analytics theo khóa:** `/api/keys` trả kèm `spentUsd` (tổng chi tiêu tháng từ usageHistory qua fingerprint); tab Request Details của trang Usage lọc được theo virtual key; thanh tiến độ ngân sách trên từng khóa.
+- **Migration 004 `api-key-policies`:** thêm cột `allowedModels`, `monthlyBudgetUsd`, `rateLimitRpm`, `expiresAt`, `lastUsedAt` vào bảng `apiKeys` (nullable — khóa cũ hoạt động như cũ). Export/import DB giữ nguyên policy.
+
+### Changed
+
+- `POST /api/keys` nhận policy lúc tạo; `PUT /api/keys/[id]` cập nhật được từng trường policy (trước đây chỉ `isActive`).
+- Sidebar nhóm Providers & Models có mục mới "Virtual Keys".
+- **Thống nhất một giao diện Minimal:** tháo dỡ toàn bộ hệ design-preset (Classic/Minimal/Vivid/Soft/Workbench + DesignSwitcher) — Minimal được nấu thẳng vào token gốc (`globals.css` giảm ~320 dòng): light neutral sáng, dark GitHub-style `#0d1117`, accent xanh dương trầm; menu Header chỉ còn Sáng/Tối. Font icon subset lại (152 glyph).
+- **VI hoá trọn bộ UI còn sót:** combos (strategy/empty state/actions), Usage → Request Details (bộ lọc + toàn bộ bảng), profile (câu trạng thái động), tray Windows (menu + balloon tiếng Việt, file encode UTF-8 BOM để PowerShell 5.1 đọc đúng dấu); test render endpoint cards cập nhật khớp chuỗi mới.
+
+
 ## 0.7.1 - 2026-08-14
 
 ### Performance

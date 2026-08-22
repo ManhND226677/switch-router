@@ -49,7 +49,7 @@ describe("provider test-models route kind routing", () => {
     global.fetch = originalFetch;
   });
 
-  it("pings all models through /api/v1/chat/completions", async () => {
+  it("pings all models through /v1/chat/completions", async () => {
     const { POST } = await import("../../src/app/api/providers/[id]/test-models/route.js");
 
     const req = new Request("http://localhost/api/providers/conn-openai/test-models", {
@@ -64,7 +64,7 @@ describe("provider test-models route kind routing", () => {
     expect(body.results.length).toBeGreaterThan(0);
     expect(body.results.every((r) => r.ok)).toBe(true);
     for (const call of global.fetch.mock.calls) {
-      expect(String(call[0])).toContain("/api/v1/chat/completions");
+      expect(String(call[0])).toContain("/v1/chat/completions");
     }
   });
 });

@@ -106,11 +106,14 @@ export async function POST(request) {
       }
     }
 
-    // Normalize ANTHROPIC_BASE_URL to ensure /v1 suffix
+    // Normalize ANTHROPIC_BASE_URL: the Anthropic SDK appends /v1 itself, so the
+    // stored base must NOT carry a /v1 suffix (since 0.9.0 there is no /v1/v1
+    // rewrite — a suffixed URL would hit /v1/v1/messages → 404).
     if (env.ANTHROPIC_BASE_URL) {
-      env.ANTHROPIC_BASE_URL = env.ANTHROPIC_BASE_URL.endsWith("/v1") 
-        ? env.ANTHROPIC_BASE_URL 
-        : `${env.ANTHROPIC_BASE_URL}/v1`;
+      env.ANTHROPIC_BASE_URL = env.ANTHROPIC_BASE_URL.replace(/\/+$/, "").replace(/\/v1$/i, "") || env.ANTHROPIC_BASE_URL;
+      if (env.ANTHROPIC_BASE_URL === "") {
+        delete env.ANTHROPIC_BASE_URL;
+      }
     }
 
     // Merge new env with existing settings

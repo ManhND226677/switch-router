@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { deleteApiKey, getApiKeyById, updateApiKey } from "@/lib/localDb";
-import { sanitizeApiKey } from "@/lib/db/repos/apiKeysRepo";
+import { sanitizeApiKey, normalizeKeyPolicyInput } from "@/lib/db/repos/apiKeysRepo";
 
 // GET /api/keys/[id] - Get single key
 export async function GET(request, { params }) {
@@ -24,6 +24,11 @@ export async function PUT(request, { params }) {
     const body = await request.json();
     const { isActive } = body;
 
+    const normalized = normalizeKeyPolicyInput(body);
+    if (normalized.error) {
+      return NextResponse.json({ error: normalized.error }, { status: 400 });
+    }
+
     const existing = await getApiKeyById(id);
     if (!existing) {
       return NextResponse.json({ error: "Key not found" }, { status: 404 });
@@ -31,6 +36,7 @@ export async function PUT(request, { params }) {
 
     const updateData = {};
     if (isActive !== undefined) updateData.isActive = isActive;
+    Object.assign(updateData, normalized.value);
 
     const updated = await updateApiKey(id, updateData);
 
