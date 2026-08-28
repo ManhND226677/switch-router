@@ -212,7 +212,13 @@ export async function getRequestDetails(filter = {}) {
   // (open-sse/handlers/chatCore/*Handler.js). A UI filtering for one term would
   // silently return nothing for rows written under the other, so treat the
   // success synonyms as one class here rather than rewriting historical rows.
-  if (filter.status) {
+  if (String(filter.status).toLowerCase() === "error") {
+    // "error" is a class, not a stored value: anything that is not a success
+    // synonym — including rows whose status never got written (same rule as
+    // getErrorAnalytics, so the errors page and the inspector agree).
+    conds.push(`(status IS NULL OR status NOT IN (${[...SUCCESS_STATUS_SYNONYMS].map(() => "?").join(", ")}))`);
+    params.push(...SUCCESS_STATUS_SYNONYMS);
+  } else if (filter.status) {
     const synonyms = SUCCESS_STATUS_SYNONYMS.has(String(filter.status).toLowerCase())
       ? [...SUCCESS_STATUS_SYNONYMS]
       : [filter.status];

@@ -111,6 +111,26 @@ describe("request details — tab crash-risk cases", () => {
     // Drawer reads tokens?.prompt_tokens — optional chaining tolerates undefined
     expect(got.tokens?.prompt_tokens || 0).toBe(0);
   });
+
+  it("status=error → error + NULL rows only; status=success → ok/success synonyms", async () => {
+    await saveDetail({ id: "err-1", provider: "openai", model: "gpt-4", status: "error",
+      request: {}, response: { status: 500, error: "boom" } });
+    await saveDetail({ id: "ok-2", provider: "openai", model: "gpt-4", status: "success",
+      request: {}, response: {} });
+
+    const errors = await db.getRequestDetails({ status: "error", pageSize: 9999 });
+    const ids = errors.details.map((d) => d.id);
+    expect(ids).toContain("err-1");
+    expect(ids).toContain("sparse-1"); // NULL status counts as failure class
+    expect(ids).not.toContain("ok-2");
+    expect(ids).not.toContain("big-1"); // stored with synonym "ok"
+
+    const successes = await db.getRequestDetails({ status: "success", pageSize: 9999 });
+    const okIds = successes.details.map((d) => d.id);
+    expect(okIds).toContain("ok-2");
+    expect(okIds).toContain("big-1"); // "ok" synonym must match "success" filter
+    expect(okIds).not.toContain("err-1");
+  });
 });
 
 // Mirror of RequestDetailsTab token helpers (component is "use client",
