@@ -2,6 +2,12 @@
 
 This file tracks changes for the local personal build only.
 
+## 0.10.3 - 2026-08-28
+
+### Fixed
+
+- **Mọi request chat trả HTTP 500 (regression từ 0.10.2):** khối session-pinning trong `handleSingleModelRequest` (`src/sse/handlers/chat.js`) tham chiếu `settings` và `routedModelStr` — hai biến chỉ tồn tại trong scope của `handleChat`, không có trong hàm này (tên đúng là `chatSettings` / `modelStr`) → mọi request ném `ReferenceError: settings is not defined`, combo bắt và coi như model fail → "All models failed" 500. Endpoint `/v1/models` không đi qua đường này nên vẫn 200 — client mới báo "found Claude models but test request failed". Đã đổi về đúng biến trong scope; verify bằng test request thật qua combo (`[COMBO] Model ... succeeded`, HTTP 200).
+
 ## 0.10.2 - 2026-08-28
 
 ### Added
