@@ -324,9 +324,9 @@ async function handleSingleModelRequest(body, modelStr, clientRawRequest = null,
 
   // Conversation → account affinity. Only meaningful from the second turn on,
   // hence the >=2 message requirement inside sessionPinKey().
-  const sessionKey = settings.sessionPinEnabled === false
+  const sessionKey = chatSettings.sessionPinEnabled === false
     ? null
-    : sessionPinKey(routedModelStr, body.messages ?? body.input);
+    : sessionPinKey(modelStr, body.messages ?? body.input);
 
   const accountFallbackEngine = new RoutingEngine({
     maxAttempts: isProbe ? 1 : 64,
