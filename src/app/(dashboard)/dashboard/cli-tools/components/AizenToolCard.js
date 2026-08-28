@@ -327,7 +327,13 @@ export default function AizenToolCard({
 
   return (
     <Card padding="xs" className="overflow-hidden">
-      <div className="flex items-start justify-between gap-3 hover:cursor-pointer sm:items-center" onClick={onToggle}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isExpanded}
+        aria-controls={`${tool.id}-panel`}
+        className="flex w-full items-start justify-between gap-3 cursor-pointer text-left sm:items-center"
+      >
         <div className="flex min-w-0 items-center gap-3">
           <div className="size-8 flex items-center justify-center shrink-0">
             <span className="material-symbols-outlined text-3xl" style={{ color: "#6C5CE7" }}>smart_toy</span>
@@ -345,10 +351,10 @@ export default function AizenToolCard({
           </div>
         </div>
         <span className={`material-symbols-outlined text-text-muted text-xl transition-transform ${isExpanded ? "rotate-180" : ""}`}>expand_more</span>
-      </div>
+      </button>
 
       {isExpanded && (
-        <div className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
+        <div id={`${tool.id}-panel`} className="mt-4 pt-4 border-t border-border flex flex-col gap-4">
           {checking && (
             <div className="flex items-center gap-2 text-text-muted">
               <span className="material-symbols-outlined animate-spin">progress_activity</span>

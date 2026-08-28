@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 import { cn } from "@/shared/utils/cn";
+import useFocusTrap from "@/shared/hooks/useFocusTrap";
 import Button from "./Button";
 import Tooltip from "./Tooltip";
 
@@ -33,13 +34,10 @@ export default function Modal({
     return () => { document.body.style.overflow = ""; };
   }, [isOpen]);
 
-  useEffect(() => {
-    const handleEscape = (e) => {
-      if (e.key === "Escape" && isOpen) onClose();
-    };
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [isOpen, onClose]);
+  // Focus trap + Escape + trả focus về trigger khi đóng.
+  // Escape do useFocusTrap xử lý (có stopPropagation để modal lồng nhau không đóng đồng loạt).
+  const panelRef = useFocusTrap(isOpen, onClose);
+  const titleId = useId();
 
   if (!isOpen) return null;
 
@@ -53,22 +51,28 @@ export default function Modal({
 
       {/* Modal content */}
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        tabIndex={-1}
         className={cn(
           "relative w-full bg-surface",
           "border border-border-subtle",
           "rounded-[14px] shadow-[var(--shadow-elev)]",
           "fade-in",
+          "focus:outline-none",
           sizes[size],
           className
         )}
       >
-        {/* Header */}
+        {/* Header — padding đồng nhất với body/footer (px-6) */}
         {(title || showTrafficLights) && (
-          <div className="flex items-center justify-between p-2 border-b border-border-subtle">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle">
             <div className="flex items-center">
               {/* Traffic lights — desktop only */}
               {showTrafficLights && (
-                <div className="hidden md:flex items-center gap-2 mr-4 ml-2">
+                <div className="hidden md:flex items-center gap-2 mr-4">
                   <Tooltip text="Close" position="top" color="#FF5F56">
                     <button
                       onClick={onClose}
@@ -84,7 +88,9 @@ export default function Modal({
                 </div>
               )}
               {title && (
-                <h2 className="text-lg font-semibold text-text-main">{title}</h2>
+                <h2 id={titleId} className="text-lg font-semibold text-text-main">
+                  {title}
+                </h2>
               )}
             </div>
             {/* X button — mobile only */}
