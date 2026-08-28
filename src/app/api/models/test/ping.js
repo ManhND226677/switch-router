@@ -4,7 +4,8 @@ import { getConsistentMachineId } from "@/shared/utils/machineId";
 
 const CLI_TOKEN_SALT = "9r-cli-auth";
 
-async function getInternalHeaders() {
+// Internal loopback headers for probe calls.
+export async function getInternalHeaders(connectionId = null) {
   let apiKey = null;
   try {
     const keys = await getApiKeys();
@@ -16,6 +17,8 @@ async function getInternalHeaders() {
   headers["x-9r-cli-token"] = await getConsistentMachineId(CLI_TOKEN_SALT);
   // Dashboard model-test probes: one account, no cooldown locks, no cascade.
   headers["x-9r-probe"] = "1";
+  // Pin the probe to ONE specific connection (health prober half-open checks).
+  if (connectionId) headers["x-connection-id"] = connectionId;
   return headers;
 }
 
@@ -28,7 +31,6 @@ function pingTimeoutMs(model) {
     id.startsWith("ag/")
     || id.startsWith("antigravity/")
     || id.startsWith("gc/")
-    || id.startsWith("gemini-cli/")
     || id.includes("gemini-3.")
     || id.includes("gemini-pro-agent")
   ) {
@@ -37,8 +39,8 @@ function pingTimeoutMs(model) {
   return 30000;
 }
 
-export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:${process.env.PORT || SERVER_CONFIG.appPort}`) {
-  const headers = await getInternalHeaders();
+export async function pingModelByKind(model, kind, baseUrl = `http://127.0.0.1:${process.env.PORT || SERVER_CONFIG.appPort}`, { connectionId = null } = {}) {
+  const headers = await getInternalHeaders(connectionId);
   const start = Date.now();
   const timeoutMs = pingTimeoutMs(model);
 

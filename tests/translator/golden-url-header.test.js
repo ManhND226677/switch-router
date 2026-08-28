@@ -17,9 +17,9 @@ const SPECIAL_CRED = {
 // Provider cần executor riêng (buildUrl/buildHeaders không nằm ở DefaultExecutor) → bỏ qua ở golden này.
 // Chúng được lock riêng ở 11-provider edge tests / unit test chuyên biệt.
 const SPECIALIZED = new Set([
-  "antigravity", "gemini-cli", "github", "qoder",
+  "antigravity", "github",
   "codex", "cursor", "qwen", "opencode",
-  "opencode-go", "grok-web", "ollama-local", "commandcode",
+  "opencode-go", "grok-web", "commandcode",
   "xiaomi-tokenplan",
 ]);
 

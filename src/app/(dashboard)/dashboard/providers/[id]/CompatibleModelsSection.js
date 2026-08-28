@@ -24,7 +24,7 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
     setTestingModelId(modelId);
     try {
       const full = `${providerStorageAlias}/${modelId}`;
-      const isSlow = /^(ag|antigravity|gc|gemini-cli)\//i.test(full)
+      const isSlow = /^(ag|antigravity|gc)\//i.test(full)
         || /gemini-3\.|gemini-pro-agent/i.test(modelId);
       const res = await fetchWithTimeout(
         "/api/models/test",

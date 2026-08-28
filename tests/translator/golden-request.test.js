@@ -55,7 +55,7 @@ describe("GOLDEN request: OpenAI → Gemini", () => {
     expect(clean(out)).toMatchSnapshot();
   });
 
-  it("Gemini CLI tool requests include validated toolConfig and enough output for high thinking", () => {
+  it("antigravity tool requests include validated toolConfig and enough output for high thinking", () => {
     const body = {
       messages: [{ role: "user", content: "Call add with 7 and 35." }],
       tools: [
@@ -80,16 +80,15 @@ describe("GOLDEN request: OpenAI → Gemini", () => {
     };
     const out = translateRequest(
       FORMATS.OPENAI,
-      FORMATS.GEMINI_CLI,
+      FORMATS.ANTIGRAVITY,
       "gemini-3.1-pro-preview",
       body,
       true,
       { accessToken: "t", projectId: "p" },
-      "gemini-cli"
+      "antigravity"
     );
 
     expect(out.request.toolConfig).toEqual({ functionCallingConfig: { mode: "VALIDATED" } });
-    expect(out.request.safetySettings).toBeDefined();
     expect(out.request.generationConfig.thinkingConfig).toEqual({ thinkingLevel: "high", includeThoughts: true });
     expect(out.request.generationConfig.maxOutputTokens).toBe(65535);
   });

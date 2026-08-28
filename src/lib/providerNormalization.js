@@ -29,17 +29,5 @@ export function normalizeProviderSpecificData(provider, body = {}, providerSpeci
     ? { ...providerSpecificData }
     : {};
 
-  if (provider === "ollama-local") {
-    const baseUrl = (
-      next.baseUrl ||
-      body.baseUrl ||
-      body.baseURL ||
-      body.ollamaHostUrl ||
-      ""
-    ).trim();
-
-    if (baseUrl) next.baseUrl = baseUrl;
-  }
-
   return Object.keys(next).length > 0 ? next : null;
 }

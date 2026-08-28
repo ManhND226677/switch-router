@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Card, Button, Toggle, Input } from "@/shared/components";
+import { Card, Button, Toggle, Input, SegmentedControl } from "@/shared/components";
 import { ConfirmModal } from "@/shared/components/Modal";
 import LanguageSwitcher from "@/shared/components/LanguageSwitcher";
 import { useTheme } from "@/shared/hooks/useTheme";
@@ -174,6 +174,22 @@ export default function ProfilePage() {
       });
       if (res.ok) {
         setSettings(prev => ({ ...prev, fallbackStrategy: strategy }));
+      }
+    } catch (err) {
+      console.error("Failed to update settings:", err);
+    }
+  };
+
+  // Generic boolean toggle PATCH (health prober, alert toasts, ...).
+  const updateSettingFlag = async (key, value) => {
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [key]: value }),
+      });
+      if (res.ok) {
+        setSettings(prev => ({ ...prev, [key]: value }));
       }
     } catch (err) {
       console.error("Failed to update settings:", err);
@@ -446,18 +462,33 @@ export default function ProfilePage() {
             <h3 className="text-base sm:text-lg font-semibold">Routing Strategy</h3>
           </div>
           <div className="flex flex-col gap-4">
-            <div className="flex items-start sm:items-center justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm sm:text-base">Round Robin</p>
-                <p className="text-xs sm:text-sm text-text-muted">
-                  Cycle through accounts to distribute load
-                </p>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm sm:text-base">Account Strategy</p>
+                  <p className="text-xs sm:text-sm text-text-muted">
+                    How the gateway picks between your accounts
+                  </p>
+                </div>
               </div>
-              <Toggle
-                checked={settings.fallbackStrategy === "round-robin"}
-                onChange={() => updateFallbackStrategy(settings.fallbackStrategy === "round-robin" ? "fill-first" : "round-robin")}
+              <SegmentedControl
+                options={[
+                  { value: "fill-first", label: "Fill First" },
+                  { value: "round-robin", label: "Round Robin" },
+                  { value: "fastest", label: "Fastest" },
+                ]}
+                value={settings.fallbackStrategy === "round-robin" || settings.fallbackStrategy === "fastest" ? settings.fallbackStrategy : "fill-first"}
+                onChange={updateFallbackStrategy}
                 disabled={loading}
+                size="sm"
               />
+              <p className="text-xs text-text-muted">
+                {settings.fallbackStrategy === "round-robin"
+                  ? "Xoay vòng qua các tài khoản để phân bổ tải đều nhau."
+                  : settings.fallbackStrategy === "fastest"
+                    ? "Ưu tiên tài khoản có TTFT gần đây nhanh nhất (EWMA) — tự né tài khoản đang chậm."
+                    : "Dùng tài khoản theo thứ tự ưu tiên (lấp đầy trước)."}
+              </p>
             </div>
 
             {/* Sticky Round Robin Limit */}
@@ -517,10 +548,61 @@ export default function ProfilePage() {
               </div>
             )}
 
+            {/* Health Prober */}
+            <div className="flex items-start sm:items-center justify-between gap-4 pt-4 border-t border-border/50">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm sm:text-base">Health Prober</p>
+                <p className="text-xs sm:text-sm text-text-muted">
+                  Half-open recovery: ping locked accounts just before cooldown ends so
+                  user traffic never hits a still-dead account (uses a little quota)
+                </p>
+              </div>
+              <Toggle
+                checked={settings.healthProberEnabled === true}
+                onChange={() => updateSettingFlag("healthProberEnabled", !settings.healthProberEnabled)}
+                disabled={loading}
+              />
+            </div>
+
+            {/* Usage Alert Toasts */}
+            <div className="flex items-start sm:items-center justify-between gap-4 pt-4 border-t border-border/50">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm sm:text-base">Alert Toasts</p>
+                <p className="text-xs sm:text-sm text-text-muted">
+                  Windows toast notification when a virtual-key budget crosses
+                  50/80/100% or a provider&apos;s spend spikes (banner is always shown)
+                </p>
+              </div>
+              <Toggle
+                checked={settings.usageAlertsToastEnabled === true}
+                onChange={() => updateSettingFlag("usageAlertsToastEnabled", !settings.usageAlertsToastEnabled)}
+                disabled={loading}
+              />
+            </div>
+
+            {/* Session Affinity */}
+            <div className="flex items-start sm:items-center justify-between gap-4 pt-4 border-t border-border/50">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm sm:text-base">Session Affinity</p>
+                <p className="text-xs sm:text-sm text-text-muted">
+                  Keep one conversation on the account that served its last turn, so the
+                  upstream prompt cache stays warm (cheaper input, faster first token).
+                  Turn off to re-balance every turn across accounts.
+                </p>
+              </div>
+              <Toggle
+                checked={settings.sessionPinEnabled !== false}
+                onChange={() => updateSettingFlag("sessionPinEnabled", settings.sessionPinEnabled === false)}
+                disabled={loading}
+              />
+            </div>
+
             <p className="text-xs text-text-muted italic pt-2 border-t border-border/50">
               {settings.fallbackStrategy === "round-robin"
                 ? `Hiện đang phân bổ request đều trên các tài khoản khả dụng, ${settings.stickyRoundRobinLimit || 3} lời gọi mỗi tài khoản.`
-                : "Hiện đang dùng tài khoản theo thứ tự ưu tiên (Lấp đầy trước)."}
+                : settings.fallbackStrategy === "fastest"
+                  ? "Hiện đang tự ưu tiên tài khoản nhanh nhất theo TTFT gần đây (EWMA)."
+                  : "Hiện đang dùng tài khoản theo thứ tự ưu tiên (Lấp đầy trước)."}
               {settings.comboStrategy === "round-robin"
                 ? ` Combo xoay vòng sau ${settings.comboStickyRoundRobinLimit || 1} lời gọi mỗi model.`
                 : " Combo luôn bắt đầu với model đầu tiên."}

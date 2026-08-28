@@ -129,11 +129,19 @@ export async function deleteProviderNode(id) {
       db.all(`SELECT id FROM providerConnections WHERE provider = ?`, [id]).map((connection) => connection.id)
     );
     db.run(`DELETE FROM providerConnections WHERE provider = ?`, [id]);
-    db.run(`DELETE FROM kv WHERE scope = 'customModels' AND key LIKE ?`, [`${id}|%`]);
+    // Node ids are user-chosen, so they may contain LIKE wildcards ('_' = any
+    // char, '%' = any run). Exact prefix comparison instead of LIKE keeps the
+    // delete scoped to THIS node's rows without needing to escape the id.
+    const customPrefix = `${id}|`;
+    const aliasKeyPrefix = `${id}/`;
+    const aliasValuePrefix = `"${id}/`;
+    db.run(`DELETE FROM kv WHERE scope = 'customModels' AND substr(key, 1, ?) = ?`,
+      [customPrefix.length, customPrefix]);
     // Both alias APIs exist in the codebase: the newer route stores
     // alias -> provider/model, while the legacy /api/models route stores
     // provider/model -> alias. Remove references in either column.
-    db.run(`DELETE FROM kv WHERE scope = 'modelAliases' AND (key LIKE ? OR value LIKE ?)`, [`${id}/%`, `"${id}/%"`]);
+    db.run(`DELETE FROM kv WHERE scope = 'modelAliases' AND (substr(key, 1, ?) = ? OR substr(value, 1, ?) = ?)`,
+      [aliasKeyPrefix.length, aliasKeyPrefix, aliasValuePrefix.length, aliasValuePrefix]);
     db.run(`DELETE FROM kv WHERE scope = 'disabledModels' AND key = ?`, [id]);
     db.run(`DELETE FROM kv WHERE scope = 'pricing' AND key = ?`, [id]);
 

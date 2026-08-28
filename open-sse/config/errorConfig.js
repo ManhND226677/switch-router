@@ -60,7 +60,9 @@ export const ERROR_RULES = [
   // --- Text-based rules (checked first, order = priority) ---
   { text: "no credentials",           cooldownMs: COOLDOWN.long },
   { text: "request not allowed",      cooldownMs: COOLDOWN.short },
-  { text: "improperly formed request", cooldownMs: COOLDOWN.long },
+  // Anthropic's wording for its own 400. The payload is at fault, not the
+  // account, so it must not cool any account down.
+  { text: "improperly formed request", cooldownMs: 0 },
   { text: "rate limit",               backoff: true },
   { text: "too many requests",        backoff: true },
   { text: "quota exceeded",           backoff: true },
@@ -73,6 +75,15 @@ export const ERROR_RULES = [
   { status: 403, cooldownMs: COOLDOWN.long },
   { status: 404, cooldownMs: COOLDOWN.long },
   { status: 429, backoff: true },
+
+  // --- Deterministic client errors (cooldownMs 0 = never lock the account) ---
+  // Retrying these against another account of the SAME provider cannot help,
+  // but rotation must stay enabled so a combo still falls through to its next
+  // model, and so the originating status reaches the client.
+  { status: 400, cooldownMs: 0 },
+  { status: 406, cooldownMs: 0 },
+  { status: 413, cooldownMs: 0 },
+  { status: 422, cooldownMs: 0 },
 ];
 
 // Backward compat: COOLDOWN_MS object (used by index.js re-export)

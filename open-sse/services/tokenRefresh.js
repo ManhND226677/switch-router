@@ -42,7 +42,6 @@ export function getRefreshLeadMs(provider) {
 }
 
 const REFRESH_HANDLERS = {
-  "gemini-cli": (c, log) => refreshGoogleToken(c.refreshToken, PROVIDERS["gemini-cli"].clientId, PROVIDERS["gemini-cli"].clientSecret, log),
   antigravity: (c, log) => refreshGoogleToken(c.refreshToken, PROVIDERS.antigravity.clientId, PROVIDERS.antigravity.clientSecret, log),
   claude: (c, log) => refreshClaudeOAuthToken(c.refreshToken, log),
   codex: (c, log) => refreshCodexToken(c.refreshToken, log),
@@ -63,9 +62,6 @@ export async function getAccessToken(provider, credentials, log) {
 }
 
 async function _getAccessTokenInternal(provider, credentials, log) {
-  if (provider === "gemini") {
-    return refreshGoogleToken(credentials.refreshToken, PROVIDERS.gemini.clientId, PROVIDERS.gemini.clientSecret, log);
-  }
   const handler = REFRESH_HANDLERS[provider];
   if (!handler) {
     log?.warn?.("TOKEN_REFRESH", `Unsupported provider for token refresh: ${provider}`);
@@ -88,13 +84,6 @@ export function formatProviderCredentials(provider, credentials, log) {
   }
 
   switch (provider) {
-    case "gemini":
-      return {
-        apiKey: credentials.apiKey,
-        accessToken: credentials.accessToken,
-        projectId: credentials.projectId
-      };
-
     case "claude":
       return {
         apiKey: credentials.apiKey,
@@ -113,7 +102,6 @@ export function formatProviderCredentials(provider, credentials, log) {
       };
 
     case "antigravity":
-    case "gemini-cli":
       return {
         accessToken: credentials.accessToken,
         refreshToken: credentials.refreshToken,

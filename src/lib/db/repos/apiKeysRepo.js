@@ -28,6 +28,33 @@ export function sanitizeApiKey(key) {
   return rest;
 }
 
+// Hot-path cache cho virtual key: gateway validate key ở middleware rồi đọc lại
+// policy record trong handler — 2-3 lần SELECT mỗi request. TTL ngắn + invalidation
+// khi dashboard ghi key. Vẫn là enforcement, chỉ bỏ I/O lặp trong 5s.
+if (!global._apiKeysHotCache) global._apiKeysHotCache = new Map();
+const keyCache = global._apiKeysHotCache;
+const KEY_CACHE_TTL_MS = 5000;
+
+// Monthly spend chỉ cần eventual consistency (TTL-only): usage writes xảy ra mỗi
+// request nên invalidation-theo-usage sẽ tự đánh bại cache.
+if (!global._keySpendCache) global._keySpendCache = new Map();
+const spendCache = global._keySpendCache;
+const SPEND_CACHE_TTL_MS = 5000;
+
+export function invalidateApiKeysCache() {
+  keyCache.clear();
+  spendCache.clear();
+}
+
+async function cachedKeyLookup(rawKey, loader) {
+  const hit = keyCache.get(rawKey);
+  const now = Date.now();
+  if (hit && hit.exp > now) return hit.value;
+  const value = await loader();
+  keyCache.set(rawKey, { value, exp: now + KEY_CACHE_TTL_MS });
+  return value;
+}
+
 export async function getApiKeys() {
   const db = await getAdapter();
   const rows = db.all(`SELECT * FROM apiKeys ORDER BY createdAt ASC`);
@@ -124,6 +151,7 @@ export async function createApiKey(name, machineId, policy = {}) {
     `INSERT INTO apiKeys(id, key, name, machineId, isActive, createdAt, allowedModels, monthlyBudgetUsd, rateLimitRpm, expiresAt, lastUsedAt) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [apiKey.id, apiKey.key, apiKey.name, apiKey.machineId, 1, apiKey.createdAt, stringifyJson(apiKey.allowedModels), apiKey.monthlyBudgetUsd, apiKey.rateLimitRpm, apiKey.expiresAt, apiKey.lastUsedAt]
   );
+  invalidateApiKeysCache();
   return apiKey;
 }
 
@@ -142,12 +170,14 @@ export async function updateApiKey(id, data) {
     );
     result = merged;
   });
+  invalidateApiKeysCache();
   return result;
 }
 
 export async function deleteApiKey(id) {
   const db = await getAdapter();
   const res = db.run(`DELETE FROM apiKeys WHERE id = ?`, [id]);
+  invalidateApiKeysCache();
   return (res?.changes ?? 0) > 0;
 }
 
@@ -155,9 +185,12 @@ export async function deleteApiKey(id) {
 // Khác validateApiKey (chỉ trả boolean): cần allowedModels/budget/RPM.
 export async function getApiKeyByKey(rawKey) {
   if (!rawKey) return null;
-  const db = await getAdapter();
-  const row = db.get(`SELECT * FROM apiKeys WHERE key = ?`, [rawKey]);
-  return rowToKey(row);
+  const value = await cachedKeyLookup(rawKey, async () => {
+    const db = await getAdapter();
+    return rowToKey(db.get(`SELECT * FROM apiKeys WHERE key = ?`, [rawKey]));
+  });
+  // Copy để caller không thể mutate bản cache chung.
+  return value ? { ...value } : value;
 }
 
 /**
@@ -166,11 +199,14 @@ export async function getApiKeyByKey(rawKey) {
  */
 export async function getKeyMonthlySpendUsd(keyRecord) {
   if (!keyRecord?.key || !keyRecord?.id) return 0;
+  const hit = spendCache.get(keyRecord.id);
+  const now = Date.now();
+  if (hit && now - hit.at < SPEND_CACHE_TTL_MS) return hit.value;
   const db = await getAdapter();
   const { fingerprintApiKey } = await import("../helpers/apiKeyPrivacy.js");
   const fp = fingerprintApiKey(keyRecord.key);
-  const now = new Date();
-  const monthStartIso = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const now2 = new Date();
+  const monthStartIso = new Date(now2.getFullYear(), now2.getMonth(), 1).toISOString();
   const row = db.get(
     // usageHistory.apiKey lưu FINGERPRINT (xem helpers/apiKeyPrivacy.js);
     // so cả raw key cho dữ liệu cũ ghi trước khi có fingerprint.
@@ -179,7 +215,9 @@ export async function getKeyMonthlySpendUsd(keyRecord) {
      WHERE timestamp >= ? AND (apiKey = ? OR apiKey = ?)`,
     [monthStartIso, fp, keyRecord.key]
   );
-  return Number(row?.total) || 0;
+  const total = Number(row?.total) || 0;
+  spendCache.set(keyRecord.id, { at: now, value: total });
+  return total;
 }
 
 /**
@@ -211,8 +249,13 @@ export async function getKeySpendMapUsd() {
 }
 
 export async function validateApiKey(key) {
-  const db = await getAdapter();
-  const row = db.get(`SELECT isActive FROM apiKeys WHERE key = ?`, [key]);
-  if (!row) return false;
-  return row.isActive === 1 || row.isActive === true;
+  if (!key) return false;
+  // Shares the full-row cache with getApiKeyByKey: the hot path validates in the
+  // middleware then reads the policy record in the handler — one cached row
+  // serves both instead of two SELECTs (and the values can never disagree).
+  const row = await cachedKeyLookup(key, async () => {
+    const db = await getAdapter();
+    return rowToKey(db.get(`SELECT * FROM apiKeys WHERE key = ?`, [key]));
+  });
+  return !!row && row.isActive === true;
 }

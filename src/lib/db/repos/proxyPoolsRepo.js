@@ -44,12 +44,18 @@ if (!global._proxyPoolsListCache) global._proxyPoolsListCache = new Map();
 const listCache = global._proxyPoolsListCache;
 const LIST_CACHE_TTL_MS = 2000;
 
+// By-id cache: resolveConnectionProxyConfig tra cứu pool theo id trên selection
+// path mỗi request — trước đây luôn là SELECT thẳng, không qua cache.
+if (!global._proxyPoolsByIdCache) global._proxyPoolsByIdCache = new Map();
+const byIdCache = global._proxyPoolsByIdCache;
+
 function listCacheKey(filter = {}) {
   return `${filter.isActive === undefined ? "*" : filter.isActive ? "1" : "0"}|${filter.testStatus || "*"}`;
 }
 
 export function invalidateProxyPoolsCache() {
   listCache.clear();
+  byIdCache.clear();
 }
 
 export async function getProxyPools(filter = {}) {
@@ -73,8 +79,16 @@ export async function getProxyPools(filter = {}) {
 }
 
 export async function getProxyPoolById(id) {
+  if (!id) return null;
+  const now = Date.now();
+  const hit = byIdCache.get(id);
+  if (hit && now - hit.at < LIST_CACHE_TTL_MS) {
+    return hit.pool ? { ...hit.pool } : hit.pool;
+  }
   const db = await getAdapter();
-  return rowToPool(db.get(`SELECT * FROM proxyPools WHERE id = ?`, [id]));
+  const pool = rowToPool(db.get(`SELECT * FROM proxyPools WHERE id = ?`, [id]));
+  byIdCache.set(id, { at: now, pool });
+  return pool ? { ...pool } : pool;
 }
 
 export async function createProxyPool(data) {
@@ -121,7 +135,26 @@ export async function deleteProxyPool(id) {
     if (!row) return;
     removed = rowToPool(row);
     db.run(`DELETE FROM proxyPools WHERE id = ?`, [id]);
+
+    // A dangling proxyPoolId makes resolveConnectionProxyConfig fall through to
+    // "no proxy" — the connection would silently start going DIRECT and lose the
+    // pool's strictProxy guard, so clear the reference while the pool is gone.
+    const candidates = db.all(
+      `SELECT id, data FROM providerConnections WHERE data LIKE ?`,
+      [`%"${id}"%`]
+    );
+    for (const candidate of candidates) {
+      const data = parseJson(candidate.data, null);
+      if (!data?.providerSpecificData || data.providerSpecificData.proxyPoolId !== id) continue;
+      data.providerSpecificData.proxyPoolId = "";
+      db.run(`UPDATE providerConnections SET data = ? WHERE id = ?`, [stringifyJson(data), candidate.id]);
+    }
   });
-  if (removed) invalidateProxyPoolsCache();
+  if (removed) {
+    invalidateProxyPoolsCache();
+    // Connections were rewritten → their cached providerSpecificData is stale.
+    const { invalidateConnectionsCache } = await import("./connectionsRepo.js");
+    invalidateConnectionsCache();
+  }
   return removed;
 }

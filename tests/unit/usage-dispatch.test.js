@@ -13,8 +13,8 @@ vi.mock("../../open-sse/utils/proxyFetch.js", () => ({
 
 const load = () => import("../../open-sse/services/usage.js");
 const SUPPORTED = [
-  "github", "gemini-cli", "antigravity", "claude", "codex",
-  "qoder", "qwen", "ollama", "glm",
+  "github", "antigravity", "claude", "codex",
+  "qwen", "ollama", "glm",
   "minimax", "grok-cli",
 ];
 

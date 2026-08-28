@@ -14,6 +14,13 @@ const config = {
     exclude: ["**/node_modules/**", "**/.claude/**", "**/dist/**"],
     // Allow many it.concurrent cases (real provider smoke runs ~50 providers in parallel)
     maxConcurrency: 60,
+    // Handler tests that dynamically import chatCore take ~1s alone but exceed
+    // vitest's 5000ms default under full-suite parallel load, turning the run
+    // intermittently red — and __baseline__/known-fails.txt is empty, so
+    // qa-gate counts any failure as a regression. Raised rather than retried:
+    // retries would mask genuine hangs.
+    testTimeout: 30000,
+    hookTimeout: 30000,
     // Suppress noisy console output from handlers under test
     silent: false,
   },

@@ -48,8 +48,10 @@ export const STREAM_STALL_TIMEOUT_MS = envMs("STREAM_STALL_TIMEOUT_MS", 360 * 10
 // Time-to-first-token timeout (prompt prefill). Env: STREAM_FIRST_CHUNK_TIMEOUT_MS.
 // ONE-SHOT from stream start: aborts if the upstream never sends the first byte
 // within this window (e.g. hangs during auth/prefill). Cleared on first chunk,
-// never re-armed — distinct from the per-chunk stall timer above.
-export const STREAM_FIRST_CHUNK_TIMEOUT_MS = envMs("STREAM_FIRST_CHUNK_TIMEOUT_MS", 200 * 1000);
+// never re-armed — distinct from the per-chunk stall timer above. Default 90s:
+// generous for normal prefills, but a hung upstream no longer occupies an
+// account slot for 200s. Raise via env for very-large-context workloads.
+export const STREAM_FIRST_CHUNK_TIMEOUT_MS = envMs("STREAM_FIRST_CHUNK_TIMEOUT_MS", 90 * 1000);
 
 // Absolute ceiling on total stream lifetime — the slow-drip guard.
 // Env: STREAM_MAX_DURATION_MS. ONE-SHOT from stream start, NEVER re-armed.
@@ -58,8 +60,11 @@ export const STREAM_FIRST_CHUNK_TIMEOUT_MS = envMs("STREAM_FIRST_CHUNK_TIMEOUT_M
 // stream would otherwise run forever. Default is intentionally generous.
 export const STREAM_MAX_DURATION_MS = envMs("STREAM_MAX_DURATION_MS", 30 * 60 * 1000);
 
-// Fetch connect timeout: abort if upstream doesn't return response headers within this duration
-export const FETCH_CONNECT_TIMEOUT_MS = envMs("FETCH_CONNECT_TIMEOUT_MS", 60 * 1000);
+// Fetch connect timeout: abort if upstream doesn't return response headers within this duration.
+// Default 15s: response headers should arrive well within that even through a proxy —
+// 60s only meant a dead upstream held the request (and its account slot) far longer
+// than any client waits. Env override remains for slow proxies.
+export const FETCH_CONNECT_TIMEOUT_MS = envMs("FETCH_CONNECT_TIMEOUT_MS", 15 * 1000);
 
 // Default token limits
 export const DEFAULT_MAX_TOKENS = 64000;
@@ -76,11 +81,15 @@ export const RETRY_CONFIG = {
 
 // Default retry config by status code: { attempts, delayMs }
 // Backward compat: if value is a number, treated as attempts with RETRY_CONFIG.delayMs
+// Delays are intentionally short: with fallback accounts present the executor
+// skips 5xx retries entirely (fastFail5xx), so this ladder only runs for
+// single-account providers where fast account-switching isn't possible —
+// burning 9s of fixed backoff there only multiplied tail latency.
 export const DEFAULT_RETRY_CONFIG = {
   429: { attempts: 0, delayMs: 0 },
-  502: { attempts: 3, delayMs: 3000 },
-  503: { attempts: 3, delayMs: 2000 },
-  504: { attempts: 2, delayMs: 3000 }
+  502: { attempts: 2, delayMs: 1000 },
+  503: { attempts: 2, delayMs: 800 },
+  504: { attempts: 1, delayMs: 1500 }
 };
 
 // Normalize a retry entry to { attempts, delayMs }

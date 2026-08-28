@@ -1,6 +1,6 @@
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
-import { toValidDateIso } from "./dateFilter.js";
+import { toValidDateIso, toValidDateUpperBoundIso } from "./dateFilter.js";
 
 const DEFAULT_MAX_RECORDS = 200;
 const DEFAULT_BATCH_SIZE = 20;
@@ -224,7 +224,7 @@ export async function getRequestDetails(filter = {}) {
     if (iso) { conds.push("timestamp >= ?"); params.push(iso); }
   }
   if (filter.endDate) {
-    const iso = toValidDateIso(filter.endDate);
+    const iso = toValidDateUpperBoundIso(filter.endDate);
     if (iso) { conds.push("timestamp <= ?"); params.push(iso); }
   }
 
@@ -259,6 +259,137 @@ export async function getRequestDetailById(id) {
   const db = await getAdapter();
   const row = db.get(`SELECT data FROM requestDetails WHERE id = ?`, [id]);
   return row ? parseJson(row.data, null) : null;
+}
+
+// `provider:model` etc. are whitelisted keys, never raw input — the VALUES are
+// always bound, so nothing user-controlled reaches the string-built SQL below.
+const ERROR_GROUP_COLUMNS = {
+  "provider:model": { select: "provider, model", group: "provider, model" },
+  provider: { select: "provider", group: "provider" },
+  model: { select: "model", group: "model" },
+};
+const ERROR_SIGNATURE_LIMIT = 10;
+const GROUP_ROW_LIMIT = 200;
+// `response.error` usually holds a whole JSON envelope ({"error":{"message":…}})
+// with newlines, which renders as an unreadable blob. Unwrap the inner message
+// first and fall back to the raw text when it is not JSON.
+const ERROR_TEXT_SQL = `COALESCE(json_extract(data,'$.response.error'), '')`;
+// json_extract RAISES "malformed JSON" on a non-JSON argument, and plain texts
+// like "fetch connect timeout" are the common case — hence the json_valid gate.
+const ERROR_MESSAGE_SQL = `(CASE WHEN json_valid(${ERROR_TEXT_SQL})
+              THEN COALESCE(
+                json_extract(${ERROR_TEXT_SQL}, '$.error.message'),
+                json_extract(${ERROR_TEXT_SQL}, '$.error'),
+                ${ERROR_TEXT_SQL})
+              ELSE ${ERROR_TEXT_SQL} END)`;
+
+/**
+ * Failure analytics over requestDetails: counts grouped by provider/model,
+ * per-day burst, the top recurring error signatures, and a recent list.
+ *
+ * Reads the indexed `status` column rather than `data.$.status`, and takes the
+ * upstream HTTP status from `$.response.status` — that is what the chatCore
+ * writers actually store (`status_code` does not exist in the payload).
+ */
+export async function getErrorAnalytics({
+  startDate,
+  endDate,
+  groupBy = "provider:model",
+  recentLimit = 20,
+  signatureLimit = ERROR_SIGNATURE_LIMIT,
+} = {}) {
+  const db = await getAdapter();
+  const cols = ERROR_GROUP_COLUMNS[groupBy] || ERROR_GROUP_COLUMNS["provider:model"];
+
+  // Success synonyms differ by writer ("ok" / "success"), so a failure is
+  // anything that is not one of them — including rows whose status never got
+  // written, which must not silently disappear from an error report.
+  const conds = [`(status IS NULL OR status NOT IN (${[...SUCCESS_STATUS_SYNONYMS].map(() => "?").join(", ")}))`];
+  const params = [...SUCCESS_STATUS_SYNONYMS];
+
+  const startIso = startDate ? toValidDateIso(startDate) : null;
+  const endIso = endDate ? toValidDateUpperBoundIso(endDate) : null;
+  if (startIso) { conds.push("timestamp >= ?"); params.push(startIso); }
+  if (endIso) { conds.push("timestamp <= ?"); params.push(endIso); }
+  const errWhere = `WHERE ${conds.join(" AND ")}`;
+
+  const allWhere = [];
+  const allParams = [];
+  if (startIso) { allWhere.push("timestamp >= ?"); allParams.push(startIso); }
+  if (endIso) { allWhere.push("timestamp <= ?"); allParams.push(endIso); }
+  const dateWhere = allWhere.length ? `WHERE ${allWhere.join(" AND ")}` : "";
+
+  const limit = Math.min(Math.max(parseInt(recentLimit, 10) || 20, 1), 100);
+  const sigLimit = Math.min(Math.max(parseInt(signatureLimit, 10) || ERROR_SIGNATURE_LIMIT, 1), 50);
+
+  const byGroup = db.all(
+    `SELECT ${cols.select},
+            COUNT(*) AS errors,
+            ROUND(AVG(json_extract(data,'$.latency.total')), 1) AS avgMs,
+            MIN(json_extract(data,'$.response.status')) AS minStatus,
+            MAX(json_extract(data,'$.response.status')) AS maxStatus,
+            MIN(timestamp) AS firstTs,
+            MAX(timestamp) AS lastTs
+     FROM requestDetails ${errWhere}
+     GROUP BY ${cols.group}
+     ORDER BY errors DESC
+     LIMIT ?`,
+    [...params, GROUP_ROW_LIMIT]
+  );
+
+  const byDay = db.all(
+    `SELECT substr(timestamp, 1, 10) AS day, COUNT(*) AS errors
+     FROM requestDetails ${errWhere}
+     GROUP BY day
+     ORDER BY day DESC
+     LIMIT 60`,
+    params
+  );
+
+  const signatures = db.all(
+    `SELECT COALESCE(json_extract(data,'$.response.status'), 0) AS status,
+            substr(replace(${ERROR_MESSAGE_SQL}, char(10), ' '), 1, 160) AS message,
+            COUNT(*) AS count,
+            MAX(timestamp) AS lastTs
+     FROM requestDetails ${errWhere}
+     GROUP BY status, message
+     ORDER BY count DESC
+     LIMIT ?`,
+    [...params, sigLimit]
+  );
+
+  const totalRequests = (db.get(`SELECT COUNT(*) AS c FROM requestDetails ${dateWhere}`, allParams) || {}).c || 0;
+  const totalErrors = (db.get(`SELECT COUNT(*) AS c FROM requestDetails ${errWhere}`, params) || {}).c || 0;
+  const errorLatencyMs = (db.get(
+    `SELECT COALESCE(ROUND(SUM(json_extract(data,'$.latency.total')), 1), 0) AS ms FROM requestDetails ${errWhere}`,
+    params
+  ) || {}).ms || 0;
+
+  const recent = db.all(
+    `SELECT id, timestamp, provider, model, connectionId,
+            json_extract(data,'$.response.status') AS statusCode,
+            substr(replace(${ERROR_MESSAGE_SQL}, char(10), ' '), 1, 240) AS errorMessage,
+            json_extract(data,'$.latency.total') AS totalMs
+     FROM requestDetails ${errWhere}
+     ORDER BY timestamp DESC
+     LIMIT ?`,
+    [...params, limit]
+  );
+
+  return {
+    groupBy: ERROR_GROUP_COLUMNS[groupBy] ? groupBy : "provider:model",
+    period: { startDate: startIso, endDate: endIso },
+    totals: {
+      totalRequests,
+      totalErrors,
+      successRate: totalRequests ? Math.round(((totalRequests - totalErrors) / totalRequests) * 1000) / 10 : 100,
+      errorLatencyMs,
+    },
+    byGroup,
+    byDay,
+    signatures,
+    recent,
+  };
 }
 
 /**

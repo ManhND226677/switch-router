@@ -416,7 +416,7 @@ export function createSSEStream(options = {}) {
           //   data: [DONE]\n\n
           // Without it they can hang until timeout and trigger failover.
           // Gemini-family clients (Antigravity, Gemini) reject this sentinel with 400 syntax errors.
-          const isGeminiFamily = provider === "antigravity" || provider === "gemini";
+          const isGeminiFamily = provider === "antigravity";
           if (!streamDoneSent && !isGeminiFamily) {
             const doneOutput = "data: [DONE]\n\n";
             appendLogger("appendConvertedChunk", doneOutput);

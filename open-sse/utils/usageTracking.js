@@ -337,17 +337,27 @@ export function mergeUsage(prev, next) {
 /**
  * Estimate input tokens from request body
  * Calculate total body size for more accurate estimation
+ *
+ * Memoized by body identity: a stream calls this at the finish chunk AND again
+ * at finalize on the same request body — one JSON.stringify per request instead
+ * of one per invocation (stringifying a large context multiple times showed up
+ * as CPU exactly when final chunks were being flushed).
  */
+const inputTokenMemo = new WeakMap();
+
 export function estimateInputTokens(body) {
   if (!body || typeof body !== "object") return 0;
+
+  const memoized = inputTokenMemo.get(body);
+  if (memoized !== undefined) return memoized;
 
   try {
     // Calculate total body size (includes messages, tools, system, thinking config, etc.)
     const bodyStr = JSON.stringify(body);
-    const totalChars = bodyStr.length;
-
     // Estimate: ~4 chars per token (rough average across all tokenizers)
-    return Math.ceil(totalChars / 4);
+    const estimate = Math.ceil(bodyStr.length / 4);
+    inputTokenMemo.set(body, estimate);
+    return estimate;
   } catch (err) {
     // Fallback if stringify fails
     return 0;

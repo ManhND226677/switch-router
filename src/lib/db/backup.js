@@ -33,12 +33,27 @@ export function backupFile(srcPath, destDir, destName = null) {
   return dest;
 }
 
-// Lightweight DB backup via ATTACH: create an empty sqlite file, copy every
-// table EXCEPT the excluded ones into it. Avoids duplicating the huge
-// observability log, so the backup stays small regardless of DB size.
+// Lightweight DB backup: create an empty sqlite file and copy every table
+// EXCEPT the excluded ones into it. Avoids duplicating the huge observability
+// log, so the backup stays small regardless of DB size.
+//
+// The sql.js driver cannot take this path: its database lives in memory and is
+// flushed to disk on a debounce, and ATTACH under sql.js opens a SEPARATE
+// in-memory database rather than a file — so the copy would produce an empty
+// file and the pre-migration safety net would silently not exist. Export the
+// live image instead (includes the excluded table; a full backup beats no
+// backup).
 export function backupDbLite(adapter, destDir, destName = "data.sqlite") {
   const dest = path.join(destDir, destName);
   try { fs.rmSync(dest, { force: true }); } catch {}
+
+  if (adapter?.driver === "sql.js") {
+    const bytes = adapter.raw?.export?.();
+    if (!bytes) throw new Error("sql.js adapter exposes no raw.export() — cannot back up");
+    fs.writeFileSync(dest, Buffer.from(bytes));
+    return dest;
+  }
+
   const escaped = dest.replace(/'/g, "''");
 
   adapter.exec(`ATTACH DATABASE '${escaped}' AS bak`);

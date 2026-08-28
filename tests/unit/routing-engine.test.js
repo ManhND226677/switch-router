@@ -10,7 +10,8 @@ describe("account fallback engine", () => {
 
     const result = await engine.execute({ provider: "openai", model: "gpt-4.1" });
 
-    expect(result).toEqual({ success: true, response: "ok" });
+    // Success results carry the attempt count for observability (routing metrics).
+    expect(result).toEqual({ success: true, response: "ok", attempts: 1 });
     expect(resolveCredentials).toHaveBeenCalledTimes(1);
     expect(executeAttempt).toHaveBeenCalledTimes(1);
     expect(onFailure).not.toHaveBeenCalled();
@@ -28,7 +29,7 @@ describe("account fallback engine", () => {
 
     const result = await engine.execute({ provider: "openai", model: "gpt-4.1" });
 
-    expect(result).toEqual({ success: true, response: "backup response" });
+    expect(result).toEqual({ success: true, response: "backup response", attempts: 2 });
     expect(resolveCredentials).toHaveBeenNthCalledWith(2, expect.objectContaining({
       excludedConnectionIds: new Set(["primary"]),
     }));

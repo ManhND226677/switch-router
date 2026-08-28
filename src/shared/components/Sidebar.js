@@ -110,6 +110,12 @@ export default function Sidebar({ onClose, isMini = false }) {
             {providerModelItems.map((item) => (
               <NavLink key={item.href} item={item} active={isActive(item.href)} onClose={onClose} isMini={isMini} />
             ))}
+            <NavLink
+              item={{ href: "/dashboard/errors", label: "Error Analytics", icon: "error" }}
+              active={isActive("/dashboard/errors")}
+              onClose={onClose}
+              isMini={isMini}
+            />
           </NavSection>
 
           <NavSection title="System" isMini={isMini}>

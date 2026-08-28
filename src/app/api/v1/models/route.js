@@ -7,7 +7,6 @@ import {
 } from "@/shared/constants/providers";
 import { getProviderConnections, getCombos, getCustomModels, getModelAliases } from "@/lib/localDb";
 import { getDisabledModels } from "@/lib/disabledModelsDb";
-import { resolveQoderModels } from "open-sse/services/qoderModels.js";
 import { resolveCopilotModels } from "open-sse/services/copilotModels.js";
 import { resolveGrokCliModels } from "open-sse/services/grokCliModels.js";
 import { updateProviderCredentials } from "@/sse/services/tokenRefresh";
@@ -24,19 +23,6 @@ const LIVE_MODEL_RESOLVERS = {
     return result?.models?.length
       ? { models: result.models, warning: result.warning }
       : null;
-  },
-  qoder: async (conn) => {
-    const result = await resolveQoderModels({
-      accessToken: conn.accessToken,
-      refreshToken: conn.refreshToken,
-      email: conn.email,
-      displayName: conn.displayName,
-      providerSpecificData: conn.providerSpecificData || {}
-    });
-    if (!result?.models?.length) return null;
-    return {
-      models: result.models.map((m) => ({ id: m.id, name: m.name })),
-    };
   },
   github: async (conn) => {
     const result = await resolveCopilotModels({

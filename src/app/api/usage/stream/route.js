@@ -1,4 +1,5 @@
 import { statsEmitter, getActiveRequests, getUsageStatsVersion } from "@/lib/usageDb";
+import { ensureUsageAlertsAttached, getActiveUsageAlerts } from "@/sse/services/usageAlerts";
 
 export const dynamic = "force-dynamic";
 
@@ -11,10 +12,15 @@ if (!global._usageStreamHub) {
     listenersAttached: false,
     onUpdate: null,
     onPending: null,
+    onAlerts: null,
   };
 }
 
 const hub = global._usageStreamHub;
+
+// Alerts evaluate on usage-save events — attach the evaluator with the first
+// stream client and keep it attached for the process lifetime.
+ensureUsageAlertsAttached();
 
 function closeClient(client) {
   if (!client || client.closed) return;
@@ -25,6 +31,7 @@ function closeClient(client) {
   if (hub.clients.size === 0 && hub.listenersAttached) {
     statsEmitter.off("update", hub.onUpdate);
     statsEmitter.off("pending", hub.onPending);
+    statsEmitter.off("alerts", hub.onAlerts);
     hub.listenersAttached = false;
   }
 }
@@ -69,8 +76,15 @@ async function broadcastLiveSnapshot() {
   if (hub.clients.size === 0) return;
   const { activeRequests, recentRequests, errorProvider } = await getActiveRequests();
   // statsVersion lets clients refetch period-scoped stats/chart exactly when
-  // the caches were invalidated, replacing fixed-interval polling.
-  broadcastSerialized(JSON.stringify({ activeRequests, recentRequests, errorProvider, statsVersion: getUsageStatsVersion() }));
+  // the caches were invalidated, replacing fixed-interval polling. Active
+  // alerts ride along so a freshly opened dashboard shows banners immediately.
+  broadcastSerialized(JSON.stringify({
+    activeRequests,
+    recentRequests,
+    errorProvider,
+    alerts: getActiveUsageAlerts(),
+    statsVersion: getUsageStatsVersion(),
+  }));
 }
 
 function scheduleLiveRefresh() {
@@ -87,8 +101,14 @@ function ensureListeners() {
 
   hub.onUpdate = () => scheduleLiveRefresh();
   hub.onPending = () => scheduleLiveRefresh();
+  hub.onAlerts = (alerts) => {
+    // Fire-and-forward: each alert is broadcast on its own, independent of the
+    // (debounced) live snapshot so banners appear immediately.
+    broadcastSerialized(JSON.stringify({ alerts }));
+  };
   statsEmitter.on("update", hub.onUpdate);
   statsEmitter.on("pending", hub.onPending);
+  statsEmitter.on("alerts", hub.onAlerts);
   hub.listenersAttached = true;
 }
 

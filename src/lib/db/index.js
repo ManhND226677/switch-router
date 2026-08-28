@@ -7,6 +7,7 @@ import { invalidateProviderNodesCache } from "./repos/nodesRepo.js";
 import { invalidateCombosCache } from "./repos/combosRepo.js";
 import { invalidateModelAliasesCache } from "./repos/aliasRepo.js";
 import { invalidateProxyPoolsCache } from "./repos/proxyPoolsRepo.js";
+import { invalidateApiKeysCache } from "./repos/apiKeysRepo.js";
 
 // Settings
 export {
@@ -16,7 +17,7 @@ export {
 // Provider connections
 export {
   getProviderConnections, getProviderConnectionById,
-  createProviderConnection, updateProviderConnection,
+  createProviderConnection, updateProviderConnection, updateProviderConnectionsBatch,
   deleteProviderConnection, cleanupProviderConnections,
 } from "./repos/connectionsRepo.js";
 
@@ -63,15 +64,15 @@ export {
 // Usage
 export {
   statsEmitter, trackPendingRequest, getActiveRequests,
-  saveRequestUsage, getUsageHistory, getUsageHistoryPage, getUsageStats, getChartData,
+  saveRequestUsage, flushPendingUsage, getUsageHistory, getUsageHistoryPage, getUsageStats, getChartData,
   invalidateUsageStatsCache, getUsageStatsVersion, appendRequestLog, getLatestUsageId,
-  getRecentLogs, getRecentLogsPage,
+  getRecentLogs, getRecentLogsPage, getProviderSpendWindows, getCacheStats,
 } from "./repos/usageRepo.js";
 
 // Request details
 export {
   saveRequestDetail, getRequestDetails, getRequestDetailById, getDistinctProviders,
-  compactRequestDetails,
+  compactRequestDetails, getErrorAnalytics,
 } from "./repos/requestDetailsRepo.js";
 
 // Export/import full DB
@@ -174,6 +175,7 @@ export async function importDb(payload) {
   invalidateCombosCache();
   invalidateModelAliasesCache();
   invalidateProxyPoolsCache();
+  invalidateApiKeysCache();
 
   return await exportDb();
 }

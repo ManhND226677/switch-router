@@ -249,6 +249,27 @@ export async function createProviderConnection(data) {
   return result;
 }
 
+// Sticky-RR counter persistence (auth.js write-behind queue): many rows merged
+// in ONE transaction with ONE cache invalidation, instead of N full-row writes
+// each wiping the hot-path list cache right after a request read it.
+export async function updateProviderConnectionsBatch(updatesById) {
+  const entries = Object.entries(updatesById || {}).filter(([, data]) => data && typeof data === "object");
+  if (entries.length === 0) return 0;
+  const db = await getAdapter();
+  let touched = 0;
+  db.transaction(() => {
+    for (const [id, data] of entries) {
+      const row = db.get(`SELECT * FROM providerConnections WHERE id = ?`, [id]);
+      if (!row) continue;
+      const merged = { ...rowToConn(row), ...data, updatedAt: new Date().toISOString() };
+      upsert(db, merged);
+      touched++;
+    }
+  });
+  if (touched > 0) invalidateConnectionsCache();
+  return touched;
+}
+
 // Critical: OAuth refresh token race — atomic merge inside transaction
 export async function updateProviderConnection(id, data) {
   const db = await getAdapter();
