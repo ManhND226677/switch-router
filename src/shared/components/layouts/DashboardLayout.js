@@ -38,14 +38,30 @@ export default function DashboardLayout({ children }) {
   const removeNotification = useNotificationStore((state) => state.removeNotification);
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-bg">
-      <div className="fixed top-4 right-4 z-[80] flex w-[min(92vw,380px)] flex-col gap-2">
+    // h-dvh thay vì h-screen: 100vh tính cả thanh URL bar trên mobile -> nội dung bị cắt.
+    <div className="flex h-dvh w-full overflow-hidden bg-bg">
+      {/* Skip-to-content: người dùng bàn phím không phải Tab qua toàn bộ sidebar */}
+      <a href="#main-content" className="skip-link">
+        Skip to content
+      </a>
+      {/* Toast: aria-live để screen reader đọc được thông báo.
+          Đặt bottom-4 thay vì top-4 để không đè lên cụm nút bên phải header.
+          pointer-events-none trên vùng chứa để khoảng trống giữa các toast
+          không chặn click vào nội dung bên dưới. */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="false"
+        aria-label="Notifications"
+        className="pointer-events-none fixed bottom-4 right-4 z-[80] flex max-h-[calc(100dvh-2rem)] w-[min(92vw,380px)] flex-col gap-2 overflow-y-auto"
+      >
         {notifications.map((n) => {
           const style = getToastStyle(n.type);
           return (
             <div
               key={n.id}
-              className={`rounded-lg border px-3 py-2 shadow-lg backdrop-blur-sm ${style.wrapper}`}
+              role={n.type === "error" ? "alert" : "status"}
+              className={`pointer-events-auto rounded-lg border px-3 py-2 shadow-lg backdrop-blur-sm ${style.wrapper}`}
             >
               <div className="flex items-start gap-2">
                 <span className="material-symbols-outlined text-lg leading-5">{style.icon}</span>
@@ -94,8 +110,13 @@ export default function DashboardLayout({ children }) {
         <Sidebar isMini={true} />
       </div>
 
-      {/* Sidebar - Mobile */}
+      {/* Sidebar - Mobile
+          inert + aria-hidden khi đóng: chỉ translate-x-full thì vẫn render, vẫn
+          focusable và vẫn nằm trong accessibility tree -> Tab bị rơi ra ngoài màn hình.
+          React 19 hỗ trợ inert dạng boolean (render đúng, không ra inert="false"). */}
       <div
+        inert={!sidebarOpen}
+        aria-hidden={!sidebarOpen}
         className={`fixed inset-y-0 left-0 z-50 transform md:hidden transition-transform duration-300 ease-in-out ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
@@ -104,7 +125,11 @@ export default function DashboardLayout({ children }) {
       </div>
 
       {/* Main content */}
-      <main className="flex flex-col flex-1 h-full min-w-0 relative transition-colors duration-300 isolate">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex flex-col flex-1 h-full min-w-0 relative transition-colors duration-300 isolate focus:outline-none"
+      >
         {/* Faint grid background */}
         <div className="landing-grid absolute inset-0 pointer-events-none -z-10" aria-hidden="true" />
         <Header key={pathname} onMenuClick={() => setSidebarOpen(true)} />
