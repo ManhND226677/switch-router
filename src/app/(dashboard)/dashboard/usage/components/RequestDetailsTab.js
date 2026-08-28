@@ -100,6 +100,33 @@ function getInputTokens(tokens) {
   return prompt < cache ? cache : prompt;
 }
 
+const SUCCESS_STATUSES = new Set(["ok", "success"]);
+
+function isFailure(detail) {
+  return !SUCCESS_STATUSES.has(String(detail?.status || "").toLowerCase());
+}
+
+// Replay needs the intact client body as saved by extractRequestConfig;
+// truncateField replaces oversized payloads with a {_truncated} stub.
+function canReplay(detail) {
+  const r = detail?.request;
+  if (!r || typeof r !== "object" || r._truncated || typeof r.model !== "string" || !r.model) return false;
+  return (Array.isArray(r.messages) && r.messages.length > 0) || (Array.isArray(r.input) && r.input.length > 0);
+}
+
+function StatusBadge({ detail }) {
+  const failed = isFailure(detail);
+  const code = detail?.response?.status;
+  return (
+    <span className={cn(
+      "inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium",
+      failed ? "bg-red-500/15 text-red-600" : "bg-green-500/15 text-green-600"
+    )}>
+      {failed ? (code || detail?.status || "lỗi") : "OK"}
+    </span>
+  );
+}
+
 export default function RequestDetailsTab() {
   const [details, setDetails] = useState([]);
   const [pagination, setPagination] = useState({
@@ -118,9 +145,11 @@ export default function RequestDetailsTab() {
   const [filters, setFilters] = useState({
     provider: "",
     keyId: "",
+    status: "",
     startDate: "",
     endDate: ""
   });
+  const [replay, setReplay] = useState(null);
 
   const fetchProviders = useCallback(async () => {
     try {
@@ -158,6 +187,7 @@ export default function RequestDetailsTab() {
       });
       if (filters.provider) params.append("provider", filters.provider);
       if (filters.keyId) params.append("keyId", filters.keyId);
+      if (filters.status) params.append("status", filters.status);
       if (filters.startDate) params.append("startDate", filters.startDate);
       if (filters.endDate) params.append("endDate", filters.endDate);
 
@@ -193,7 +223,24 @@ export default function RequestDetailsTab() {
 
   const handleViewDetail = (detail) => {
     setSelectedDetail(detail);
+    setReplay(null);
     setIsDrawerOpen(true);
+  };
+
+  const handleReplay = async () => {
+    if (!selectedDetail?.id || replay?.loading) return;
+    setReplay({ loading: true });
+    try {
+      const res = await fetch(`/api/usage/request-details/${encodeURIComponent(selectedDetail.id)}/replay`, { method: "POST" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setReplay({ loading: false, error: data?.error || `HTTP ${res.status}` });
+        return;
+      }
+      setReplay({ loading: false, data });
+    } catch (error) {
+      setReplay({ loading: false, error: error?.message || String(error) });
+    }
   };
 
   const handlePageChange = (newPage) => {
@@ -205,13 +252,13 @@ export default function RequestDetailsTab() {
   };
 
   const handleClearFilters = () => {
-    setFilters({ provider: "", keyId: "", startDate: "", endDate: "" });
+    setFilters({ provider: "", keyId: "", status: "", startDate: "", endDate: "" });
   };
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <Card padding="md">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
           <div className="flex min-w-0 flex-col gap-2">
             <label htmlFor="provider-filter" className="text-sm font-medium text-text-main">Nhà cung cấp</label>
             <select
@@ -255,6 +302,25 @@ export default function RequestDetailsTab() {
           </div>
 
           <div className="flex min-w-0 flex-col gap-2">
+            <label htmlFor="status-filter" className="text-sm font-medium text-text-main">Trạng thái</label>
+            <select
+              id="status-filter"
+              value={filters.status}
+              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              className={cn(
+                "h-9 px-3 rounded-lg border border-black/10 dark:border-white/10 bg-surface",
+                "text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary/20",
+                "w-full min-w-0 cursor-pointer"
+              )}
+              style={{ colorScheme: 'auto' }}
+            >
+              <option value="">Tất cả</option>
+              <option value="error">Chỉ lỗi</option>
+              <option value="success">Chỉ thành công</option>
+            </select>
+          </div>
+
+          <div className="flex min-w-0 flex-col gap-2">
             <label htmlFor="start-date-filter" className="text-sm font-medium text-text-main">Từ ngày</label>
             <input
               id="start-date-filter"
@@ -287,7 +353,7 @@ export default function RequestDetailsTab() {
             <Button 
               variant="ghost" 
               onClick={handleClearFilters}
-              disabled={!filters.provider && !filters.keyId && !filters.startDate && !filters.endDate}
+              disabled={!filters.provider && !filters.keyId && !filters.status && !filters.startDate && !filters.endDate}
               className="w-full"
             >
               Xóa bộ lọc
@@ -304,6 +370,7 @@ export default function RequestDetailsTab() {
                 <th className="text-left p-4 text-sm font-semibold text-text-main">Thời điểm</th>
                 <th className="text-left p-4 text-sm font-semibold text-text-main">Model</th>
                 <th className="text-left p-4 text-sm font-semibold text-text-main">Nhà cung cấp</th>
+                <th className="text-left p-4 text-sm font-semibold text-text-main">Trạng thái</th>
                 <th className="text-right p-4 text-sm font-semibold text-text-main">Token vào</th>
                 <th className="text-right p-4 text-sm font-semibold text-text-main">Đã cache</th>
                 <th className="text-right p-4 text-sm font-semibold text-text-main">Cache tạo mới</th>
@@ -315,7 +382,7 @@ export default function RequestDetailsTab() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="9" className="p-8 text-center text-text-muted">
+                  <td colSpan="10" className="p-8 text-center text-text-muted">
                     <div className="flex items-center justify-center gap-2">
                       <span className="material-symbols-outlined animate-spin text-xl">progress_activity</span>
                       Đang tải…
@@ -324,7 +391,7 @@ export default function RequestDetailsTab() {
                 </tr>
               ) : details.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="p-8 text-center text-text-muted">
+                  <td colSpan="10" className="p-8 text-center text-text-muted">
                     Không có chi tiết request nào
                   </td>
                 </tr>
@@ -345,6 +412,9 @@ export default function RequestDetailsTab() {
                          {getProviderName(detail.provider, providerNameCache)}
                        </span>
                      </td>
+                    <td className="whitespace-nowrap p-4 text-sm">
+                      <StatusBadge detail={detail} />
+                    </td>
                     <td className="p-4 text-sm text-text-main text-right font-mono">
                       {detail.tokens?.estimated ? "~" : ""}{getInputTokens(detail.tokens).toLocaleString()}
                     </td>
@@ -462,6 +532,50 @@ export default function RequestDetailsTab() {
                   {selectedDetail.tokens?.estimated ? "~" : ""}{selectedDetail.tokens?.completion_tokens?.toLocaleString() || 0}
                 </span>
               </div>
+            </div>
+
+            <div className="rounded-lg border border-black/5 dark:border-white/5 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-sm text-text-main">Replay</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleReplay}
+                  disabled={!canReplay(selectedDetail) || replay?.loading === true}
+                  title={canReplay(selectedDetail) ? "Gửi lại đúng request này qua gateway (probe: 1 account, không khóa account)" : "Payload không còn nguyên vẹn khi lưu — không replay được"}
+                >
+                  {replay?.loading ? "Đang replay…" : "Gửi lại request"}
+                </Button>
+              </div>
+              {!canReplay(selectedDetail) && (
+                <p className="mt-2 text-xs text-text-muted">
+                  Payload bị cắt ngắn hoặc thiếu messages khi lưu — không replay được. Tăng “Kích thước JSON tối đa” trong Profile nếu cần giữ payload lớn.
+                </p>
+              )}
+              {replay && !replay.loading && (replay.error ? (
+                <p className="mt-2 text-sm text-red-600">{replay.error}</p>
+              ) : replay.data && (
+                <div className="mt-3 space-y-2">
+                  <div className="flex flex-wrap items-center gap-3 text-sm">
+                    <span className={cn(
+                      "rounded px-2 py-0.5 font-mono text-xs font-medium",
+                      replay.data.ok ? "bg-green-500/15 text-green-600" : "bg-red-500/15 text-red-600"
+                    )}>
+                      HTTP {replay.data.status}
+                    </span>
+                    <span className="font-mono text-xs text-text-muted">{replay.data.latencyMs}ms</span>
+                    <span className="font-mono text-xs text-text-muted">{replay.data.model}</span>
+                  </div>
+                  {replay.data.error && (
+                    <p className="text-sm text-red-600">{replay.data.error}</p>
+                  )}
+                  {replay.data.result && (
+                    <pre className="max-h-[260px] max-w-full overflow-auto rounded-lg border border-black/5 bg-black/5 p-3 font-mono text-xs text-text-main dark:border-white/5 dark:bg-white/5">
+                      {replay.data.result}
+                    </pre>
+                  )}
+                </div>
+              ))}
             </div>
 
             {selectedDetail.pxpipe && (
