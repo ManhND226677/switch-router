@@ -227,13 +227,33 @@ export const PATTERN_CAPABILITIES = [
  * Resolve capabilities for a model using the 4-step fallback chain,
  * merged over DEFAULT_CAPABILITIES so the result is always complete.
  *
+ * Memoized: the pattern step runs up to ~220 glob tests per call and this
+ * function is invoked several times per request (modality strip, translators,
+ * param support). The tables are static module constants, so entries never
+ * go stale. A shallow copy is returned per call — callers may mutate it.
+ *
  * @param {string} provider
  * @param {string} model
  * @returns {object} full capabilities object
  */
+if (!global._capabilitiesMemo) global._capabilitiesMemo = new Map();
+const capsMemo = global._capabilitiesMemo;
+const CAPS_MEMO_MAX = 2048;
+
 export function getCapabilitiesForModel(provider, model) {
   if (!model) return { ...DEFAULT_CAPABILITIES };
 
+  const memoKey = `${provider || ""}|${model}`;
+  const hit = capsMemo.get(memoKey);
+  if (hit) return { ...hit };
+
+  const caps = computeCapabilitiesForModel(provider, model);
+  if (capsMemo.size >= CAPS_MEMO_MAX) capsMemo.clear();
+  capsMemo.set(memoKey, caps);
+  return { ...caps };
+}
+
+function computeCapabilitiesForModel(provider, model) {
   // Canonical exact lookup strips vendor prefix: "anthropic/claude-opus-4.7" -> "claude-opus-4.7".
   const baseModel = model.includes("/") ? model.split("/").pop() : model;
 

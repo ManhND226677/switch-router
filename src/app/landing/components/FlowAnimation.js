@@ -23,12 +23,6 @@ const PROVIDERS = [
     textColor: "text-white",
   },
   {
-    id: "gemini",
-    name: "Gemini",
-    color: "bg-blue-500",
-    textColor: "text-white",
-  },
-  {
     id: "github",
     name: "GitHub Copilot",
     color: "bg-gray-700",

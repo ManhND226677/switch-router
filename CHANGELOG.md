@@ -2,6 +2,54 @@
 
 This file tracks changes for the local personal build only.
 
+## 0.10.2 - 2026-08-28
+
+### Added
+
+- **EWMA latency sống sót qua restart:** `connectionLatency.js` trước đó chỉ nằm trong RAM → mỗi lần bật lại server, chiến lược `fastest` quay về thứ tự priority cho tới khi có request mới re-seed. Giờ có write-behind flush xuống `kv` (scope `connLatency`, debounce 5s, dọn entry quá 24h và vượt trần 500 connection), `hydrateConnectionLatency()` chạy trước quyết định chọn account khi strategy là `fastest`, và `flushConnectionLatency()` được drain ở `/api/app/shutdown` cùng `flushRrCounters`/`flushPendingUsage`. Mọi thao tác DB fail-open — mất DB layer thì hành vi trở lại đúng như bản cũ. Bảng `Routing EWMA` mới trong `LatencyCachePanel` + `GET /api/usage/latency` giờ trả thêm `routing.{strategy,accounts[]}`.
+- **Session affinity (ghim hội thoại vào một account):** module mới `open-sse/services/sessionPinning.js`. Key = hash(model + 2 message đầu), TTL 15 phút, in-memory; `chat.js` tính key rồi truyền vào `getProviderCredentials(…, { sessionKey })`, chỉ ghi pin khi request thành công (`onRequestSuccess`). Lý do: prompt cache của Anthropic/Google/OpenAI nằm theo từng account, rota account giữa các turn là mất cache — chậm hơn và đắt hơn. Account bị pin nếu bị exclude/model-locked thì tự rơi về strategy thường. Bật mặc định, tắt bằng toggle **Session Affinity** trong Profile (`sessionPinEnabled`).
+- **Error Analytics hoàn thiện:** `GET /api/usage/errors` trả thêm `signatures[]` (top lỗi lặp lại, đã bóc `error.message` khỏi JSON envelope + group theo status code). Trang `/dashboard/errors` dựng lại toàn bộ bằng `@/shared/components`.
+- **Cache economics bằng tiền:** `getCacheStats` cộng thêm `savedUsd` (total/provider/model) = số tiền tiết kiệm nhờ mức giá `cached` rẻ hơn `input`, dùng đúng bảng giá mà `calculateCostFromTokens` đang dùng. Model không có giá → 0, không đoán.
+
+### Fixed
+
+- **`npm run build` và `npm run dev` đều hỏng (lỗi chặn toàn cục).** Trang `dashboard/errors` mới ở 0.10.1 import `@/components/ui/*` + `lucide-react` — những module không tồn tại trong project này → build fail; trong dev, một lỗi compile ở bất kỳ page nào làm **mọi route** trả 500, kể cả `/v1/chat/completions` (đã kiểm chứng bằng cách tạm dời thư mục page ra). Viết lại page theo `@/shared/components`, icon lấy đúng bộ glyph đã subset. Đồng thời `package.json` `dev` chuyển sang `next dev --webpack` — Next 16 mặc định Turbopack trong khi `next.config.mjs` chỉ có khối `webpack`, nên `npm run dev` in "Ready" rồi **exit code 1**; script `dev:webpack` trùng lặp bị bỏ.
+- **`GET /api/usage/errors` chết 100%:** route tự viết SQL qua `db.prepare()` trong khi cả 4 adapter chỉ expose `run/get/all/exec/transaction`. Toàn bộ aggregation chuyển xuống `requestDetailsRepo.getErrorAnalytics()` (API chuẩn của adapter, tham số bind đầy đủ), route chỉ còn là wrapper; dùng cột `status` có index thay vì `json_extract(data,'$.status')`, và đọc `$.response.status` — field ghi thực tế — thay vì `$.response.status_code` không tồn tại.
+- **Rò API key sang endpoint của hãng khi baseUrl bị SSRF-guard chặn:** `executors/default.js` âm thầm thay `baseUrl` riêng tư/vòng lặp bằng `api.openai.com`/`api.anthropic.com`, rồi `buildHeaders` vẫn gắn key đã lưu → key + prompt đi ra ngoài (trigger: node Compatible trỏ `http://127.0.0.1:11434/v1`, LM Studio, vLLM LAN). Nay `guardCompatibleBaseUrl()` throw lỗi tường minh nêu tên host bị chặn (chỉ host:port, không log cả URL vì URL có thể mang key), và test `executor-safe-baseurl.test.js` được viết lại vì hai case cũ **đang khoá chặt chính hành vi rò đó**.
+- **Thiếu `model` trả 500 thay vì 400:** `handleChat` gọi `getComboModels(routedModelStr)` trước khi kiểm tra `modelStr`, và helper đó gọi `modelStr.includes("/")` → `TypeError` (cả với `model: {"x":1}`). Validate `typeof === "string"` ngay sau khi đọc body; nhánh 400 "Missing model" cũ thành dead code nên đã xoá.
+- **`POST /v1/responses/compact` với body hỏng JSON → 500:** `request.json()` không có try/catch, trong khi mọi route chat khác trả 400. Nay dùng chung `errorResponse(400, "Invalid JSON body")`.
+- **URL của Codex bị lệch một request:** `base.js` gọi `buildUrl()` **trước** `transformRequest()`, mà `_isCompact` chỉ được gán trong `transformRequest` của `codex.js` → trên executor singleton, một lần gọi `/v1/responses/compact` khiến request thường kế tiếp bị đẩy sang `.../responses/compact`. Đổi thứ tự thành transform → buildUrl → buildHeaders (vẫn giữ đúng thứ tự mà `opencode-go`/`antigravity` đang phụ thuộc).
+- **Lỗi non-SSE từ upstream làm mất thông điệp và khoá oan account:** `streamingHandler.js` trả `{ success:false, response }` không có `status`/`error` → `markAccountUnavailable(conn, undefined, undefined)` rơi vào rule mặc định, khoá model 30s với `errorCode:null`, còn client nhận 503 chung chung thay vì message đã sanitize. Nay trả `createErrorResult(status, msg)` chuẩn.
+- **Rò socket khi retry sau refresh token:** `chatCore.js` bỏ response của lần retry không `ok` mà không đọc/hủy → Nay gọi `body.cancel()` khi không dùng tới.
+- **Một request lỗi phía client làm ô nhiễm cả pool account:** `errorConfig.js` không có rule cho 400/406/413/422 nên mọi status lạ rơi về `TRANSIENT_COOLDOWN_MS` (30s) — và text "improperly formed request" của Anthropic bị khoá tới `COOLDOWN.long` (2 phút) trên **mọi** account. Thêm rule `cooldownMs: 0` cho các 4xx deterministic; `markAccountUnavailable` không còn ghi lock/`testStatus` khi cooldown = 0. Vẫn giữ rotation để combo sang model kế tiếp và để status gốc tới tay client.
+- **Chính sách virtual key không bao giờ chạy trên cài đặt mới:** allowlist/budget/RPM/expiry bị gate bằng `settings.requireApiKey`, mà cờ này không có trong `DEFAULT_SETTINGS` và toggle đã ẩn khỏi UI → người dùng cấu hình hạn chế khoá, thấy progress bar, nhưng không có gì được áp. Policy giờ gắn chặt với chính khoá (`if (apiKey)`), không phụ thuộc cờ toàn cục; `requireApiKey` được khai báo tường minh `false` trong defaults.
+- **Bộ lọc ngày loại nguyên ngày được chọn:** `toValidDateIso("2026-08-27")` ra nửa đêm UTC nên `timestamp <= endDate` cắt bỏ cả ngày đó. Thêm `toValidDateUpperBoundIso()` (date-only → `T23:59:59.999Z`) và dùng cho cả `getRequestDetails`, `getUsageHistory`/`getUsageHistoryPage` lẫn analytics mới.
+- **Mất safety net backup trên nền sql.js:** `backupDbLite()` dùng `ATTACH DATABASE` — sql.js coi ATTACH là một DB in-memory riêng nên file backup rỗng, và `migrate.js` chỉ `console.warn` rồi tiếp tục → đúng lúc cần bản backup trước migration xóa dữ liệu (003) thì không có. Với driver `sql.js` giờ xuất ảnh in-memory bằng `raw.export()`; phần bù là backup chứa cả `requestDetails`.
+- **Xóa proxy pool làm traffic đi thẳng:** `deleteProxyPool()` để lại `proxyPoolId` mồ côi trong `providerSpecificData`; `resolveConnectionProxyConfig` không tìm thấy pool → rơi về `source:"none"`, mất cả proxy lẫn `strictProxy` của pool. Nay dọn reference trong cùng transaction và invalidate cache connections.
+- **Xóa provider-node có thể xóa nhầm model của node khác:** `nodesRepo` lọc bằng `key LIKE ?` với `${id}|%`, nhưng `_`/`%` trong id (do người dùng đặt) là wildcard của LIKE. Đổi sang so sánh prefix bằng `substr(key,1,?) = ?`, không cần escape.
+- **`TABLES.apiKeys` thiếu 5 cột của migration 004** (`allowedModels`, `monthlyBudgetUsd`, `rateLimitRpm`, `expiresAt`, `lastUsedAt`) → `syncSchemaFromTables` không tự lành được. Đã khai báo, và `SCHEMA_VERSION` bump lên 5 (test `data-repair-regression` bắt `latestVersion() === SCHEMA_VERSION`).
+- **Connection của 4 provider đã gỡ vẫn còn trong DB bản nâng cấp:** thêm migration `005-retire-removed-providers` — chỉ `isActive = 0`, **không xóa**, giữ nguyên credential trong cột `data` để còn khôi phục; idempotent.
+- **Test suite đỏ ngẫu nhiên:** `force-stream-config` và `office-client-content` trượt timeout 5000ms khi chạy cả suite rồi pass khi chạy lẻ hoặc chạy lại; `known-fails.txt` đang rỗng nên `qa-gate` tính mọi failure là regression. Đặt `testTimeout`/`hookTimeout` = 30000ms trong `tests/vitest.config.js` (không dùng retry để khỏi che hang thật).
+- **Sửa thêm:** 6 module orphan `src/lib/oauth/services/{claude,codex,openai,qwen,antigravity,github}.js` import `getServerCredentials` từ `../config/index.js` (không tồn tại, hàm không được định nghĩa ở đâu trong repo) — không nằm trong build graph nên im lặng, ai import là sập; đã xóa (1119 dòng dead code). `clientDetector.js` vẫn map client `gemini-cli` sang provider id đã gỡ nên mất passthrough lossless → đổi sang `antigravity`. `LatencyCachePanel` dùng token `bg-bg-subtle` không tồn tại làm thanh cache-hit vô hình → `bg-bg-alt`. Dọn field chết `ollamaHostUrl`, guard prefix `gemini-cli/` trong `models/test/ping.js` + `CompatibleModelsSection.js`, comment `ollama-local` lỗi thời trong `providers/[id]/models/route.js`, và `open-sse/AGENTS.md` còn ghi `shared/qoder/` + `services/qoderModels.js`.
+
+
+## 0.10.1 - 2026-08-22
+
+### Removed
+
+- **4 provider bị loại khỏi registry:** `gemini`, `gemini-cli`, `qoder`, `ollama-local` (registry còn 28 providers). Toàn bộ executor riêng, OAuth flow, usage fetcher, model resolver, nhánh validate/test API và UI liên quan được dọn sạch; route `/api/tags` (static ollama tag list) xoá theo. Model `gemini-*` giờ route về `antigravity`. Translator format `gemini`/`gemini-cli` giữ nguyên vì antigravity vẫn dùng chung pipeline.
+- Client từng cấu hình 4 provider này cần trỏ lại connection mới (không có migration — dữ liệu connection cũ không tự chuyển đổi).
+
+### Added
+
+- **Connection health prober:** background sweep kiểm tra connection đang bật, kết quả phục vụ qua `GET /api/health/probe`; panel Latency/Cache mới trên trang Endpoint (`LatencyCachePanel`) + `GET /api/usage/cache` và `GET /api/usage/latency`.
+- **Usage alerts:** cảnh báo ngân sách virtual key vượt mốc 50/80/100% và spike chi tiêu provider (giờ gần nhất > 4× trung bình 24h) qua stats emitter; banner trên dashboard + Windows toast bật/tắt được trong Profile (`src/sse/services/usageAlerts.js`).
+
+### Fixed
+
+- `usageAlerts.js` import sai nguồn (`getApiKeys`/`getKeySpendMapUsd`/`getSettings` phải lấy từ barrel `@/lib/db/index.js`) — trước đó build warning và alert sẽ lỗi runtime.
+- Bump version lên 0.10.1 (trước đó quên bump nên UI vẫn hiện 0.10.0).
+
 ## 0.10.0 - 2026-08-22
 
 ### Changed

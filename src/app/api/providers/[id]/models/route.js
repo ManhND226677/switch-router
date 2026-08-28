@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
 import { getProviderConnectionById } from "@/models";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
-import { GEMINI_CONFIG } from "@/lib/oauth/constants/oauth";
 import { refreshGoogleToken, updateProviderCredentials } from "@/sse/services/tokenRefresh";
-import { PROVIDERS, resolveOllamaLocalHost } from "open-sse/config/providers.js";
+import { PROVIDERS } from "open-sse/config/providers.js";
 import { getModelsByProviderId } from "open-sse/config/providerModels.js";
 import { ANTIGRAVITY_IDE_USER_AGENT, ANTIGRAVITY_IDE_VERSION, ANTIGRAVITY_OAUTH_CLIENT } from "open-sse/providers/shared.js";
 
-import { resolveQoderModels } from "open-sse/services/qoderModels.js";
 import { resolveGrokCliModels } from "open-sse/services/grokCliModels.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { fetchStepFunModels } from "@/sse/services/stepfun.js";
@@ -23,6 +21,7 @@ const parseOpenAIStyleModels = (data) => {
   return data?.data || data?.models || data?.results || [];
 };
 
+// Cloud Code Assist model list shape (shared by antigravity)
 const parseGeminiCliModels = (data) => {
   if (Array.isArray(data?.models)) {
     return data.models
@@ -262,7 +261,6 @@ const PROVIDER_MODELS_CONFIG = {
   xai: createOpenAIModelsConfig("https://api.x.ai/v1/models"),
   mistral: createOpenAIModelsConfig("https://api.mistral.ai/v1/models"),
   ollama: createOpenAIModelsConfig("https://ollama.com/api/tags"),
-  // ollama-local: url resolved dynamically below via providerSpecificData.baseUrl
   vilao: {
     // P2P marketplace: model ids are the aliases the user configured on their key,
     // and the gateway host itself can be overridden per key.
@@ -369,62 +367,6 @@ const PROVIDER_MODELS_CONFIG = {
   },
 
   // Custom resolvers (non-OpenAI-shaped APIs / token-refresh flows)
-  qoder: {
-    customResolver: async (connection) => {
-      const credentials = {
-        accessToken: connection.accessToken,
-        refreshToken: connection.refreshToken,
-        email: connection.email,
-        displayName: connection.displayName,
-        providerSpecificData: connection.providerSpecificData || {},
-      };
-      let warning;
-      try {
-        const result = await resolveQoderModels(credentials, { forceRefresh: true });
-        if (result?.models?.length) {
-          return {
-            models: result.models.map((m) => ({
-              // Use the canonical "qoder/<key>" id so the dashboard
-              // surfaces the same identifier the chat router expects.
-              id: `qoder/${m.id}`,
-              name: m.name,
-              contextLength: m.contextLength,
-              isVL: m.isVL,
-              isReasoning: m.isReasoning,
-              maxOutputTokens: m.maxOutputTokens,
-              description: m.description,
-            })),
-          };
-        }
-        warning = "Qoder returned no models; falling back to static catalog.";
-      } catch (error) {
-        warning = `Failed to fetch Qoder models: ${error.message}`;
-        console.log("Failed to fetch Qoder models dynamically, falling back to static:", error.message);
-      }
-      return { models: [], warning };
-    },
-  },
-  "gemini-cli": {
-    customResolver: buildOAuthResolver({
-      refreshFn: (conn) => refreshGoogleToken(conn.refreshToken, GEMINI_CONFIG.clientId, GEMINI_CONFIG.clientSecret),
-      fetchFn: (token, conn) => {
-        const projectId = conn.projectId || conn.providerSpecificData?.projectId;
-        const body = projectId ? { project: projectId } : {};
-        return fetch(GEMINI_CLI_MODELS_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
-            "User-Agent": "google-api-nodejs-client/9.15.1",
-            "X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1"
-          },
-          body: JSON.stringify(body)
-        });
-      },
-      parseFn: parseGeminiCliModels,
-      errorLabel: "Failed to fetch Gemini CLI models"
-    })
-  },
   "grok-cli": {
     customResolver: async (connection) => {
       const proxy = await resolveConnectionProxyConfig(connection.providerSpecificData || {});
@@ -452,22 +394,6 @@ const PROVIDER_MODELS_CONFIG = {
         warning: result.warning || "Grok CLI returned no live models; using static catalog.",
       };
     },
-  },
-  "ollama-local": {
-    customResolver: async (connection) => {
-      const url = `${resolveOllamaLocalHost(connection)}/api/tags`;
-      const response = await fetch(url, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" }
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.log("Error fetching models from ollama-local:", errorText);
-        return { error: `Failed to fetch models: ${response.status}`, status: response.status };
-      }
-      const data = await response.json();
-      return { models: parseOpenAIStyleModels(data) };
-    }
   }
 };
 

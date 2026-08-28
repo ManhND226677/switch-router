@@ -90,7 +90,8 @@ export function formatDoneLine({ usage, latency }) {
     inStr += ` (CACHE ${parts.join(" ")})`;
   }
   const ttftStr = latency?.ttft ? ` · TTFT ${latency.ttft}ms` : "";
-  return `DONE ${latency?.total ?? 0}ms${ttftStr} · ${inStr} · OUT ${outTok}`;
+  const attemptsStr = latency?.attempts > 1 ? ` · ${latency.attempts} ACC` : "";
+  return `DONE ${latency?.total ?? 0}ms${ttftStr}${attemptsStr} · ${inStr} · OUT ${outTok}`;
 }
 
 export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, endpoint, label = "USAGE", silent = false }) {
@@ -114,6 +115,9 @@ export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, 
     completion_tokens: tokens.completion_tokens ?? tokens.output_tokens ?? 0
   };
 
+  // Intentionally NOT .catch()-ed: saveRequestUsage returns a thenable whose
+  // first consumer forces an immediate flush — leaving it unconsumed keeps this
+  // hot-path call batched (write-behind). Flush errors are logged internally.
   saveRequestUsage({
     provider: provider || "unknown",
     model: model || "unknown",
@@ -122,5 +126,5 @@ export function saveUsageStats({ provider, model, tokens, connectionId, apiKey, 
     connectionId: connectionId || undefined,
     apiKey: apiKey || undefined,
     endpoint: endpoint || null
-  }).catch(() => {});
+  });
 }

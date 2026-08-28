@@ -46,7 +46,7 @@ function collect(dir, out = []) {
 // removed provider there is expected until the baseline is re-snapshotted.
 // Generated Vitest reports (gitignored) are machine output, not hand-written
 // test sources, so they must never be treated as orphaned references.
-const EXEMPT = [/__baseline__[\\/]/, /[\\/]\.vitest-reports?[\\/]/];
+const EXEMPT = [/__baseline__[\\/]/, /[\\/]\.vitest-reports?[\\/]/, /[\\/]vitest-results\.json$/, /[\\/](baseline|current)-results\.json$/];
 
 const files = collect(testsDir).filter((f) => !EXEMPT.some((re) => re.test(f)));
 
@@ -60,6 +60,12 @@ const REMOVED_LIST = [
   "kiro",
   "kimchi",
   "gitlab",
+  // NOTE: "gemini" (registry) was retired in 0.10.1 but stays OFF this list —
+  // it is still a live TRANSLATOR FORMAT (FORMATS.GEMINI, served by antigravity)
+  // so tests legitimately reference it as a format name.
+  "gemini-cli",
+  "qoder",
+  "ollama-local",
   "mimo-free",
   "mmf",
   "assemblyai",

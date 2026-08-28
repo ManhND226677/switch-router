@@ -3,8 +3,9 @@ import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
 import { fingerprintApiKey, isFingerprinted } from "../helpers/apiKeyPrivacy.js";
 import { getMeta, setMeta } from "../helpers/metaStore.js";
-import { toValidDateIso } from "./dateFilter.js";
+import { toValidDateIso, toValidDateUpperBoundIso } from "./dateFilter.js";
 import { STREAM_MAX_DURATION_MS } from "open-sse/config/runtimeConfig.js";
+import { getPricingForModel } from "open-sse/providers/pricing.js";
 
 function maskApiKey(key) {
   if (!key || typeof key !== "string") return null;
@@ -428,101 +429,299 @@ export async function getActiveRequests() {
   return { activeRequests, recentRequests, errorProvider };
 }
 
-export async function saveRequestUsage(entry) {
+// ── Usage write-behind queue ────────────────────────────────────────────────
+// saveRequestUsage fires at stream completion — exactly when final chunks are
+// being flushed to the client — and its 3-write sync transaction on the event
+// loop stalls every in-flight stream. Entries are queued and flushed shortly
+// after instead. The returned thenable schedules an immediate flush the first
+// time a caller actually consumes it (.then/.catch/.finally, await,
+// Promise.all), so read-after-write semantics are preserved for awaiting
+// callers (tests, dashboard) while fire-and-forget hot-path callers get the
+// batching. Set USAGE_WRITE_BEHIND_MS=0 to restore immediate persistence.
+const USAGE_WRITE_BEHIND_MS = (() => {
+  const n = parseInt(process.env.USAGE_WRITE_BEHIND_MS ?? "", 10);
+  return Number.isFinite(n) && n >= 0 ? n : 1500;
+})();
+
+const usageQueueState = (globalThis.__switchRouterUsageQueue ??= { queue: [], timer: null, flushing: false });
+
+function scheduleUsageFlush(immediate = false) {
+  if (immediate) {
+    if (usageQueueState.timer) { clearTimeout(usageQueueState.timer); usageQueueState.timer = null; }
+    setImmediate(() => { flushUsageQueue(); });
+    return;
+  }
+  if (usageQueueState.timer) return;
+  usageQueueState.timer = setTimeout(() => {
+    usageQueueState.timer = null;
+    flushUsageQueue();
+  }, USAGE_WRITE_BEHIND_MS);
+  usageQueueState.timer.unref?.();
+}
+
+async function flushUsageQueue() {
+  if (usageQueueState.flushing || usageQueueState.queue.length === 0) return;
+  usageQueueState.flushing = true;
+  const items = usageQueueState.queue.splice(0, usageQueueState.queue.length);
   try {
     const db = await getAdapter();
-
-    // A caller-supplied timestamp identifies the same usage event across
-    // duplicate completion paths. When no timestamp is supplied, this is a
-    // new request even if several concurrent calls receive the same clock
-    // millisecond; do not collapse independent requests into one row.
-    const hasExplicitTimestamp = Boolean(entry.timestamp);
-    if (!hasExplicitTimestamp) entry.timestamp = new Date().toISOString();
-    entry.cost = await calculateCost(entry.provider, entry.model, entry.tokens);
-
-    // Never persist a usable gateway key. Fingerprint ONCE, here, so the
-    // dedup probe, the INSERT, the usageDaily rollup and the in-memory ring all
-    // agree on the same value — mixing raw and fingerprinted forms would create
-    // duplicate rows and split one key's stats across two buckets.
-    // Callers keep their own object untouched apart from this field, which is
-    // exactly what every downstream reader expects to see.
-    entry.apiKey = fingerprintApiKey(entry.apiKey);
-
-    const tokens = entry.tokens || {};
-    const promptTokens = tokens.prompt_tokens || tokens.input_tokens || 0;
-    const completionTokens = tokens.completion_tokens || tokens.output_tokens || 0;
-
-    let inserted = false;
-    let insertedId = null;
-
-    // All 3 writes (history insert, daily upsert, lifetime counter) in ONE transaction.
-    // better-sqlite3 is sync → no JS yield mid-transaction → no race in same process.
-    db.transaction(() => {
-      const existing = hasExplicitTimestamp
-        ? db.get(
-          `SELECT id, endpoint FROM usageHistory
-           WHERE timestamp = ?
-             AND COALESCE(provider, '') = COALESCE(?, '')
-             AND COALESCE(model, '') = COALESCE(?, '')
-             AND COALESCE(connectionId, '') = COALESCE(?, '')
-             AND COALESCE(apiKey, '') = COALESCE(?, '')
-             AND promptTokens = ?
-             AND completionTokens = ?
-           ORDER BY id DESC LIMIT 1`,
-          [
-            entry.timestamp, entry.provider || null, entry.model || null,
-            entry.connectionId || null, entry.apiKey || null,
-            promptTokens, completionTokens,
-          ]
-        )
-        : null;
-
-      if (existing) {
-        if (!existing.endpoint && entry.endpoint) {
-          db.run(`UPDATE usageHistory SET endpoint = ? WHERE id = ?`, [entry.endpoint, existing.id]);
-        }
-        return;
+    for (const item of items) {
+      try {
+        await persistUsageEntry(db, item.entry);
+      } catch (e) {
+        // Matches the old behavior: log and resolve — usage persistence must
+        // never surface as a rejection to callers.
+        console.error("Failed to save usage stats:", e);
       }
-
-      const insertResult = db.run(
-        `INSERT INTO usageHistory(timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, status, tokens, meta) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          entry.timestamp, entry.provider || null, entry.model || null,
-          entry.connectionId || null, entry.apiKey || null, entry.endpoint || null,
-          promptTokens, completionTokens, entry.cost || 0, entry.status || "ok",
-          stringifyJson(tokens), stringifyJson({}),
-        ]
-      );
-      insertedId = Number(insertResult?.lastInsertRowid ?? insertResult?.lastInsertRowID ?? 0) || null;
-
-      const dateKey = getLocalDateKey(entry.timestamp);
-      const row = db.get(`SELECT data FROM usageDaily WHERE dateKey = ?`, [dateKey]);
-      const day = row ? parseJson(row.data, {}) : {
-        requests: 0, promptTokens: 0, completionTokens: 0, cost: 0,
-        byProvider: {}, byModel: {}, byAccount: {}, byApiKey: {}, byEndpoint: {},
-      };
-      aggregateEntryToDay(day, entry);
-      db.run(`INSERT INTO usageDaily(dateKey, data) VALUES(?, ?) ON CONFLICT(dateKey) DO UPDATE SET data = excluded.data`, [dateKey, stringifyJson(day)]);
-
-      // Atomic counter increment in same transaction
-      const cur = db.get(`SELECT value FROM _meta WHERE key = 'totalRequestsLifetime'`);
-      const next = (cur ? parseInt(cur.value, 10) : 0) + 1;
-      db.run(`INSERT INTO _meta(key, value) VALUES('totalRequestsLifetime', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [String(next)]);
-      inserted = true;
-    });
-
-    if (inserted) {
-      pushToRing(entry);
-      if (insertedId !== null) {
-        latestUsageIdState.adapter = db;
-        latestUsageIdState.value = insertedId;
-      }
-      invalidateUsageStatsCache();
-      scheduleStatsEvent("update", 250);
+      item.resolve();
     }
   } catch (e) {
     console.error("Failed to save usage stats:", e);
+    for (const item of items) item.resolve();
+  } finally {
+    usageQueueState.flushing = false;
+    if (usageQueueState.queue.length > 0) scheduleUsageFlush();
   }
+}
+
+// Drain the queue before shutdown — also callable from explicit shutdown paths.
+export async function flushPendingUsage() {
+  if (usageQueueState.timer) { clearTimeout(usageQueueState.timer); usageQueueState.timer = null; }
+  await flushUsageQueue();
+}
+
+const _usageShutdownHandler = async () => {
+  try { await flushPendingUsage(); } catch { /* best effort */ }
+};
+const usageShutdownState = (globalThis.__switchRouterUsageShutdown ??= { handler: null });
+if (usageShutdownState.handler) {
+  process.off("beforeExit", usageShutdownState.handler);
+  process.off("SIGINT", usageShutdownState.handler);
+  process.off("SIGTERM", usageShutdownState.handler);
+}
+usageShutdownState.handler = _usageShutdownHandler;
+process.on("beforeExit", usageShutdownState.handler);
+process.on("SIGINT", usageShutdownState.handler);
+process.on("SIGTERM", usageShutdownState.handler);
+
+export function saveRequestUsage(entry) {
+  if (USAGE_WRITE_BEHIND_MS === 0) {
+    // Env kill switch: persist immediately, exactly as before the queue existed.
+    return (async () => {
+      try {
+        const db = await getAdapter();
+        await persistUsageEntry(db, entry);
+      } catch (e) {
+        console.error("Failed to save usage stats:", e);
+      }
+    })();
+  }
+
+  const settled = new Promise((resolve) => {
+    usageQueueState.queue.push({ entry, resolve });
+  });
+  // The hot path intentionally never consumes this thenable (fire-and-forget),
+  // so the delayed flush MUST be scheduled here at enqueue time. Scheduling it
+  // only inside notifyWaiter() left unconsumed entries queued forever and the
+  // dashboard frozen on stale usage. Consuming callers still force an
+  // immediate flush via scheduleUsageFlush(true).
+  scheduleUsageFlush();
+  let waiterNotified = false;
+  const notifyWaiter = () => {
+    if (!waiterNotified) {
+      waiterNotified = true;
+      scheduleUsageFlush(true);
+    }
+    return settled;
+  };
+  return {
+    then(onFulfilled, onRejected) { return notifyWaiter().then(onFulfilled, onRejected); },
+    catch(onRejected) { return notifyWaiter().catch(onRejected); },
+    finally(onFinally) { return notifyWaiter().finally(onFinally); },
+  };
+}
+
+async function persistUsageEntry(db, entry) {
+  // A caller-supplied timestamp identifies the same usage event across
+  // duplicate completion paths. When no timestamp is supplied, this is a
+  // new request even if several concurrent calls receive the same clock
+  // millisecond; do not collapse independent requests into one row.
+  const hasExplicitTimestamp = Boolean(entry.timestamp);
+  if (!hasExplicitTimestamp) entry.timestamp = new Date().toISOString();
+  entry.cost = await calculateCost(entry.provider, entry.model, entry.tokens);
+
+  // Never persist a usable gateway key. Fingerprint ONCE, here, so the
+  // dedup probe, the INSERT, the usageDaily rollup and the in-memory ring all
+  // agree on the same value — mixing raw and fingerprinted forms would create
+  // duplicate rows and split one key's stats across two buckets.
+  // Callers keep their own object untouched apart from this field, which is
+  // exactly what every downstream reader expects to see.
+  entry.apiKey = fingerprintApiKey(entry.apiKey);
+
+  const tokens = entry.tokens || {};
+  const promptTokens = tokens.prompt_tokens || tokens.input_tokens || 0;
+  const completionTokens = tokens.completion_tokens || tokens.output_tokens || 0;
+
+  let inserted = false;
+  let insertedId = null;
+
+  // All 3 writes (history insert, daily upsert, lifetime counter) in ONE transaction.
+  // better-sqlite3 is sync → no JS yield mid-transaction → no race in same process.
+  db.transaction(() => {
+    const existing = hasExplicitTimestamp
+      ? db.get(
+        `SELECT id, endpoint FROM usageHistory
+         WHERE timestamp = ?
+           AND COALESCE(provider, '') = COALESCE(?, '')
+           AND COALESCE(model, '') = COALESCE(?, '')
+           AND COALESCE(connectionId, '') = COALESCE(?, '')
+           AND COALESCE(apiKey, '') = COALESCE(?, '')
+           AND promptTokens = ?
+           AND completionTokens = ?
+         ORDER BY id DESC LIMIT 1`,
+        [
+          entry.timestamp, entry.provider || null, entry.model || null,
+          entry.connectionId || null, entry.apiKey || null,
+          promptTokens, completionTokens,
+        ]
+      )
+      : null;
+
+    if (existing) {
+      if (!existing.endpoint && entry.endpoint) {
+        db.run(`UPDATE usageHistory SET endpoint = ? WHERE id = ?`, [entry.endpoint, existing.id]);
+      }
+      return;
+    }
+
+    const insertResult = db.run(
+      `INSERT INTO usageHistory(timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, status, tokens, meta) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        entry.timestamp, entry.provider || null, entry.model || null,
+        entry.connectionId || null, entry.apiKey || null, entry.endpoint || null,
+        promptTokens, completionTokens, entry.cost || 0, entry.status || "ok",
+        stringifyJson(tokens), stringifyJson({}),
+      ]
+    );
+    insertedId = Number(insertResult?.lastInsertRowid ?? insertResult?.lastInsertRowID ?? 0) || null;
+
+    const dateKey = getLocalDateKey(entry.timestamp);
+    const row = db.get(`SELECT data FROM usageDaily WHERE dateKey = ?`, [dateKey]);
+    const day = row ? parseJson(row.data, {}) : {
+      requests: 0, promptTokens: 0, completionTokens: 0, cost: 0,
+      byProvider: {}, byModel: {}, byAccount: {}, byApiKey: {}, byEndpoint: {},
+    };
+    aggregateEntryToDay(day, entry);
+    db.run(`INSERT INTO usageDaily(dateKey, data) VALUES(?, ?) ON CONFLICT(dateKey) DO UPDATE SET data = excluded.data`, [dateKey, stringifyJson(day)]);
+
+    // Atomic counter increment in same transaction
+    const cur = db.get(`SELECT value FROM _meta WHERE key = 'totalRequestsLifetime'`);
+    const next = (cur ? parseInt(cur.value, 10) : 0) + 1;
+    db.run(`INSERT INTO _meta(key, value) VALUES('totalRequestsLifetime', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [String(next)]);
+    inserted = true;
+  });
+
+  if (inserted) {
+    pushToRing(entry);
+    if (insertedId !== null) {
+      latestUsageIdState.adapter = db;
+      latestUsageIdState.value = insertedId;
+    }
+    invalidateUsageStatsCache();
+    scheduleStatsEvent("update", 250);
+  }
+}
+
+// Per-provider spend windows for anomaly detection (usage alerts):
+// last full hour vs the 24h before it.
+export async function getProviderSpendWindows() {
+  const db = await getAdapter();
+  const now = Date.now();
+  const h1 = new Date(now - 3600_000).toISOString();
+  const h25 = new Date(now - 25 * 3600_000).toISOString();
+  const last1h = {};
+  for (const r of db.all(
+    `SELECT COALESCE(provider, 'unknown') AS provider, COALESCE(SUM(CAST(cost AS REAL)), 0) AS cost
+     FROM usageHistory WHERE timestamp >= ? GROUP BY provider`,
+    [h1]
+  )) last1h[r.provider] = Number(r.cost) || 0;
+  const prev24h = {};
+  for (const r of db.all(
+    `SELECT COALESCE(provider, 'unknown') AS provider, COALESCE(SUM(CAST(cost AS REAL)), 0) AS cost
+     FROM usageHistory WHERE timestamp >= ? AND timestamp < ? GROUP BY provider`,
+    [h25, h1]
+  )) prev24h[r.provider] = Number(r.cost) || 0;
+  return { last1h, prev24h };
+}
+
+// Cache-hit aggregation for /api/usage/cache. canonicalizeUsage stores
+// prompt_tokens cache-INCLUSIVE with the cached/cache-creation fields alongside,
+// so hit rate = cached / prompt. Bounded to the most recent rows so a 90d
+// window on a busy local DB can't parse unbounded JSON.
+const CACHE_STATS_MAX_ROWS = 20000;
+
+export async function getCacheStats(period = "7d") {
+  const db = await getAdapter();
+  const hours = { "24h": 24, "7d": 24 * 7, "30d": 24 * 30, "90d": 24 * 90 }[period] ?? 24 * 7;
+  const startIso = period === "today"
+    ? (() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()).toISOString(); })()
+    : new Date(Date.now() - hours * 3600_000).toISOString();
+
+  const rows = db.all(
+    `SELECT provider, model, tokens FROM usageHistory WHERE timestamp >= ? ORDER BY id DESC LIMIT ?`,
+    [startIso, CACHE_STATS_MAX_ROWS]
+  );
+
+  const totals = { promptTokens: 0, cachedTokens: 0, cacheCreationTokens: 0, requests: 0, savedUsd: 0 };
+  const providers = {};
+  const models = {};
+  for (const r of rows) {
+    const t = parseJson(r.tokens, {}) || {};
+    const prompt = Number(t.prompt_tokens) || 0;
+    const cached = Number(t.cache_read_input_tokens ?? t.cached_tokens) || 0;
+    const creation = Number(t.cache_creation_input_tokens) || 0;
+    if (prompt <= 0 && cached <= 0 && creation <= 0) continue;
+    const pKey = r.provider || "unknown";
+    const mKey = r.model || "unknown";
+
+    // What the cache discount was worth on this row: cached tokens were billed
+    // at the cached rate instead of the full input rate. Unpriced models add 0
+    // rather than a guessed number.
+    let savedUsd = 0;
+    if (cached > 0) {
+      const pricing = getPricingForModel(r.provider, r.model);
+      if (pricing?.input) {
+        savedUsd = (cached * Math.max(0, pricing.input - (pricing.cached ?? pricing.input))) / 1_000_000;
+      }
+    }
+
+    totals.promptTokens += prompt;
+    totals.cachedTokens += cached;
+    totals.cacheCreationTokens += creation;
+    totals.requests += 1;
+    totals.savedUsd += savedUsd;
+
+    const p = (providers[pKey] ||= { promptTokens: 0, cachedTokens: 0, cacheCreationTokens: 0, requests: 0, savedUsd: 0 });
+    p.promptTokens += prompt; p.cachedTokens += cached; p.cacheCreationTokens += creation; p.requests += 1; p.savedUsd += savedUsd;
+
+    const m = (models[`${pKey}|${mKey}`] ||= { provider: pKey, model: mKey, promptTokens: 0, cachedTokens: 0, requests: 0, savedUsd: 0 });
+    m.promptTokens += prompt; m.cachedTokens += cached; m.requests += 1; m.savedUsd += savedUsd;
+  }
+
+  const hitRate = (x) => (x.promptTokens > 0 ? Number((x.cachedTokens / x.promptTokens).toFixed(4)) : 0);
+  // Summed as float products over up to CACHE_STATS_MAX_ROWS rows — round to
+  // micro-cent so the API never ships accumulation noise like 0.30000000004.
+  const roundUsd = (x) => ({ ...x, savedUsd: Math.round((x.savedUsd || 0) * 1e6) / 1e6 });
+  return {
+    period,
+    sampledRows: rows.length,
+    totals: roundUsd({ ...totals, hitRate: hitRate(totals) }),
+    providers: Object.fromEntries(Object.entries(providers).map(([k, v]) => [k, roundUsd({ ...v, hitRate: hitRate(v) })])),
+    models: Object.values(models)
+      .map((m) => roundUsd({ ...m, hitRate: hitRate(m) }))
+      .sort((a, b) => b.promptTokens - a.promptTokens)
+      .slice(0, 15),
+  };
 }
 
 export async function getUsageHistory(filter = {}) {
@@ -550,7 +749,7 @@ export async function getUsageHistory(filter = {}) {
     if (iso) { conds.push("timestamp >= ?"); params.push(iso); }
   }
   if (filter.endDate) {
-    const iso = toValidDateIso(filter.endDate);
+    const iso = toValidDateUpperBoundIso(filter.endDate);
     if (iso) { conds.push("timestamp <= ?"); params.push(iso); }
   }
 
@@ -587,7 +786,7 @@ export async function getUsageHistoryPage(filter = {}, { limit = 100, cursor = n
     if (iso) { conds.push("timestamp >= ?"); params.push(iso); }
   }
   if (filter.endDate) {
-    const iso = toValidDateIso(filter.endDate);
+    const iso = toValidDateUpperBoundIso(filter.endDate);
     if (iso) { conds.push("timestamp <= ?"); params.push(iso); }
   }
 

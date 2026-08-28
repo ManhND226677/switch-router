@@ -68,12 +68,33 @@ const REFRESH_GRANTS = Object.fromEntries(
       return [id, {
         encoding,
         url: () => tokenUrl,
-        params: (ex) => id === "gemini"
-          ? { client_id: ex.config.clientId, client_secret: ex.config.clientSecret, ...extraParams }
-          : { client_id: o.clientId, ...extraParams },
+        params: () => ({ client_id: o.clientId, ...extraParams }),
       }];
     })
 );
+
+/**
+ * Validate a user-supplied Compatible-node baseUrl.
+ *
+ * Rejecting must be LOUD, never a silent fallback: buildHeaders runs right
+ * after buildUrl and attaches the stored API key, so substituting the vendor
+ * default endpoint here would ship the user's key and prompt to
+ * api.openai.com / api.anthropic.com instead of the host they configured.
+ * Only host:port is echoed — a baseUrl may carry a key in its query string.
+ */
+function guardCompatibleBaseUrl(baseUrl, provider) {
+  const safe = validateSafeBaseUrl(baseUrl);
+  if (safe.ok) return safe.url.href;
+  let host = "(unparseable)";
+  try {
+    host = new URL(baseUrl.includes("://") ? baseUrl : `https://${baseUrl}`).host;
+  } catch { /* keep the placeholder */ }
+  throw new Error(
+    `${provider}: baseUrl "${host}" is rejected (${safe.error}). ` +
+    `The gateway refuses to retry against its default endpoint because that would send your stored API key there. ` +
+    `Point this connection at a public https endpoint, or run the target model as its own provider.`
+  );
+}
 
 export class DefaultExecutor extends BaseExecutor {
   constructor(provider) {
@@ -121,23 +142,15 @@ export class DefaultExecutor extends BaseExecutor {
       return rt.urlSuffix ? `${rt.baseUrl}${rt.urlSuffix}` : rt.baseUrl;
     }
     if (this.provider?.startsWith?.("openai-compatible-")) {
-      const baseUrl = credentials?.providerSpecificData?.baseUrl || OPENAI_COMPAT_BASE;
-      // User-supplied base URLs go through the SSRF guard: unsafe (private/
-      // loopback host) input falls back to the default instead of reaching fetch.
-      const safe = validateSafeBaseUrl(baseUrl);
-      const normalized = (safe.ok ? safe.url.href : OPENAI_COMPAT_BASE).replace(/\/$/, "");
+      const normalized = guardCompatibleBaseUrl(
+        credentials?.providerSpecificData?.baseUrl || OPENAI_COMPAT_BASE, this.provider).replace(/\/$/, "");
       const path = this.provider.includes("responses") ? "/responses" : "/chat/completions";
       return `${normalized}${path}`;
     }
     if (this.provider?.startsWith?.("anthropic-compatible-")) {
-      const baseUrl = credentials?.providerSpecificData?.baseUrl || ANTHROPIC_COMPAT_BASE;
-      const safe = validateSafeBaseUrl(baseUrl);
-      const normalized = (safe.ok ? safe.url.href : ANTHROPIC_COMPAT_BASE).replace(/\/$/, "");
+      const normalized = guardCompatibleBaseUrl(
+        credentials?.providerSpecificData?.baseUrl || ANTHROPIC_COMPAT_BASE, this.provider).replace(/\/$/, "");
       return `${normalized}/messages`;
-    }
-    // gemini-format: build :streamGenerateContent / :generateContent path
-    if (this.config.format === "gemini") {
-      return `${this.config.baseUrl}/${model}:${stream ? "streamGenerateContent?alt=sse" : "generateContent"}`;
     }
     // urlSuffix (e.g. ?beta=true) declared per-provider in registry
     if (this.config.urlSuffix) {

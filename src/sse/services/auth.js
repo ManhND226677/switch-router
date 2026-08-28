@@ -1,6 +1,8 @@
-import { getProviderConnections, validateApiKey, updateProviderConnection, getSettings, getProxyPools } from "@/lib/localDb";
+import { getProviderConnections, validateApiKey, updateProviderConnection, updateProviderConnectionsBatch, getSettings, getProxyPools } from "@/lib/localDb";
 import { resolveConnectionProxyConfig, pickProxyPoolId } from "@/lib/network/connectionProxy";
 import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLockUpdate, getEarliestModelLockUntil } from "open-sse/services/accountFallback.js";
+import { pickFastestConnection, hydrateConnectionLatency } from "open-sse/services/connectionLatency.js";
+import { getPinnedConnection } from "open-sse/services/sessionPinning.js";
 import { MAX_RATE_LIMIT_COOLDOWN_MS } from "open-sse/config/errorConfig.js";
 import { resolveProviderId, FREE_PROVIDERS } from "@/shared/constants/providers.js";
 import { getProviderRoutingPolicy } from "@/core/routing/routingConfig.js";
@@ -9,7 +11,9 @@ import * as log from "../utils/logger.js";
 
 // Per-provider mutex: concurrent requests for different providers no longer
 // serialize each other. Same-provider selection still serializes so sticky-RR
-// counters stay consistent under concurrency.
+// counters stay consistent under concurrency — but only the (synchronous)
+// strategy decision itself runs inside the lock; DB reads and proxy resolution
+// happen outside so bursts don't queue behind each other's I/O.
 if (!global._providerSelectionMutex) global._providerSelectionMutex = new Map();
 const providerMutexes = global._providerSelectionMutex;
 
@@ -30,11 +34,17 @@ async function withProviderSelectionLock(providerId, fn) {
   }
 }
 
-// In-memory sticky-RR counters. Avoids a full-row DB write on every request
-// before first upstream byte. DB is still the source of truth for locks/tokens;
-// these counters only accelerate lastUsedAt / consecutiveUseCount.
+// In-memory sticky-RR counters. Selection only touches memory; a write-behind
+// queue persists counters in one batched transaction every few seconds so the
+// 1s connections list cache is not invalidated (forcing a re-SELECT + re-parse
+// of every connection) on every request. DB remains the source of truth for
+// locks/tokens; losing ≤5s of counters on a crash is harmless.
 if (!global._rrStickyState) global._rrStickyState = new Map();
 const rrStickyState = global._rrStickyState; // connectionId -> { lastUsedAt, consecutiveUseCount }
+
+if (!global._rrPersistQueue) global._rrPersistQueue = { pending: new Set(), flushing: false, timer: null };
+const rrPersist = global._rrPersistQueue;
+const RR_PERSIST_INTERVAL_MS = 5000;
 
 function overlayRrState(connection) {
   const mem = rrStickyState.get(connection.id);
@@ -46,13 +56,48 @@ function overlayRrState(connection) {
   };
 }
 
+function scheduleRrPersist() {
+  if (rrPersist.timer || rrPersist.flushing) return;
+  rrPersist.timer = setTimeout(() => {
+    rrPersist.timer = null;
+    flushRrCounters().catch(() => {});
+  }, RR_PERSIST_INTERVAL_MS);
+  // Never hold the event loop open just for counter persistence.
+  rrPersist.timer.unref?.();
+}
+
+/**
+ * Flush pending sticky-RR counters to DB in one batched transaction.
+ * Exported so shutdown paths can drain the queue before exit.
+ */
+export async function flushRrCounters() {
+  if (rrPersist.flushing || rrPersist.pending.size === 0) return;
+  rrPersist.flushing = true;
+  const ids = [...rrPersist.pending];
+  for (const id of ids) rrPersist.pending.delete(id);
+  try {
+    const updates = {};
+    for (const id of ids) {
+      const latest = rrStickyState.get(id);
+      if (latest) updates[id] = latest;
+    }
+    if (Object.keys(updates).length > 0) {
+      await updateProviderConnectionsBatch(updates);
+    }
+  } catch (err) {
+    // Re-queue for the next scheduled flush — counters are acceleration data only.
+    for (const id of ids) rrPersist.pending.add(id);
+    log.warn?.("AUTH", `RR sticky persist failed: ${err?.message || err}`);
+  } finally {
+    rrPersist.flushing = false;
+    if (rrPersist.pending.size > 0) scheduleRrPersist();
+  }
+}
+
 function recordRrUse(connectionId, consecutiveUseCount) {
-  const lastUsedAt = new Date().toISOString();
-  rrStickyState.set(connectionId, { lastUsedAt, consecutiveUseCount });
-  // Fire-and-forget persist — selection path must not await disk.
-  updateProviderConnection(connectionId, { lastUsedAt, consecutiveUseCount }).catch((err) => {
-    log.warn?.("AUTH", `RR sticky persist failed for ${connectionId?.slice?.(0, 8) || connectionId}: ${err?.message || err}`);
-  });
+  rrStickyState.set(connectionId, { lastUsedAt: new Date().toISOString(), consecutiveUseCount });
+  rrPersist.pending.add(connectionId);
+  scheduleRrPersist();
 }
 
 /**
@@ -68,140 +113,173 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     ? excludeConnectionIds
     : (excludeConnectionIds ? new Set([excludeConnectionIds]) : new Set());
   const preferredConnectionId = options?.preferredConnectionId || null;
+  const sessionKey = options?.sessionKey || null;
 
   // Resolve alias to provider ID (e.g., "kc" -> "kilocode") before locking
   // so different aliases of the same provider share one mutex.
   const providerId = resolveProviderId(provider);
 
-  return withProviderSelectionLock(providerId, async () => {
-    // Inject a virtual connection for no-auth free providers (with optional proxy pool from settings)
-    if (FREE_PROVIDERS[providerId]?.noAuth) {
-      const settings = await getSettings();
-      const policy = getProviderRoutingPolicy(settings, providerId);
-      const strategy = policy.rotateStrategy;
-      let pickedId = policy.proxyPoolId;
-      if (strategy !== "none") {
-        const allPools = await getProxyPools({ isActive: true });
-        const poolIds = allPools.filter(p => p.proxyUrl).map(p => p.id);
-        pickedId = pickProxyPoolId(poolIds, strategy, providerId);
-      }
-      const resolvedProxy = await resolveConnectionProxyConfig({ proxyPoolId: pickedId || "" });
-      return {
-        id: "noauth",
-        connectionName: "Public",
-        isActive: true,
-        accessToken: "public",
-        providerSpecificData: {
-          connectionProxyEnabled: resolvedProxy.connectionProxyEnabled,
-          connectionProxyUrl: resolvedProxy.connectionProxyUrl,
-          connectionNoProxy: resolvedProxy.connectionNoProxy,
-          connectionProxyPoolId: resolvedProxy.proxyPoolId || null,
-        },
-      };
-    }
-
-    const connections = await getProviderConnections({ provider: providerId, isActive: true });
-    log.debug("AUTH", `${provider} | total connections: ${connections.length}, excludeIds: ${excludeSet.size > 0 ? [...excludeSet].join(",") : "none"}, model: ${model || "any"}`);
-
-    if (connections.length === 0) {
-      log.warn("AUTH", `No credentials for ${provider}`);
-      return null;
-    }
-
-    // Overlay in-memory RR counters so sticky decisions see the latest use
-    // without waiting for deferred DB writes from prior requests.
-    const connectionsWithRr = connections.map(overlayRrState);
-
-    // Filter out model-locked and excluded connections
-    const availableConnections = connectionsWithRr.filter(c => {
-      if (excludeSet.has(c.id)) return false;
-      if (isModelLockActive(c, model)) return false;
-      return true;
-    });
-
-    log.debug("AUTH", `${provider} | available: ${availableConnections.length}/${connectionsWithRr.length}`);
-    connectionsWithRr.forEach(c => {
-      const excluded = excludeSet.has(c.id);
-      const locked = isModelLockActive(c, model);
-      if (excluded || locked) {
-        const lockUntil = getEarliestModelLockUntil(c);
-        log.debug("AUTH", `  → ${c.id?.slice(0, 8)} | ${excluded ? "excluded" : ""} ${locked ? `modelLocked(${model}) until ${lockUntil}` : ""}`);
-      }
-    });
-
-    if (availableConnections.length === 0) {
-      // Find earliest lock expiry across all connections for retry timing
-      const lockedConns = connectionsWithRr.filter(c => isModelLockActive(c, model));
-      const expiries = lockedConns.map(c => getEarliestModelLockUntil(c)).filter(Boolean);
-      const earliest = expiries.sort()[0] || null;
-      if (earliest) {
-        const earliestConn = lockedConns[0];
-        log.warn("AUTH", `${provider} | all ${connectionsWithRr.length} accounts locked for ${model || "all"} (${formatRetryAfter(earliest)}) | lastError=${earliestConn?.lastError?.slice(0, 50)}`);
-        return {
-          allRateLimited: true,
-          retryAfter: earliest,
-          retryAfterHuman: formatRetryAfter(earliest),
-          lastError: earliestConn?.lastError || null,
-          lastErrorCode: earliestConn?.errorCode || null
-        };
-      }
-      log.warn("AUTH", `${provider} | all ${connectionsWithRr.length} accounts unavailable`);
-      return null;
-    }
-
+  // Inject a virtual connection for no-auth free providers (with optional proxy pool from settings).
+  // No sticky-RR state is involved → no selection lock needed.
+  if (FREE_PROVIDERS[providerId]?.noAuth) {
     const settings = await getSettings();
     const policy = getProviderRoutingPolicy(settings, providerId);
-    const strategy = policy.fallbackStrategy;
-
-    let connection;
-    // Pin to preferred connection if specified and available
-    if (preferredConnectionId) {
-      connection = availableConnections.find((c) => c.id === preferredConnectionId);
-      if (connection) {
-        log.info("AUTH", `${provider} | pinned to ${connection.id?.slice(0, 8)} (${connection.name || connection.email || "unnamed"})`);
-      }
+    const strategy = policy.rotateStrategy;
+    let pickedId = policy.proxyPoolId;
+    if (strategy !== "none") {
+      const allPools = await getProxyPools({ isActive: true });
+      const poolIds = allPools.filter(p => p.proxyUrl).map(p => p.id);
+      pickedId = pickProxyPoolId(poolIds, strategy, providerId);
     }
-    if (connection) {
-      // skip strategy
-    } else if (strategy === "round-robin") {
-      const stickyLimit = policy.stickyRoundRobinLimit;
+    const resolvedProxy = await resolveConnectionProxyConfig({ proxyPoolId: pickedId || "" });
+    return {
+      id: "noauth",
+      connectionName: "Public",
+      isActive: true,
+      accessToken: "public",
+      providerSpecificData: {
+        connectionProxyEnabled: resolvedProxy.connectionProxyEnabled,
+        connectionProxyUrl: resolvedProxy.connectionProxyUrl,
+        connectionNoProxy: resolvedProxy.connectionNoProxy,
+        connectionProxyPoolId: resolvedProxy.proxyPoolId || null,
+      },
+    };
+  }
 
-      // Sort by lastUsed (most recent first) to find current candidate
-      const byRecency = [...availableConnections].sort((a, b) => {
+  // Reads happen OUTSIDE the selection lock: both list (1s TTL) and settings are
+  // cached, and concurrent same-provider requests no longer queue behind each
+  // other's DB reads. Only the synchronous sticky-RR decision stays serialized.
+  const [connections, settings] = await Promise.all([
+    getProviderConnections({ provider: providerId, isActive: true }),
+    getSettings(),
+  ]);
+  log.debug("AUTH", `${provider} | total connections: ${connections.length}, excludeIds: ${excludeSet.size > 0 ? [...excludeSet].join(",") : "none"}, model: ${model || "any"}`);
+
+  if (connections.length === 0) {
+    log.warn("AUTH", `No credentials for ${provider}`);
+    return null;
+  }
+
+  // Filter out model-locked and excluded connections (RR overlays are applied
+  // later, inside the lock, so consecutive requests always see the latest counters).
+  const filteredOut = [];
+  const availableConnections = connections.filter(c => {
+    if (excludeSet.has(c.id)) { filteredOut.push({ c, excluded: true }); return false; }
+    if (isModelLockActive(c, model)) { filteredOut.push({ c, excluded: false }); return false; }
+    return true;
+  });
+
+  for (const { c, excluded } of filteredOut) {
+    const lockUntil = excluded ? null : getEarliestModelLockUntil(c);
+    log.debug("AUTH", `  → ${c.id?.slice(0, 8)} | ${excluded ? "excluded" : ""} ${!excluded ? `modelLocked(${model}) until ${lockUntil}` : ""}`);
+  }
+  log.debug("AUTH", `${provider} | available: ${availableConnections.length}/${connections.length}`);
+
+  if (availableConnections.length === 0) {
+    // Find earliest lock expiry across all connections for retry timing
+    const lockedConns = connections.filter(c => isModelLockActive(c, model));
+    const expiries = lockedConns.map(c => getEarliestModelLockUntil(c)).filter(Boolean);
+    const earliest = expiries.sort()[0] || null;
+    if (earliest) {
+      const earliestConn = lockedConns[0];
+      log.warn("AUTH", `${provider} | all ${connections.length} accounts locked for ${model || "all"} (${formatRetryAfter(earliest)}) | lastError=${earliestConn?.lastError?.slice(0, 50)}`);
+      return {
+        allRateLimited: true,
+        retryAfter: earliest,
+        retryAfterHuman: formatRetryAfter(earliest),
+        lastError: earliestConn?.lastError || null,
+        lastErrorCode: earliestConn?.errorCode || null
+      };
+    }
+    log.warn("AUTH", `${provider} | all ${connections.length} accounts unavailable`);
+    return null;
+  }
+
+  const policy = getProviderRoutingPolicy(settings, providerId);
+  const strategy = policy.fallbackStrategy;
+
+  // "fastest" needs the persisted latency EWMA; hydrate once per process before
+  // deciding, outside the lock (the decision itself stays synchronous).
+  if (strategy === "fastest") await hydrateConnectionLatency();
+
+  // Serialize ONLY the strategy decision (synchronous, in-memory) so sticky-RR
+  // counters stay consistent; hold time is microseconds instead of spanning
+  // DB reads, sorts with Date parsing, and proxy resolution.
+  const connection = await withProviderSelectionLock(providerId, () =>
+    selectConnectionByStrategy(availableConnections.map(overlayRrState), policy, strategy, preferredConnectionId, provider, sessionKey));
+
+  const resolvedProxy = await resolveConnectionProxyConfig(connection.providerSpecificData || {});
+
+  return buildRuntimeCredentials(connection, resolvedProxy);
+}
+
+/**
+ * Pure, synchronous strategy decision — must run inside the provider selection
+ * lock because it reads and mutates the sticky-RR counters.
+ */
+function selectConnectionByStrategy(availableConnections, policy, strategy, preferredConnectionId, provider, sessionKey = null) {
+  let connection;
+  // Pin to preferred connection if specified and available
+  if (preferredConnectionId) {
+    connection = availableConnections.find((c) => c.id === preferredConnectionId);
+    if (connection) {
+      log.info("AUTH", `${provider} | pinned to ${connection.id?.slice(0, 8)} (${connection.name || connection.email || "unnamed"})`);
+    }
+  }
+  // Conversation affinity: keep a running conversation on the account that
+  // served its previous turn (that is where the upstream prompt cache lives).
+  // `availableConnections` is already free of excluded/model-locked accounts,
+  // so a degraded pin falls through to the normal strategy by itself.
+  if (!connection && sessionKey) {
+    const pinnedId = getPinnedConnection(sessionKey);
+    connection = pinnedId ? availableConnections.find((c) => c.id === pinnedId) : null;
+    if (connection) {
+      log.debug("AUTH", `${provider} | session affinity → ${connection.id?.slice(0, 8)} (${connection.name || connection.email || "unnamed"})`);
+      if (strategy === "round-robin") recordRrUse(connection.id, 1);
+    }
+  }
+  if (connection) {
+    // skip strategy
+  } else if (strategy === "round-robin") {
+    const stickyLimit = policy.stickyRoundRobinLimit;
+
+    // Sort by lastUsed (most recent first) to find current candidate
+    const byRecency = [...availableConnections].sort((a, b) => {
+      if (!a.lastUsedAt && !b.lastUsedAt) return (a.priority || 999) - (b.priority || 999);
+      if (!a.lastUsedAt) return 1;
+      if (!b.lastUsedAt) return -1;
+      return new Date(b.lastUsedAt) - new Date(a.lastUsedAt);
+    });
+
+    const current = byRecency[0];
+    const currentCount = current?.consecutiveUseCount || 0;
+
+    if (current && current.lastUsedAt && currentCount < stickyLimit) {
+      // Stay with current account
+      connection = current;
+      recordRrUse(connection.id, (connection.consecutiveUseCount || 0) + 1);
+    } else {
+      // Pick the least recently used (excluding current if possible)
+      const sortedByOldest = [...availableConnections].sort((a, b) => {
         if (!a.lastUsedAt && !b.lastUsedAt) return (a.priority || 999) - (b.priority || 999);
-        if (!a.lastUsedAt) return 1;
-        if (!b.lastUsedAt) return -1;
-        return new Date(b.lastUsedAt) - new Date(a.lastUsedAt);
+        if (!a.lastUsedAt) return -1;
+        if (!b.lastUsedAt) return 1;
+        return new Date(a.lastUsedAt) - new Date(b.lastUsedAt);
       });
 
-      const current = byRecency[0];
-      const currentCount = current?.consecutiveUseCount || 0;
-
-      if (current && current.lastUsedAt && currentCount < stickyLimit) {
-        // Stay with current account
-        connection = current;
-        recordRrUse(connection.id, (connection.consecutiveUseCount || 0) + 1);
-      } else {
-        // Pick the least recently used (excluding current if possible)
-        const sortedByOldest = [...availableConnections].sort((a, b) => {
-          if (!a.lastUsedAt && !b.lastUsedAt) return (a.priority || 999) - (b.priority || 999);
-          if (!a.lastUsedAt) return -1;
-          if (!b.lastUsedAt) return 1;
-          return new Date(a.lastUsedAt) - new Date(b.lastUsedAt);
-        });
-
-        connection = sortedByOldest[0];
-        recordRrUse(connection.id, 1);
-      }
-    } else {
-      // Default: fill-first (already sorted by priority in getProviderConnections)
-      connection = availableConnections[0];
+      connection = sortedByOldest[0];
+      recordRrUse(connection.id, 1);
     }
-
-    const resolvedProxy = await resolveConnectionProxyConfig(connection.providerSpecificData || {});
-
-    return buildRuntimeCredentials(connection, resolvedProxy);
-  });
+  } else if (strategy === "fastest") {
+    // Latency-aware: pick the account with the freshest lowest EWMA TTFT.
+    // Unsampled accounts get the median score so they still receive traffic;
+    // with no samples at all this degrades to fill-first priority order.
+    connection = pickFastestConnection(availableConnections);
+  } else {
+    // Default: fill-first (already sorted by priority in getProviderConnections)
+    connection = availableConnections[0];
+  }
+  return connection;
 }
 
 /**
@@ -230,6 +308,10 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
     ({ shouldFallback, cooldownMs, newBackoffLevel } = checkFallbackError(status, errorText, backoffLevel));
   }
   if (!shouldFallback) return { shouldFallback: false, cooldownMs: 0 };
+  // cooldownMs 0 = "not this account's fault" (deterministic client 4xx). Still
+  // rotate so a combo advances to its next model, but never write a lock or
+  // mark the account unhealthy for it.
+  if (!(cooldownMs > 0)) return { shouldFallback: true, cooldownMs: 0 };
 
   const reason = typeof errorText === "string" ? errorText.slice(0, 100) : "Provider error";
   const lockUpdate = buildModelLockUpdate(model, cooldownMs);

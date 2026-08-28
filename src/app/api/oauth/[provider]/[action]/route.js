@@ -155,7 +155,6 @@ export async function GET(request, { params }) {
         "github",
         "kimi-coding",
         "kilocode",
-        "qoder",
         "grok-cli",
       ];
       let deviceData;
@@ -281,14 +280,6 @@ export async function POST(request, { params }) {
       let result;
       if (noPkceProviders.includes(provider)) {
         result = await pollForToken(provider, deviceCode);
-      } else if (provider === "qoder") {
-        // Qoder needs both the PKCE verifier (codeVerifier) and the machineId
-        // captured at device-code time (extraData._qoderMachineId) so
-        // mapTokens can persist it for COSY signing.
-        if (!codeVerifier) {
-          return NextResponse.json({ error: "Missing code verifier" }, { status: 400 });
-        }
-        result = await pollForToken(provider, deviceCode, codeVerifier, extraData);
       } else {
         // Qwen and other PKCE providers
         if (!codeVerifier) {

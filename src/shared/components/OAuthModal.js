@@ -166,7 +166,6 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         "qwen",
         "kimi-coding",
         "kilocode",
-        "qoder",
         "grok-cli",
       ];
       if (deviceCodeProviders.includes(provider)) {
@@ -184,21 +183,13 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         const verifyUrl = data.verification_uri_complete || data.verification_uri;
         if (verifyUrl) window.open(verifyUrl, "_blank", "noopener,noreferrer");
 
-        // Qoder persists its device-code machine identity alongside the token.
-        const extraData = provider === "qoder"
-          ? {
-              _qoderNonce: data._qoderNonce,
-              _qoderMachineId: data._qoderMachineId,
-              _qoderVerifier: data.codeVerifier,
-            }
-          : null;
         startPolling(
           data.device_code,
           data.codeVerifier,
           data.interval || 5,
-          extraData,
+          null,
           // Use the upstream's expires_in if present so we don't time out
-          // before the device code itself (qoder gives 300s).
+          // before the device code itself.
           Number.isFinite(data.expires_in) && data.expires_in > 0
             ? data.expires_in * 1000
             : undefined,

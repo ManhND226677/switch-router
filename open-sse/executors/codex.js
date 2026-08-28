@@ -309,18 +309,27 @@ export class CodexExecutor extends BaseExecutor {
     let text = "";
     let matched = null;
     let accountFallback = false;
+    // Patterns can straddle chunk boundaries, so each pass re-scans only the
+    // last (maxPatternLen - 1) chars of previously scanned text plus the new
+    // chunk — previously lowercasing the whole growing buffer per chunk was
+    // quadratic up to the 256KB peek cap.
+    const allPeekPatterns = [...CODEX_SSE_ACCOUNT_FALLBACK_PATTERNS, ...CODEX_SSE_RETRY_PATTERNS, ...CODEX_SSE_USER_OUTPUT_PATTERNS];
+    const maxPatternLen = allPeekPatterns.reduce((m, p) => Math.max(m, p.length), 1);
+    let scannedUpTo = 0;
     try {
       while (text.length < CODEX_SSE_PEEK_BYTES) {
         const { done, value } = await reader.read();
         if (done) break;
         chunks.push(value);
         text += decoder.decode(value, { stream: true });
-        const lowerText = text.toLowerCase();
-        const accountHit = CODEX_SSE_ACCOUNT_FALLBACK_PATTERNS.find(p => lowerText.includes(p));
+        const scanFrom = Math.max(0, scannedUpTo - (maxPatternLen - 1));
+        const window = text.slice(scanFrom).toLowerCase();
+        const accountHit = CODEX_SSE_ACCOUNT_FALLBACK_PATTERNS.find(p => window.includes(p));
         if (accountHit) { matched = accountHit; accountFallback = true; break; }
-        const retryHit = CODEX_SSE_RETRY_PATTERNS.find(p => lowerText.includes(p));
+        const retryHit = CODEX_SSE_RETRY_PATTERNS.find(p => window.includes(p));
         if (retryHit) { matched = retryHit; break; }
-        if (CODEX_SSE_USER_OUTPUT_PATTERNS.some(p => lowerText.includes(p))) break;
+        if (CODEX_SSE_USER_OUTPUT_PATTERNS.some(p => window.includes(p))) break;
+        scannedUpTo = text.length;
       }
     } catch (e) {
       dbg("CODEX", `peek read error: ${e.message}`);

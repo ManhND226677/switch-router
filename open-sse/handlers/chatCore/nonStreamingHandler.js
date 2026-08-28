@@ -8,6 +8,7 @@ import { HTTP_STATUS } from "../../config/runtimeConfig.js";
 import { parseSSEToOpenAIResponse } from "./sseToJsonHandler.js";
 import { buildRequestDetail, extractRequestConfig, extractUsageFromResponse, saveUsageStats, formatDoneLine } from "./requestDetail.js";
 import { appendRequestLog, saveRequestDetail } from "../../../src/lib/usageDb.js";
+import { recordConnectionLatency } from "../../services/connectionLatency.js";
 import { decloakToolNames } from "../../utils/claudeCloaking.js";
 
 function parseToolArguments(value) {
@@ -198,7 +199,7 @@ export function translateNonStreamingResponse(responseBody, targetFormat, source
 /**
  * Handle non-streaming response from provider.
  */
-export async function handleNonStreamingResponse({ providerResponse, provider, model, sourceFormat, targetFormat, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, onRequestSuccess, reqLogger, toolNameMap, trackDone, appendLog, pxpipe, reqTag, log }) {
+export async function handleNonStreamingResponse({ providerResponse, provider, model, sourceFormat, targetFormat, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, onRequestSuccess, reqLogger, toolNameMap, trackDone, appendLog, pxpipe, reqTag, log, routingMetrics }) {
   trackDone();
   const contentType = providerResponse.headers.get("content-type") || "";
   let responseBody;
@@ -236,7 +237,7 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
   const usage = extractUsageFromResponse(responseBody);
   appendLog({ tokens: usage, status: "200 OK" });
   saveUsageStats({ provider, model, tokens: usage, connectionId, apiKey, endpoint: clientRawRequest?.endpoint, silent: true });
-  if (log?.line) log.line(reqTag, "📊", formatDoneLine({ usage, latency: { total: Date.now() - requestStartTime } }));
+  if (log?.line) log.line(reqTag, "📊", formatDoneLine({ usage, latency: { total: Date.now() - requestStartTime, ...(routingMetrics?.attempts > 1 ? { attempts: routingMetrics.attempts } : {}) } }));
 
   const translatedResponse = needsTranslation(targetFormat, sourceFormat)
     ? translateNonStreamingResponse(responseBody, targetFormat, sourceFormat)
@@ -285,9 +286,17 @@ export async function handleNonStreamingResponse({ providerResponse, provider, m
   reqLogger.logConvertedResponse(translatedResponse);
 
   const totalLatency = Date.now() - requestStartTime;
+  // Non-streaming has no TTFT — total latency is an upper bound that still
+  // feeds the "fastest" strategy's EWMA usefully.
+  recordConnectionLatency(connectionId, null, totalLatency);
   saveRequestDetail(buildRequestDetail({
     provider, model, connectionId,
-    latency: { ttft: totalLatency, total: totalLatency },
+    latency: {
+      ttft: totalLatency,
+      total: totalLatency,
+      ...(routingMetrics?.attempts > 1 ? { attempts: routingMetrics.attempts } : {}),
+      ...(routingMetrics?.selectionMs > 0 ? { selectionMs: routingMetrics.selectionMs } : {}),
+    },
     tokens: usage || { prompt_tokens: 0, completion_tokens: 0 },
     request: extractRequestConfig(body, stream),
     providerRequest: finalBody || translatedBody || null,

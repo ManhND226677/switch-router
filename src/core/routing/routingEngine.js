@@ -7,7 +7,15 @@
  * policy reusable when model/provider candidates are added later.
  */
 export class RoutingEngine {
-  constructor({ resolveCredentials, executeAttempt, onFailure, maxAttempts = 64 } = {}) {
+  /**
+   * @param {object} opts
+   * @param {number} [opts.maxAttempts=64] - hard cap on credential attempts
+   * @param {number} [opts.deadlineMs=0] - total budget for the whole fallback
+   *   loop. 0 disables the gate. An attempt already in flight is NEVER aborted;
+   *   the gate only stops NEW attempts once the budget is exhausted, returning
+   *   the last failure result so the caller surfaces it as usual.
+   */
+  constructor({ resolveCredentials, executeAttempt, onFailure, maxAttempts = 64, deadlineMs = 0 } = {}) {
     if (typeof resolveCredentials !== "function") {
       throw new TypeError("RoutingEngine requires resolveCredentials");
     }
@@ -22,6 +30,7 @@ export class RoutingEngine {
     this.executeAttempt = executeAttempt;
     this.onFailure = onFailure;
     this.maxAttempts = Math.max(1, maxAttempts);
+    this.deadlineMs = Math.max(0, Number(deadlineMs) || 0);
   }
 
   /**
@@ -33,10 +42,26 @@ export class RoutingEngine {
    */
   async execute({ provider, model, context } = {}) {
     const excludedConnectionIds = new Set();
+    const startedAt = Date.now();
     let lastResult = null;
     let attempts = 0;
 
     while (attempts < this.maxAttempts) {
+      // Deadline gate (between attempts only — in-flight attempts run to completion):
+      // without a budget, many accounts × per-status retry ladders can stack into
+      // minutes of tail latency before the client sees any error.
+      if (this.deadlineMs > 0 && attempts > 0 && Date.now() - startedAt > this.deadlineMs) {
+        return lastResult
+          ? { ...lastResult, attempts, deadlineExceeded: true }
+          : {
+              outcome: "unavailable",
+              credentials: null,
+              lastResult,
+              attempts,
+              excludedConnectionIds,
+            };
+      }
+
       const credentials = await this.resolveCredentials({
         provider,
         model,
@@ -65,7 +90,8 @@ export class RoutingEngine {
         excludedConnectionIds,
       });
 
-      if (result?.success) return result;
+      // Attach attempt count for observability (TTFT dashboards, done-log lines).
+      if (result?.success) return { ...result, attempts };
 
       lastResult = result;
       const decision = await this.onFailure({

@@ -37,12 +37,22 @@ describe("validateSafeBaseUrl", () => {
 });
 
 describe("DefaultExecutor.buildUrl SSRF guard", () => {
-  it("openai-compatible: private baseUrl falls back to the default", () => {
+  it("openai-compatible: private baseUrl is rejected loudly, never rerouted to the vendor default", () => {
     const executor = makeExecutor("openai-compatible-chat-test");
-    const url = executor.buildUrl("m", true, 0, {
-      providerSpecificData: { baseUrl: "http://127.0.0.1:9999/v1" },
-    });
-    expect(url).toMatch(/^https:\/\/api\.openai\.com\/v1\/chat\/completions$/);
+    let caught = null;
+    try {
+      executor.buildUrl("m", true, 0, {
+        providerSpecificData: { baseUrl: "http://127.0.0.1:9999/v1" },
+        apiKey: "sk-secret-material",
+      });
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught.message).toContain("127.0.0.1:9999");
+    // The whole point: no api.openai.com request carrying the stored key.
+    expect(caught.message).not.toContain("api.openai.com");
+    expect(caught.message).not.toContain("sk-secret-material");
   });
 
   it("openai-compatible: public baseUrl is kept", () => {
@@ -53,11 +63,11 @@ describe("DefaultExecutor.buildUrl SSRF guard", () => {
     expect(url).toBe("https://api.example.com/v1/chat/completions");
   });
 
-  it("anthropic-compatible: private baseUrl falls back to the default", () => {
+  it("anthropic-compatible: private baseUrl is rejected, never rerouted to api.anthropic.com", () => {
     const executor = makeExecutor("anthropic-compatible-test");
-    const url = executor.buildUrl("m", true, 0, {
+    expect(() => executor.buildUrl("m", true, 0, {
       providerSpecificData: { baseUrl: "http://10.1.2.3" },
-    });
-    expect(url).toMatch(/^https:\/\/api\.anthropic\.com\/v1\/messages$/);
+      apiKey: "sk-ant-secret-material",
+    })).toThrow(/10\.1\.2\.3/);
   });
 });

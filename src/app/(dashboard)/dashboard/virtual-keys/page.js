@@ -55,8 +55,8 @@ export default function VirtualKeysPage() {
   const [formData, setFormData] = useState(normalizeForm());
   const [saving, setSaving] = useState(false);
 
-  // Gateway-wide key enforcement (moved from the old endpoint page)
-  const [requireApiKey, setRequireApiKey] = useState(false);
+  // M365 allowlist count (the gateway-wide requireApiKey toggle is hidden from the UI;
+  // the setting itself stays in /api/settings and stays enforced server-side)
   const [officeAllowlistCount, setOfficeAllowlistCount] = useState(0);
 
   // Key đầy đủ chỉ hiện đúng 1 lần ngay sau khi tạo
@@ -86,32 +86,18 @@ export default function VirtualKeysPage() {
   }, [fetchKeys]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Load gateway settings for the Require-API-key toggle + M365 allowlist count.
+  // Load M365 allowlist count for the Base URLs card.
   useEffect(() => {
     let cancelled = false;
     fetch("/api/settings", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (cancelled || !data) return;
-        setRequireApiKey(data.requireApiKey === true);
         setOfficeAllowlistCount(Number(data.officeModelAllowlistCount) || 0);
       })
       .catch(() => {});
     return () => { cancelled = true; };
   }, []);
-
-  const handleRequireApiKeyChange = async (value) => {
-    try {
-      const response = await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requireApiKey: value }),
-      });
-      if (response.ok) setRequireApiKey(value);
-    } catch (error) {
-      console.log("Error updating requireApiKey:", error);
-    }
-  };
 
   // Danh sách model/combo public để chọn allowlist (cùng nguồn client gọi thật)
   useEffect(() => {
@@ -474,8 +460,6 @@ export default function VirtualKeysPage() {
       <ClientSetupSection
         origin={typeof window === "undefined" ? "http://127.0.0.1:28701" : window.location.origin}
         keys={keys}
-        requireApiKey={requireApiKey}
-        onRequireApiKeyChange={handleRequireApiKeyChange}
         officeAllowlistCount={officeAllowlistCount}
       />
     </div>

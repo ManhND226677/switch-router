@@ -7,15 +7,15 @@ describe("provider display split (E1)", () => {
   it("AI_PROVIDERS entries still carry merged display + service kinds", async () => {
     const { AI_PROVIDERS } = await import("../../src/shared/constants/providers.js");
     // display + media metadata stay merged into the UI entry
-    expect(AI_PROVIDERS.gemini.serviceKinds).toContain("llm");
-    expect(AI_PROVIDERS.gemini.name).toBeTruthy();
+    expect(AI_PROVIDERS.ollama.serviceKinds).toContain("llm");
+    expect(AI_PROVIDERS.ollama.name).toBeTruthy();
   });
 
   it("transport stays in the engine registry, not the UI entry", async () => {
     const { PROVIDERS } = await import("open-sse/providers/index.js");
     const { AI_PROVIDERS } = await import("../../src/shared/constants/providers.js");
-    expect(PROVIDERS.gemini.baseUrl).toContain("generativelanguage.googleapis.com");
-    expect(AI_PROVIDERS.gemini.baseUrl).toBeUndefined();
+    expect(PROVIDERS.ollama.baseUrl).toContain("ollama.com");
+    expect(AI_PROVIDERS.ollama.baseUrl).toBeUndefined();
   });
 
   it("display fields source from providersDisplay.js", async () => {

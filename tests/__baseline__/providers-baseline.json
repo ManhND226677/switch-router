@@ -93,14 +93,6 @@
       }
     ]
   },
-  "gemini": {
-    "baseUrl": "https://generativelanguage.googleapis.com/v1beta/models",
-    "format": "gemini"
-  },
-  "gemini-cli": {
-    "baseUrl": "https://cloudcode-pa.googleapis.com/v1internal",
-    "format": "gemini-cli"
-  },
   "github": {
     "baseUrl": "https://api.githubcopilot.com/chat/completions",
     "responsesUrl": "https://api.githubcopilot.com/responses",
@@ -295,10 +287,6 @@
     "baseUrl": "https://ollama.com/api/chat",
     "format": "ollama"
   },
-  "ollama-local": {
-    "baseUrl": "http://localhost:11434/api/chat",
-    "format": "ollama"
-  },
   "openai": {
     "baseUrl": "https://api.openai.com/v1/chat/completions",
     "format": "openai"
@@ -323,13 +311,6 @@
       "HTTP-Referer": "https://endpoint-proxy.local",
       "X-Title": "Endpoint Proxy"
     },
-    "format": "openai"
-  },
-  "qoder": {
-    "baseUrl": "https://api3.qoder.sh/algo/api/v2/service/pro/sse/agent_chat_generation",
-    "headers": {},
-    "timeoutMs": 120000,
-    "stallTimeoutMs": 120000,
     "format": "openai"
   },
   "qwen": {

@@ -6,7 +6,10 @@
 // Map of CLI tool identifiers to provider IDs they are "native" to
 const NATIVE_PAIRS = {
   "claude": ["claude", "anthropic"],
-  "gemini-cli": ["gemini-cli"],
+  // The gemini-cli PROVIDER id was retired in 0.10.1 — gemini-* models now route
+  // through antigravity, which speaks the same Cloud Code envelope. The CLI
+  // itself is still a valid client, so its native pair is antigravity.
+  "gemini-cli": ["antigravity"],
   "antigravity": ["antigravity"],
   "codex": ["codex"],
 };

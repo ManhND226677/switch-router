@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getProviderNodeById } from "@/models";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, AI_PROVIDERS } from "@/shared/constants/providers";
 import { getDefaultModel } from "open-sse/config/providerModels.js";
-import { resolveOllamaLocalHost, resolveXiaomiTokenplanBaseUrl, PROVIDERS } from "open-sse/config/providers.js";
+import { resolveXiaomiTokenplanBaseUrl, PROVIDERS } from "open-sse/config/providers.js";
 import { openaiToCommandCodeRequest } from "open-sse/translator/request/openai-to-commandcode.js";
 import { normalizeProviderId } from "@/lib/providerNormalization";
 import { getVilaoModelsUrl } from "open-sse/providers/vilao.js";
@@ -20,7 +20,7 @@ export async function POST(request) {
     const { apiKey, providerSpecificData } = body;
 
     const isNoAuth = AI_PROVIDERS[provider]?.noAuth === true;
-    if (!provider || (!apiKey && provider !== "ollama-local" && !isNoAuth)) {
+    if (!provider || (!apiKey && !isNoAuth)) {
       return NextResponse.json({ error: "Provider and API key required" }, { status: 400 });
     }
 
@@ -129,13 +129,6 @@ export async function POST(request) {
           isValid = anthropicRes.status !== 401;
           break;
 
-        case "gemini":
-          const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`, {
-            signal: AbortSignal.timeout(VALIDATE_TIMEOUT_MS),
-          });
-          isValid = geminiRes.ok;
-          break;
-
         case "openrouter":
           const openrouterRes = await fetch("https://openrouter.ai/api/v1/models", {
             headers: { "Authorization": `Bearer ${apiKey}` },
@@ -172,7 +165,6 @@ export async function POST(request) {
         case "mistral":
         case "stepfun":
         case "ollama":
-        case "ollama-local":
         case "xiaomi-mimo":
         case "xiaomi-tokenplan": {
           const endpoints = {
@@ -180,7 +172,6 @@ export async function POST(request) {
               Object.entries(PROVIDERS).filter(([, t]) => t.validateUrl).map(([id, t]) => [id, t.validateUrl])
             ),
             // dynamic URLs (depend on providerSpecificData) — kept inline
-            "ollama-local": `${resolveOllamaLocalHost({ providerSpecificData })}/api/tags`,
             "xiaomi-tokenplan": `${resolveXiaomiTokenplanBaseUrl({ providerSpecificData })}/models`,
             stepfun: resolveStepFunEndpoints(providerSpecificData).models,
           };

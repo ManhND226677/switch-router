@@ -1,6 +1,6 @@
 import { BaseExecutor } from "./base.js";
 import { PROVIDERS } from "../config/providers.js";
-import { HTTP_STATUS } from "../config/runtimeConfig.js";
+import { HTTP_STATUS, FETCH_CONNECT_TIMEOUT_MS, STREAM_FIRST_CHUNK_TIMEOUT_MS } from "../config/runtimeConfig.js";
 import {
   generateCursorBody,
   parseConnectRPCFrame,
@@ -42,6 +42,50 @@ const CURSOR_STREAM_DEBUG = process.env.CURSOR_STREAM_DEBUG === "1";
 const debugLog = (...args) => {
   if (CURSOR_STREAM_DEBUG) console.log(...args);
 };
+
+// ── Persistent HTTP/2 session pool ──────────────────────────────────────────
+// One TLS+HTTP/2 handshake per origin instead of per request (the old executor
+// connected AND closed a session for every call). Idle sessions are reaped so
+// a dead origin doesn't hold sockets open.
+const HTTP2_POOL_IDLE_MS = 60_000;
+if (!global._cursorHttp2Pool) global._cursorHttp2Pool = new Map();
+const http2Pool = global._cursorHttp2Pool;
+
+function dropPooledCursorSession(origin, entry) {
+  if (http2Pool.get(origin) !== entry) return;
+  http2Pool.delete(origin);
+  if (entry.idleTimer) clearTimeout(entry.idleTimer);
+}
+
+function touchCursorSessionIdle(entry, origin) {
+  if (entry.idleTimer) clearTimeout(entry.idleTimer);
+  entry.idleTimer = setTimeout(() => {
+    if (http2Pool.get(origin) === entry) http2Pool.delete(origin);
+    try { entry.client.close(); } catch { /* already closed */ }
+  }, HTTP2_POOL_IDLE_MS);
+  entry.idleTimer.unref?.();
+}
+
+function getPooledCursorClient(origin) {
+  const existing = http2Pool.get(origin);
+  if (existing && !existing.client.destroyed && !existing.client.closed) {
+    touchCursorSessionIdle(existing, origin);
+    return existing.client;
+  }
+  if (existing) dropPooledCursorSession(origin, existing);
+
+  const client = http2.connect(origin);
+  const entry = { client, idleTimer: null };
+  client.on("error", () => {
+    // A broken session must never be reused; destroy so the closed check above fails fast.
+    if (http2Pool.get(origin) === entry) http2Pool.delete(origin);
+    try { client.destroy(); } catch { /* noop */ }
+  });
+  client.on("close", () => dropPooledCursorSession(origin, entry));
+  http2Pool.set(origin, entry);
+  touchCursorSessionIdle(entry, origin);
+  return client;
+}
 
 function isComposerModel(model) {
   const modelId = String(model || "").split("/").pop();
@@ -131,9 +175,9 @@ function createErrorResponse(jsonError) {
     || jsonError?.error?.details?.[0]?.debug?.details?.detail
     || jsonError?.error?.message
     || "API Error";
-  
+
   const isRateLimit = jsonError?.error?.code === "resource_exhausted";
-  
+
   return new Response(JSON.stringify({
     error: {
       message: errorMsg,
@@ -144,6 +188,279 @@ function createErrorResponse(jsonError) {
     status: isRateLimit ? HTTP_STATUS.RATE_LIMITED : HTTP_STATUS.BAD_REQUEST,
     headers: { "Content-Type": "application/json" }
   });
+}
+
+// Thrown when an error frame arrives BEFORE any output was produced — the
+// caller must surface a real error Response (429/400) instead of a broken
+// 200 stream. Mirrors the old buffered executor's early-return behavior.
+class CursorEarlyError extends Error {
+  constructor(response) {
+    super("cursor-early-error");
+    this.cursorErrorResponse = response;
+  }
+}
+
+// ── Frame → SSE translation (shared by buffered and streaming paths) ────────
+function createCursorSseState(model) {
+  return {
+    model,
+    responseId: `chatcmpl-cursor-${Date.now()}`,
+    created: Math.floor(Date.now() / 1000),
+    producedChunks: 0,
+    frameCount: 0,
+    totalContent: "",
+    totalThinking: "",
+    emittedComposerThinkingContentLength: 0,
+    toolCalls: [],
+    toolCallsMap: new Map(), // Track streaming tool calls by ID
+    finalizedIds: new Set(),
+    emittedToolCallIds: new Set(),
+  };
+}
+
+// Process ONE decoded payload frame; appends SSE strings to `out`.
+// Returns { stop: true } when an error frame arrived after content — the
+// caller must stop reading upstream and finalize. Throws CursorEarlyError for
+// error frames that arrive before any output.
+function processCursorFrame(payload, state, out) {
+  const push = (str) => { state.producedChunks++; out.push(str); };
+  const { responseId, created, model } = state;
+
+  // Check for JSON error frames (byte-guard: only decode if starts with '{')
+  if (payload[0] === 0x7b) {
+    try {
+      const text = payload.toString("utf-8");
+      if (text.includes('"error"')) {
+        const hasContent = state.producedChunks > 0 || state.totalContent || state.toolCallsMap.size > 0;
+        debugLog(`[CURSOR SSE] Error frame (hasContent=${hasContent}): ${text.slice(0, 500)}`);
+        if (hasContent) {
+          return { stop: true };
+        }
+        throw new CursorEarlyError(createErrorResponse(JSON.parse(text)));
+      }
+    } catch (e) {
+      if (e instanceof CursorEarlyError) throw e;
+    }
+  }
+
+  const result = extractTextFromResponse(new Uint8Array(payload));
+  debugLog(`[CURSOR DECODED SSE] Frame ${state.frameCount}:`, result);
+
+  if (result.error) {
+    const hasContent = state.producedChunks > 0 || state.totalContent || state.toolCallsMap.size > 0;
+    debugLog(`[CURSOR SSE] Decoded error (hasContent=${hasContent}): ${result.error}`);
+    if (hasContent) {
+      return { stop: true };
+    }
+    throw new CursorEarlyError(new Response(
+      JSON.stringify({
+        error: {
+          message: result.error,
+          type: "rate_limit_error",
+          code: "rate_limited"
+        }
+      }),
+      {
+        status: HTTP_STATUS.RATE_LIMITED,
+        headers: { "Content-Type": "application/json" }
+      }
+    ));
+  }
+
+  if (result.toolCall) {
+    const tc = result.toolCall;
+
+    if (state.producedChunks === 0) {
+      push(chatChunkSse({ id: responseId, created, model, delta: { role: "assistant", content: "" } }));
+    }
+
+    if (state.toolCallsMap.has(tc.id)) {
+      // Accumulate arguments for existing tool call
+      const existing = state.toolCallsMap.get(tc.id);
+      existing.function.arguments += tc.function.arguments;
+      existing.isLast = tc.isLast;
+
+      // Stream the delta arguments
+      if (tc.function.arguments) {
+        state.emittedToolCallIds.add(tc.id);
+        push(chatChunkSse({
+          id: responseId, created, model,
+          delta: {
+            tool_calls: [
+              {
+                index: existing.index,
+                id: tc.id,
+                type: "function",
+                function: {
+                  name: tc.function.name,
+                  arguments: tc.function.arguments
+                }
+              }
+            ]
+          }
+        }));
+      }
+    } else {
+      // New tool call - assign index and add to map
+      const toolCallIndex = state.toolCalls.length;
+      state.finalizedIds.add(tc.id);
+      state.toolCalls.push({ ...tc, index: toolCallIndex });
+      state.toolCallsMap.set(tc.id, { ...tc, index: toolCallIndex });
+
+      // Stream initial tool call with name
+      state.emittedToolCallIds.add(tc.id);
+      push(chatChunkSse({
+        id: responseId, created, model,
+        delta: {
+          tool_calls: [
+            {
+              index: toolCallIndex,
+              id: tc.id,
+              type: "function",
+              function: {
+                name: tc.function.name,
+                arguments: tc.function.arguments
+              }
+            }
+          ]
+        }
+      }));
+    }
+  }
+
+  if (result.text) {
+    state.totalContent += result.text;
+    push(chatChunkSse({
+      id: responseId, created, model,
+      delta:
+        state.producedChunks === 0 && state.toolCalls.length === 0
+          ? { role: "assistant", content: result.text }
+          : { content: result.text }
+    }));
+  }
+
+  if (isComposerModel(model) && result.thinking) {
+    state.totalThinking += result.thinking;
+    const visibleContent = visibleComposerContentFromThinking(state.totalThinking);
+    if (visibleContent.length > state.emittedComposerThinkingContentLength) {
+      const deltaContent = visibleContent.slice(state.emittedComposerThinkingContentLength);
+      state.emittedComposerThinkingContentLength = visibleContent.length;
+      state.totalContent += deltaContent;
+      push(chatChunkSse({
+        id: responseId, created, model,
+        delta:
+          state.producedChunks === 0 && state.toolCalls.length === 0
+            ? { role: "assistant", content: deltaContent }
+            : { content: deltaContent }
+      }));
+    }
+  }
+
+  return { stop: false };
+}
+
+// Terminal SSE chunks: remaining (never-finalized) tool calls, the placeholder
+// first chunk for empty streams, the finish chunk with usage, and [DONE].
+function finalizeCursorSse(state, body) {
+  const { responseId, created, model } = state;
+  const out = [];
+
+  for (const [id, tc] of state.toolCallsMap.entries()) {
+    if (!state.finalizedIds.has(id)) {
+      debugLog(`[CURSOR SSE] Finalizing incomplete tool call: ${id}, isLast=${tc.isLast}`);
+      const toolCallIndex = state.toolCalls.length;
+      state.toolCalls.push({
+        id: tc.id,
+        type: tc.type,
+        index: toolCallIndex,
+        function: {
+          name: tc.function.name,
+          arguments: tc.function.arguments
+        }
+      });
+
+      // Emit SSE chunk for the finalized tool call if not already emitted
+      if (!state.emittedToolCallIds.has(tc.id)) {
+        out.push(chatChunkSse({
+          id: responseId, created, model,
+          delta: {
+            tool_calls: [
+              {
+                index: toolCallIndex,
+                id: tc.id,
+                type: "function",
+                function: {
+                  name: tc.function.name,
+                  arguments: tc.function.arguments
+                }
+              }
+            ]
+          }
+        }));
+      }
+    }
+  }
+
+  if (state.producedChunks === 0 && state.toolCalls.length === 0) {
+    out.push(chatChunkSse({ id: responseId, created, model, delta: { role: "assistant", content: "" } }));
+  }
+
+  const usage = estimateUsage(body, state.totalContent.length, FORMATS.OPENAI);
+
+  out.push(
+    `data: ${JSON.stringify({
+      id: responseId,
+      object: "chat.completion.chunk",
+      created,
+      model,
+      choices: [
+        {
+          index: 0,
+          delta: {},
+          finish_reason: state.toolCalls.length > 0 ? "tool_calls" : "stop"
+        }
+      ],
+      usage
+    })}\n\n`
+  );
+  out.push(SSE_DONE);
+  return out;
+}
+
+// Normalize an upstream byte source (web ReadableStream from fetch, or a Node
+// http2 stream) into an async iterable plus a cancel function.
+function toCursorAsyncIterable(byteStream) {
+  if (typeof byteStream?.getReader === "function") {
+    const reader = byteStream.getReader();
+    return {
+      iter: (async function* () {
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) return;
+            yield value;
+          }
+        } finally {
+          try { reader.releaseLock(); } catch { /* noop */ }
+        }
+      })(),
+      cancel: async () => { try { await reader.cancel(); } catch { /* noop */ } },
+    };
+  }
+  const nodeStream = byteStream;
+  return {
+    iter: (async function* () {
+      try {
+        for await (const chunk of nodeStream) yield chunk;
+      } finally {
+        try { nodeStream.destroy?.(); } catch { /* noop */ }
+      }
+    })(),
+    cancel: async () => {
+      try { nodeStream.close?.(http2?.constants?.NGHTTP2_CANCEL ?? 8); } catch { /* noop */ }
+      try { nodeStream.destroy?.(); } catch { /* noop */ }
+    },
+  };
 }
 
 export class CursorExecutor extends BaseExecutor {
@@ -179,7 +496,7 @@ export class CursorExecutor extends BaseExecutor {
     return generateCursorBody(messages, model, tools, reasoningEffort, forceAgentMode);
   }
 
-  async makeFetchRequest(url, headers, body, signal, proxyOptions = null) {
+  async makeFetchStreamRequest(url, headers, body, signal, proxyOptions = null) {
     const response = await proxyAwareFetch(url, {
       method: "POST",
       headers,
@@ -190,66 +507,57 @@ export class CursorExecutor extends BaseExecutor {
     return {
       status: response.status,
       headers: Object.fromEntries(response.headers.entries()),
-      body: Buffer.from(await response.arrayBuffer())
+      byteStream: response.body
     };
   }
 
-  makeHttp2Request(url, headers, body, signal) {
+  // Streaming HTTP/2 request over a POOLED session. Resolves as soon as
+  // response headers arrive; the body stays streaming in `byteStream`.
+  makeHttp2StreamRequest(url, headers, body, signal) {
     if (!http2) {
       throw new Error("http2 module not available");
     }
 
-    const HTTP2_TIMEOUT_MS = 60000; // 60s max — prevent hung sessions
+    const urlObj = new URL(url);
+    const client = getPooledCursorClient(`https://${urlObj.host}`);
 
     return new Promise((resolve, reject) => {
-      const urlObj = new URL(url);
-      const client = http2.connect(`https://${urlObj.host}`);
-      const chunks = [];
-      let responseHeaders = {};
       let settled = false;
-
-      // Ensure client is always closed on settle
       const finish = (fn) => (...args) => {
         if (settled) return;
         settled = true;
-        clearTimeout(hangTimeout);
-        client.close();
+        clearTimeout(headersTimer);
         fn(...args);
       };
 
-      // Hard timeout: close session if server never responds
-      const hangTimeout = setTimeout(finish(() => {
-        reject(new Error("HTTP/2 request timed out"));
-      }), HTTP2_TIMEOUT_MS);
-
-      client.on("error", finish(reject));
-
       const req = client.request({
         ":method": "POST",
-        ":path": urlObj.pathname,
+        ":path": `${urlObj.pathname}${urlObj.search || ""}`,
         ":authority": urlObj.host,
         ":scheme": "https",
         ...headers
       });
 
-      req.on("response", (hdrs) => { responseHeaders = hdrs; });
-      req.on("data", (chunk) => { chunks.push(chunk); });
-      req.on("end", finish(() => {
-        resolve({
-          status: responseHeaders[":status"],
-          headers: responseHeaders,
-          body: Buffer.concat(chunks)
-        });
-      }));
-      req.on("error", finish(reject));
+      // Response headers must arrive within the connect timeout (matches BaseExecutor).
+      const headersTimer = setTimeout(() => {
+        finish(() => reject(new Error("fetch connect timeout")));
+        try { req.close(); } catch { /* noop */ }
+      }, FETCH_CONNECT_TIMEOUT_MS);
+      headersTimer.unref?.();
+
+      req.on("response", (hdrs) => {
+        finish(() => resolve({ status: hdrs[":status"], headers: hdrs, byteStream: req }));
+      });
+      req.on("error", finish((err) => reject(err)));
 
       if (signal) {
-        const onAbort = finish(() => reject(new Error("Request aborted")));
-        signal.addEventListener("abort", onAbort, { once: true });
+        signal.addEventListener("abort", () => {
+          finish(() => reject(new Error("Request aborted")));
+          try { req.close(http2.constants?.NGHTTP2_CANCEL ?? 8); } catch { /* noop */ }
+        }, { once: true });
       }
 
-      req.write(body);
-      req.end();
+      req.end(body);
     });
   }
 
@@ -260,30 +568,33 @@ export class CursorExecutor extends BaseExecutor {
 
     try {
       const shouldForceFetch = proxyOptions?.enabled === true || proxyOptions?.connectionProxyEnabled === true;
-      const response = (http2 && !shouldForceFetch)
-        ? await this.makeHttp2Request(url, headers, transformedBody, signal)
-        : await this.makeFetchRequest(url, headers, transformedBody, signal, proxyOptions);
+      const upstream = (http2 && !shouldForceFetch)
+        ? await this.makeHttp2StreamRequest(url, headers, transformedBody, signal)
+        : await this.makeFetchStreamRequest(url, headers, transformedBody, signal, proxyOptions);
 
-      if (response.status !== 200) {
-        const errorText = response.body?.toString() || "Unknown error";
+      if (upstream.status !== 200) {
+        const errorText = upstream.byteStream
+          ? (await readCursorStreamFully(upstream.byteStream)).toString()
+          : "Unknown error";
         const errorResponse = new Response(JSON.stringify({
           error: {
-            message: `[${response.status}]: ${errorText}`,
+            message: `[${upstream.status}]: ${errorText}`,
             type: "invalid_request_error",
             code: ""
           }
         }), {
-          status: response.status,
+          status: upstream.status,
           headers: { "Content-Type": "application/json" }
         });
         return { response: errorResponse, url, headers, transformedBody: body };
       }
 
-      const transformedResponse = stream !== false
-        ? this.transformProtobufToSSE(response.body, model, body)
-        : this.transformProtobufToJSON(response.body, model, body);
+      if (stream === false) {
+        const buffer = await readCursorStreamFully(upstream.byteStream);
+        return { response: this.transformProtobufToJSON(buffer, model, body), url, headers, transformedBody: body };
+      }
 
-      return { response: transformedResponse, url, headers, transformedBody: body };
+      return await this.buildStreamingSseResponse(upstream, url, headers, model, body);
     } catch (error) {
       const errorResponse = new Response(JSON.stringify({
         error: {
@@ -297,6 +608,61 @@ export class CursorExecutor extends BaseExecutor {
       });
       return { response: errorResponse, url, headers, transformedBody: body };
     }
+  }
+
+  // True streaming: SSE chunks are forwarded as upstream frames arrive, so
+  // TTFT is the first upstream frame instead of the whole generation.
+  async buildStreamingSseResponse(upstream, url, headers, model, body) {
+    const { iter, cancel } = toCursorAsyncIterable(upstream.byteStream);
+    const state = createCursorSseState(model);
+    const gen = streamCursorSseChunks(iter, state, body);
+
+    // Primer: pull until the first SSE output is ready (or a terminal error).
+    // This preserves the buffered executor's semantics — an error frame before
+    // any content becomes a real error Response, not a broken 200 stream.
+    let first;
+    try {
+      first = await cursorFirstChunkWithTimeout(gen, cancel);
+    } catch (err) {
+      try { await cancel(); } catch { /* noop */ }
+      if (err?.cursorErrorResponse) {
+        return { response: err.cursorErrorResponse, url, headers, transformedBody: body };
+      }
+      throw err;
+    }
+
+    if (first.done) {
+      return {
+        response: new Response(first.value || "", { status: 200, headers: { ...SSE_HEADERS } }),
+        url, headers, transformedBody: body,
+      };
+    }
+
+    const encoder = new TextEncoder();
+    let primed = { value: first.value };
+    const stream = new ReadableStream({
+      async pull(controller) {
+        try {
+          if (primed) {
+            controller.enqueue(encoder.encode(primed.value));
+            primed = null;
+            return;
+          }
+          const { done, value } = await gen.next();
+          if (done) controller.close();
+          else controller.enqueue(encoder.encode(value));
+        } catch (err) {
+          try { await cancel(); } catch { /* noop */ }
+          controller.error(err);
+        }
+      },
+      async cancel() {
+        try { await gen.return(undefined); } catch { /* noop */ }
+        try { await cancel(); } catch { /* noop */ }
+      },
+    });
+
+    return { response: new Response(stream, { status: 200, headers: { ...SSE_HEADERS } }), url, headers, transformedBody: body };
   }
 
   transformProtobufToJSON(buffer, model, body) {
@@ -452,227 +818,35 @@ export class CursorExecutor extends BaseExecutor {
     });
   }
 
+  // Buffered variant kept for compatibility (tests, non-first-byte paths):
+  // identical per-frame semantics to the streaming path.
   transformProtobufToSSE(buffer, model, body) {
-    const responseId = `chatcmpl-cursor-${Date.now()}`;
-    const created = Math.floor(Date.now() / 1000);
-
+    const state = createCursorSseState(model);
     const chunks = [];
     let offset = 0;
-    let totalContent = "";
-    let totalThinking = "";
-    let emittedComposerThinkingContentLength = 0;
-    const toolCalls = [];
-    const toolCallsMap = new Map(); // Track streaming tool calls by ID
-    const finalizedIds = new Set();
-    const emittedToolCallIds = new Set();
-    let frameCount = 0;
 
     debugLog(`[CURSOR BUFFER SSE] Total length: ${buffer.length} bytes`);
 
     while (offset < buffer.length) {
-      const frame = readCursorFrame(buffer, offset, frameCount, " SSE");
+      const frame = readCursorFrame(buffer, offset, state.frameCount, " SSE");
       if (frame.status === "done") break;
       offset = frame.offset;
-      frameCount++;
+      state.frameCount++;
       if (frame.status === "skip") continue;
-      const payload = frame.payload;
-
-      // Check for JSON error frames (byte-guard: only decode if starts with '{')
-      if (payload[0] === 0x7b) {
-        try {
-          const text = payload.toString("utf-8");
-          if (text.includes('"error"')) {
-            const hasContent = chunks.length > 0 || totalContent || toolCallsMap.size > 0;
-            debugLog(
-              `[CURSOR BUFFER SSE] Error frame (hasContent=${hasContent}): ${text.slice(0, 500)}`
-            );
-            if (hasContent) {
-              break;
-            }
-            return createErrorResponse(JSON.parse(text));
-          }
-        } catch {}
-      }
-
-      const result = extractTextFromResponse(new Uint8Array(payload));
-      debugLog(`[CURSOR DECODED SSE] Frame ${frameCount}:`, result);
-
-      if (result.error) {
-        const hasContent = chunks.length > 0 || totalContent || toolCallsMap.size > 0;
-        debugLog(`[CURSOR BUFFER SSE] Decoded error (hasContent=${hasContent}): ${result.error}`);
-        if (hasContent) {
-          break;
-        }
-        return new Response(
-          JSON.stringify({
-            error: {
-              message: result.error,
-              type: "rate_limit_error",
-              code: "rate_limited"
-            }
-          }),
-          {
-            status: HTTP_STATUS.RATE_LIMITED,
-            headers: { "Content-Type": "application/json" }
-          }
-        );
-      }
-
-      if (result.toolCall) {
-        const tc = result.toolCall;
-
-        if (chunks.length === 0) {
-          chunks.push(chatChunkSse({ id: responseId, created, model, delta: { role: "assistant", content: "" } }));
-        }
-
-        if (toolCallsMap.has(tc.id)) {
-          // Accumulate arguments for existing tool call
-          const existing = toolCallsMap.get(tc.id);
-          const oldArgsLen = existing.function.arguments.length;
-          existing.function.arguments += tc.function.arguments;
-          existing.isLast = tc.isLast;
-
-          // Stream the delta arguments
-          if (tc.function.arguments) {
-            emittedToolCallIds.add(tc.id);
-            chunks.push(chatChunkSse({
-              id: responseId, created, model,
-              delta: {
-                tool_calls: [
-                  {
-                    index: existing.index,
-                    id: tc.id,
-                    type: "function",
-                    function: {
-                      name: tc.function.name,
-                      arguments: tc.function.arguments
-                    }
-                  }
-                ]
-              }
-            }));
-          }
-        } else {
-          // New tool call - assign index and add to map
-          const toolCallIndex = toolCalls.length;
-          finalizedIds.add(tc.id);
-          toolCalls.push({ ...tc, index: toolCallIndex });
-          toolCallsMap.set(tc.id, { ...tc, index: toolCallIndex });
-
-          // Stream initial tool call with name
-          emittedToolCallIds.add(tc.id);
-          chunks.push(chatChunkSse({
-            id: responseId, created, model,
-            delta: {
-              tool_calls: [
-                {
-                  index: toolCallIndex,
-                  id: tc.id,
-                  type: "function",
-                  function: {
-                    name: tc.function.name,
-                    arguments: tc.function.arguments
-                  }
-                }
-              ]
-            }
-          }));
-        }
-      }
-
-      if (result.text) {
-        totalContent += result.text;
-        chunks.push(chatChunkSse({
-          id: responseId, created, model,
-          delta:
-            chunks.length === 0 && toolCalls.length === 0
-              ? { role: "assistant", content: result.text }
-              : { content: result.text }
-        }));
-      }
-
-      if (isComposerModel(model) && result.thinking) {
-        totalThinking += result.thinking;
-        const visibleContent = visibleComposerContentFromThinking(totalThinking);
-        if (visibleContent.length > emittedComposerThinkingContentLength) {
-          const deltaContent = visibleContent.slice(emittedComposerThinkingContentLength);
-          emittedComposerThinkingContentLength = visibleContent.length;
-          totalContent += deltaContent;
-          chunks.push(chatChunkSse({
-            id: responseId, created, model,
-            delta:
-              chunks.length === 0 && toolCalls.length === 0
-                ? { role: "assistant", content: deltaContent }
-                : { content: deltaContent }
-          }));
-        }
+      try {
+        const { stop } = processCursorFrame(frame.payload, state, chunks);
+        if (stop) break;
+      } catch (e) {
+        if (e instanceof CursorEarlyError) return e.cursorErrorResponse;
+        throw e;
       }
     }
 
     debugLog(
-      `[CURSOR BUFFER SSE] Parsed ${frameCount} frames, toolCallsMap size: ${toolCallsMap.size}, toolCalls array: ${toolCalls.length}`
+      `[CURSOR BUFFER SSE] Parsed ${state.frameCount} frames, toolCallsMap size: ${state.toolCallsMap.size}, toolCalls array: ${state.toolCalls.length}`
     );
 
-    // Finalize all remaining tool calls in map (stream may have ended without isLast=true)
-    for (const [id, tc] of toolCallsMap.entries()) {
-      if (!finalizedIds.has(id)) {
-        debugLog(`[CURSOR BUFFER SSE] Finalizing incomplete tool call: ${id}, isLast=${tc.isLast}`);
-        const toolCallIndex = toolCalls.length;
-        toolCalls.push({
-          id: tc.id,
-          type: tc.type,
-          index: toolCallIndex,
-          function: {
-            name: tc.function.name,
-            arguments: tc.function.arguments
-          }
-        });
-
-        // Emit SSE chunk for the finalized tool call if not already emitted
-        if (!emittedToolCallIds.has(tc.id)) {
-          chunks.push(chatChunkSse({
-            id: responseId, created, model,
-            delta: {
-              tool_calls: [
-                {
-                  index: toolCallIndex,
-                  id: tc.id,
-                  type: "function",
-                  function: {
-                    name: tc.function.name,
-                    arguments: tc.function.arguments
-                  }
-                }
-              ]
-            }
-          }));
-        }
-      }
-    }
-
-    if (chunks.length === 0 && toolCalls.length === 0) {
-      chunks.push(chatChunkSse({ id: responseId, created, model, delta: { role: "assistant", content: "" } }));
-    }
-
-    const usage = estimateUsage(body, totalContent.length, FORMATS.OPENAI);
-
-    chunks.push(
-      `data: ${JSON.stringify({
-        id: responseId,
-        object: "chat.completion.chunk",
-        created,
-        model,
-        choices: [
-          {
-            index: 0,
-            delta: {},
-            finish_reason: toolCalls.length > 0 ? "tool_calls" : "stop"
-          }
-        ],
-        usage
-      })}\n\n`
-    );
-    chunks.push(SSE_DONE);
+    chunks.push(...finalizeCursorSse(state, body));
 
     return new Response(chunks.join(""), {
       status: 200,
@@ -683,6 +857,74 @@ export class CursorExecutor extends BaseExecutor {
   async refreshCredentials() {
     return null;
   }
+}
+
+// Async generator: consume upstream bytes, parse complete frames as they
+// arrive, yield SSE strings incrementally. Throws CursorEarlyError only when
+// nothing has been emitted yet; late error frames finalize the stream instead.
+async function* streamCursorSseChunks(iter, state, body) {
+  const out = [];
+  let buffer = null;
+  let offset = 0;
+  let stopReading = false;
+
+  while (!stopReading) {
+    while (buffer && offset < buffer.length) {
+      const frame = readCursorFrame(buffer, offset, state.frameCount, " SSE");
+      if (frame.status === "done") break; // incomplete frame — wait for more bytes
+      offset = frame.offset;
+      state.frameCount++;
+      if (frame.status === "skip") continue;
+      const { stop } = processCursorFrame(frame.payload, state, out);
+      if (stop) { stopReading = true; break; }
+    }
+
+    if (out.length) {
+      const joined = out.join("");
+      out.length = 0;
+      yield joined;
+    }
+    if (stopReading) break;
+
+    const next = await iter.next();
+    if (next.done) break;
+    // Drop the consumed prefix, then append the new bytes.
+    buffer = buffer ? Buffer.concat([buffer.slice(offset), next.value]) : next.value;
+    offset = 0;
+  }
+
+  out.push(...finalizeCursorSse(state, body));
+  if (out.length) yield out.join("");
+}
+
+async function readCursorStreamFully(byteStream) {
+  const { iter, cancel } = toCursorAsyncIterable(byteStream);
+  const parts = [];
+  try {
+    while (true) {
+      const { done, value } = await iter.next();
+      if (done) break;
+      parts.push(value);
+    }
+  } catch (e) {
+    await cancel().catch(() => {});
+    throw e;
+  }
+  return Buffer.concat(parts);
+}
+
+function cursorFirstChunkWithTimeout(gen, cancel) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cancel?.().catch?.(() => {});
+      reject(new Error("stream first chunk timeout"));
+    }, STREAM_FIRST_CHUNK_TIMEOUT_MS);
+    timer.unref?.();
+    gen.next().then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); }
+    );
+  });
 }
 
 export default CursorExecutor;

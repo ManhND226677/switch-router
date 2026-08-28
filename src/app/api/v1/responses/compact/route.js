@@ -1,5 +1,7 @@
 import { handleChat } from "@/sse/handlers/chat.js";
 import { initTranslators } from "open-sse/translator/index.js";
+import { errorResponse } from "open-sse/utils/error.js";
+import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 
 let initialized = false;
 
@@ -26,7 +28,14 @@ export async function OPTIONS() {
  */
 export async function POST(request) {
   await ensureInitialized();
-  const body = await request.json();
+  // handleChat parses the body itself and answers a bad body with 400 — this
+  // route has to parse first (to flag compact), so it owes the same answer.
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid JSON body");
+  }
   body._compact = true;
   const newRequest = new Request(request.url, {
     method: "POST",

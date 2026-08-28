@@ -1,4 +1,4 @@
-export const FALLBACK_STRATEGIES = Object.freeze(["fill-first", "round-robin"]);
+export const FALLBACK_STRATEGIES = Object.freeze(["fill-first", "round-robin", "fastest"]);
 export const ROTATE_STRATEGIES = Object.freeze(["none", "round-robin", "random"]);
 
 export const DEFAULT_ROUTING_CONFIG = Object.freeze({

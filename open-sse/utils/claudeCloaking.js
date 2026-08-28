@@ -19,12 +19,38 @@ function deriveUuid(seed) {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${((parseInt(h[16], 16) & 0x3) | 0x8).toString(16)}${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
+// Per-apiKey derivations (device/account ids) are stable by design — hash once
+// per key instead of per request. Bounded LRU keeps memory flat.
+const identityDerivationCache = new Map();
+const IDENTITY_CACHE_MAX = 256;
+
+function cachedDerivation(cacheKey, derive) {
+  const hit = identityDerivationCache.get(cacheKey);
+  if (hit) {
+    // refresh recency
+    identityDerivationCache.delete(cacheKey);
+    identityDerivationCache.set(cacheKey, hit);
+    return hit;
+  }
+  const value = derive();
+  if (identityDerivationCache.size >= IDENTITY_CACHE_MAX) {
+    const oldest = identityDerivationCache.keys().next().value;
+    identityDerivationCache.delete(oldest);
+  }
+  identityDerivationCache.set(cacheKey, value);
+  return value;
+}
+
 // Generate fake user ID in Claude Code 2.1.92+ JSON format:
 // {"device_id":"<64hex>","account_uuid":"<uuid>","session_id":"<uuid>"}
 // device_id/account_uuid derive from apiKey (stable per account), session_id per-conversation
 function generateFakeUserID(sessionId, apiKey) {
-  const deviceId = apiKey ? createHash("sha256").update(`device:${apiKey}`).digest("hex") : randomBytes(32).toString("hex");
-  const accountUuid = apiKey ? deriveUuid(`account:${apiKey}`) : randomUUID();
+  const deviceId = apiKey
+    ? cachedDerivation(`device:${apiKey}`, () => createHash("sha256").update(`device:${apiKey}`).digest("hex"))
+    : randomBytes(32).toString("hex");
+  const accountUuid = apiKey
+    ? cachedDerivation(`account:${apiKey}`, () => deriveUuid(`account:${apiKey}`))
+    : randomUUID();
   const sessionUuid = sessionId || randomUUID();
   return `{"device_id":"${deviceId}","account_uuid":"${accountUuid}","session_id":"${sessionUuid}"}`;
 }

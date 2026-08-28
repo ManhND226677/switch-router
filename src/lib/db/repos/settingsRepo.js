@@ -40,6 +40,10 @@ const DEFAULT_SETTINGS = {
   comboStickyRoundRobinLimit: 1,
   comboStrategies: {},
   requireLogin: false,
+  // "Every client must present SOME api key". Local-first default is open.
+  // Per-key policy (allowlist/budget/RPM/expiry) is enforced independently of
+  // this flag — see the `if (apiKey)` block in src/sse/handlers/chat.js.
+  requireApiKey: false,
   enableObservability: true,
   observabilityMaxRecords: 1000,
   observabilityBatchSize: 20,
@@ -57,6 +61,13 @@ const DEFAULT_SETTINGS = {
   pxpipeAutoInstall: true,
   pxpipeMinChars: 25000,
   pxpipeTimeoutMs: 15000,
+  // Background half-open recovery prober (spends real upstream quota — opt-in).
+  healthProberEnabled: false,
+  // Budget/anomaly alerts: dashboard banner always; Windows toast is opt-in.
+  usageAlertsToastEnabled: false,
+  // Keep one conversation on the account that served its previous turn, so the
+  // upstream prompt cache stays warm (cheaper input + faster first token).
+  sessionPinEnabled: true,
 };
 
 async function readRaw() {

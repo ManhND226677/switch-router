@@ -26,13 +26,30 @@ import { detectFormatByEndpoint } from "open-sse/translator/formats.js";
 import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
+import { sessionPinKey, pinSession } from "open-sse/services/sessionPinning.js";
 import { RoutingEngine } from "@/core/routing/routingEngine.js";
+import { ensureHealthProberStarted } from "../services/healthProber.js";
 import { modelForProvider, resolveConnectionSelector } from "../services/connectionSelector.js";
 import {
   appendOfficePowerPointRuntimeGuardrail,
   getOfficeRequestPolicy,
   routeOfficeRequestModel,
 } from "../services/officeRequestPolicy.js";
+
+// Total budget for the whole account-fallback loop (credential selection +
+// attempts + per-status retry ladders). An attempt already in flight is never
+// aborted — the gate only stops starting NEW accounts once exceeded, so tail
+// latency has a ceiling instead of stacking 64 attempts × retry delays.
+// Override with ROUTING_DEADLINE_MS (0 disables).
+const ROUTING_DEADLINE_MS = (() => {
+  const n = parseInt(process.env.ROUTING_DEADLINE_MS || "", 10);
+  return Number.isFinite(n) && n > 0 ? n : 45_000;
+})();
+
+// Background half-open recovery for locked accounts (settings-gated; the
+// sweep itself re-checks the toggle every tick). Started from the chat module
+// because it is guaranteed to be loaded in every gateway process.
+ensureHealthProberStarted();
 
 /**
  * Handle chat completion request
@@ -68,6 +85,13 @@ export async function handleChat(request, clientRawRequest = null) {
   cacheClaudeHeaders(clientRawRequest.headers);
 
   const modelStr = body.model;
+  // Validate before anything dereferences it: getComboModels/getModelInfo below
+  // call modelStr.includes(), so a missing or non-string model used to surface
+  // as a Next.js 500 HTML page instead of a clean 400.
+  if (typeof modelStr !== "string" || !modelStr.trim()) {
+    log.warn("CHAT", "Missing or non-string model");
+    return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing model");
+  }
   const { preferredConnectionId, providerHint } = resolveConnectionSelector(request, body);
   const routedModelStr = modelForProvider(modelStr, providerHint);
 
@@ -83,8 +107,16 @@ export async function handleChat(request, clientRawRequest = null) {
     log.debug("AUTH", "No API key provided (local mode)");
   }
 
+  // Parallel pre-selection reads: settings/combos/modelInfo are all short-TTL
+  // cached — running them concurrently removes sequential await latency before
+  // account selection, and modelInfo is threaded down to avoid a re-read.
+  const [settings, comboModels, modelInfo] = await Promise.all([
+    getSettings(),
+    getComboModels(routedModelStr),
+    getModelInfo(routedModelStr),
+  ]);
+
   // Enforce API key if enabled in settings
-  const settings = await getSettings();
   if (settings.requireApiKey) {
     if (!apiKey) {
       log.warn("AUTH", "Missing API key (requireApiKey=true)");
@@ -97,14 +129,12 @@ export async function handleChat(request, clientRawRequest = null) {
     }
   }
 
-  if (!modelStr) {
-    log.warn("CHAT", "Missing model");
-    return errorResponse(HTTP_STATUS.BAD_REQUEST, "Missing model");
-  }
-
-  // Virtual key policy (migration 004) — chỉ áp dụng khi bật khoá và client
-  // đưa key hợp lệ. Allowlist so theo id client yêu cầu (model/combo public).
-  if (settings.requireApiKey && apiKey) {
+  // Virtual key policy (migration 004) — ràng buộc theo TỪNG khoá, không phụ
+  // thuộc cờ toàn cục requireApiKey (cờ đó không có trong DEFAULT_SETTINGS và
+  // toggle đã ẩn khỏi dashboard, nên gating ở đây sẽ âm thầm bỏ qua mọi
+  // allowlist / budget / RPM / hết hạn trên cài đặt mới). Allowlist so theo id
+  // client yêu cầu (model/combo public).
+  if (apiKey) {
     try {
       const virtualKeyRecord = await getApiKeyByKey(apiKey);
       if (virtualKeyRecord?.isActive) {
@@ -148,7 +178,6 @@ export async function handleChat(request, clientRawRequest = null) {
   if (bypassResponse) return bypassResponse.response || bypassResponse;
 
   // Check if model is a combo (has multiple models with fallback)
-  const comboModels = await getComboModels(routedModelStr);
   if (comboModels) {
     // Check for combo-specific strategy first, fallback to global
     const comboStrategies = settings.comboStrategies || {};
@@ -189,15 +218,16 @@ export async function handleChat(request, clientRawRequest = null) {
   }
 
   // Single model request — reuse the settings already loaded above
-  return handleSingleModelChat(body, routedModelStr, clientRawRequest, request, apiKey, preferredConnectionId, settings);
+  return handleSingleModelChat(body, routedModelStr, clientRawRequest, request, apiKey, preferredConnectionId, settings, modelInfo);
 }
 
 /**
  * Handle single model chat request
  * @param {object|null} settingsHint - optional preloaded settings to avoid a second getSettings() on hot path
+ * @param {object|null} modelInfoHint - optional preloaded modelInfo from handleChat's parallel reads
  */
-async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null, preferredConnectionId = null, settingsHint = null) {
-  const modelInfo = await getModelInfo(modelStr);
+async function handleSingleModelChat(body, modelStr, clientRawRequest = null, request = null, apiKey = null, preferredConnectionId = null, settingsHint = null, modelInfoHint = null) {
+  const modelInfo = modelInfoHint || await getModelInfo(modelStr);
 
   if (modelInfo.provider) {
     return handleSingleModelRequest(body, modelStr, clientRawRequest, request, apiKey, modelInfo, preferredConnectionId, settingsHint);
@@ -279,28 +309,46 @@ async function handleSingleModelRequest(body, modelStr, clientRawRequest = null,
   // immediately instead of burning ~9s of same-account retries per failure.
   let candidateAccountCount = 1;
   try {
-    const providerConnections = await getProviderConnections({ provider });
+    // Same filter shape as getProviderCredentials ({ provider, isActive: true })
+    // so both reads share ONE list-cache entry instead of two SELECT+JSON.parse
+    // passes per request.
+    const providerConnections = await getProviderConnections({ provider, isActive: true });
     candidateAccountCount = providerConnections.filter(
-      (c) => c.isActive !== false && !isModelLockActive(c, model)
+      (c) => !isModelLockActive(c, model)
     ).length;
   } catch { /* keep single-account (full retry) semantics on read failure */ }
 
+  // Per-request routing metrics — threaded into chatCore so the streaming
+  // done-line and requestDetails record attempts + selection cost.
+  const routingMetrics = { attempts: 0, selectionMs: 0 };
+
+  // Conversation → account affinity. Only meaningful from the second turn on,
+  // hence the >=2 message requirement inside sessionPinKey().
+  const sessionKey = settings.sessionPinEnabled === false
+    ? null
+    : sessionPinKey(routedModelStr, body.messages ?? body.input);
+
   const accountFallbackEngine = new RoutingEngine({
     maxAttempts: isProbe ? 1 : 64,
-    resolveCredentials: ({ excludedConnectionIds }) => getProviderCredentials(
-      provider,
-      excludedConnectionIds,
-      model,
-      { preferredConnectionId },
-    ),
-    executeAttempt: async ({ credentials, excludedConnectionIds }) => {
+    deadlineMs: isProbe ? 0 : ROUTING_DEADLINE_MS,
+    resolveCredentials: ({ excludedConnectionIds }) => {
+      const t0 = Date.now();
+      return getProviderCredentials(
+        provider,
+        excludedConnectionIds,
+        model,
+        { preferredConnectionId, sessionKey },
+      ).finally(() => { routingMetrics.selectionMs += Date.now() - t0; });
+    },
+    executeAttempt: async ({ credentials, excludedConnectionIds, attempts }) => {
+    routingMetrics.attempts = attempts;
     const hasFallbackAccount = candidateAccountCount > (excludedConnectionIds.size + 1);
     // Account selection shown in the unified "▶" line (acc:...)
     const refreshedCredentials = await checkAndRefreshToken(provider, credentials);
 
     // Ensure real project ID is available for providers that need it (P0 fix: cold miss).
     // Antigravity MUST have a real cloudaicompanion project — random ids cause 429.
-    if ((provider === "antigravity" || provider === "gemini-cli") && !refreshedCredentials.projectId) {
+    if (provider === "antigravity" && !refreshedCredentials.projectId) {
       const pid = await getProjectIdForConnection(credentials.connectionId, refreshedCredentials.accessToken);
       if (pid) {
         refreshedCredentials.projectId = pid;
@@ -310,12 +358,13 @@ async function handleSingleModelRequest(body, modelStr, clientRawRequest = null,
         } catch {
           updateProviderCredentials(credentials.connectionId, { projectId: pid }).catch(() => { });
         }
-      } else if (provider === "antigravity") {
+      } else {
+        const msg = `[antigravity/${model}] Cloud Code projectId missing for this account. Open Antigravity IDE once with the same Google account, or remove & re-add the connection so onboardUser can bind a project.`;
         return {
           success: false,
           status: 424,
-          error: `[antigravity/${model}] Cloud Code projectId missing for this account. Open Antigravity IDE once with the same Google account, or remove & re-add the connection so onboardUser can bind a project.`,
-          response: null,
+          error: msg,
+          response: errorResponse(424, msg),
         };
       }
     }
@@ -339,6 +388,7 @@ async function handleSingleModelRequest(body, modelStr, clientRawRequest = null,
       apiKey,
       ccFilterNaming: !!chatSettings.ccFilterNaming,
       fastFail5xx: hasFallbackAccount,
+      routingMetrics,
       rtkEnabled: requestPolicy.rtkEnabled,
       cavemanEnabled: requestPolicy.cavemanEnabled,
       cavemanLevel: chatSettings.cavemanLevel || "full",
@@ -361,6 +411,7 @@ async function handleSingleModelRequest(body, modelStr, clientRawRequest = null,
         });
       },
       onRequestSuccess: async () => {
+        if (sessionKey) pinSession(sessionKey, credentials.connectionId);
         await clearAccountError(credentials.connectionId, credentials, model);
       }
     });
@@ -412,6 +463,10 @@ async function handleSingleModelRequest(body, modelStr, clientRawRequest = null,
     }
     log.warn("CHAT", "No more accounts available", { provider });
     return errorResponse(lastResult?.status || HTTP_STATUS.SERVICE_UNAVAILABLE, lastResult?.error || "All accounts unavailable");
+  }
+
+  if (executionResult.deadlineExceeded) {
+    log.warn("CHAT", `[${provider}/${model}] routing deadline exceeded after ${executionResult.attempts} attempt(s) — returning last error`);
   }
 
   return executionResult.response;

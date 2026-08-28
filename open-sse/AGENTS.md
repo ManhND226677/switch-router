@@ -15,8 +15,8 @@ Provider-agnostic SSE engine: one OpenAI-style request → any provider (LLM cha
 - `handlers/` — chat core (`chatCore.js` + `chatCore/` streaming/non-streaming/sse-to-json handlers).
 - `rtk/` — request token-killer. `index.js` compresses `tool_result` content in-place (OpenAI/Claude shapes); `filters/` per-tool compressors + `autodetect.js`; `caveman.js`/`ponytail.js` system-prompt injectors.
 - `transformer/` — `responsesTransformer.js` (Chat Completions SSE → Codex Responses API SSE), `streamToJsonConverter.js`.
-- `shared/` — cross-provider auth/identity: `machineId.js`, `qoder/`.
-- `services/` — `model.js`, `provider.js`, `accountFallback.js`, `combo.js`, `compact.js`, `tokenRefresh/`+`tokenRefresh.js`, `oauthCredentialManager.js`, `usage/`, `projectId.js`, `qoderModels.js`.
+- `shared/` — cross-provider identity: `machineId.js`.
+- `services/` — `model.js`, `provider.js`, `accountFallback.js`, `combo.js`, `connectionLatency.js` (per-account latency EWMA behind the "fastest" strategy), `tokenRefresh/`+`tokenRefresh.js`, `oauthCredentialManager.js`, `usage/`, `projectId.js`, `copilotModels.js`, `grokCliModels.js`.
 - `utils/` — streamHandler, stream, sse, error, sessionManager, claudeCloaking, clientDetector, proxyFetch (patches global fetch), cursorProtobuf/cursorChecksum, ollamaTransform.
 
 ## Conventions

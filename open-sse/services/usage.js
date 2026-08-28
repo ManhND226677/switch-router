@@ -3,7 +3,7 @@
  */
 
 import { getGitHubUsage } from "./usage/github.js";
-import { getGeminiUsage, getAntigravityUsage } from "./usage/google.js";
+import { getAntigravityUsage } from "./usage/google.js";
 import { getClaudeUsage } from "./usage/claude.js";
 import { getCodexUsage, consumeCodexRateLimitResetCredit, getCodexRateLimitResetCredits } from "./usage/codex.js";
 
@@ -14,7 +14,6 @@ import {
   getQwenUsage,
   getOllamaUsage,
   getGlmUsage,
-  getQoderUsage,
   getVilaoUsage,
   getStepFunUsage,
 } from "./usage/misc.js";
@@ -27,11 +26,9 @@ import {
 // provider → usage handler (ctx carries every arg each handler needs)
 const USAGE_HANDLERS = {
   github: (c) => getGitHubUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
-  "gemini-cli": (c) => getGeminiUsage(c.accessToken, c.providerDataWithProjectId, c.proxyOptions),
   antigravity: (c) => getAntigravityUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
   claude: (c) => getClaudeUsage(c.accessToken, c.proxyOptions),
   codex: (c) => getCodexUsage(c.accessToken, c.proxyOptions),
-  qoder: (c) => getQoderUsage(c.accessToken, c.proxyOptions),
   qwen: (c) => getQwenUsage(c.accessToken, c.providerSpecificData),
   ollama: (c) => getOllamaUsage(c.accessToken),
   glm: (c) => getGlmUsage(c.apiKey, c.provider, c.proxyOptions),

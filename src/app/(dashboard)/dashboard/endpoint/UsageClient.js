@@ -11,6 +11,7 @@ import Card from "@/shared/components/Card";
 import RequestDetailsTab from "../usage/components/RequestDetailsTab";
 import ProviderDistribution from "./components/ProviderDistribution";
 import TopModelBilling from "./components/TopModelBilling";
+import LatencyCachePanel from "./components/LatencyCachePanel";
 import { fetchModelNames, getModelName } from "@/shared/utils/modelNames";
 
 // recharts (~100 KB gzip) stays off the critical path — charts render after data arrives anyway
@@ -107,6 +108,7 @@ function OverviewDashboard({ period, reloadTick = 0 }) {
   const [modelNames, setModelNames] = useState({});
   const [statsVersion, setStatsVersion] = useState(null);
   const [chartData, setChartData] = useState([]);
+  const [alerts, setAlerts] = useState([]);
   const fetchDataRef = useRef(null);
 
 const [providerNameMap, setProviderNameMap] = useState({});
@@ -169,6 +171,7 @@ const [providerNameMap, setProviderNameMap] = useState({});
     es.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);
+        if (Array.isArray(data.alerts)) setAlerts(data.alerts);
         setStats((prev) => {
           if (!prev) return prev;
           return {
@@ -212,6 +215,29 @@ const [providerNameMap, setProviderNameMap] = useState({});
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in duration-300">
+      {/* Budget / spend-spike alerts (pushed live on the usage stream) */}
+      {alerts.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {alerts.slice(0, 4).map((a, i) => (
+            <div
+              key={`${a.ts}-${i}`}
+              className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm ${
+                a.level >= 100
+                  ? "border-error/40 bg-error/10 text-error"
+                  : a.level >= 80
+                    ? "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                    : "border-primary/30 bg-primary/5 text-text-main"
+              }`}
+            >
+              <span className="material-symbols-outlined text-base shrink-0 mt-0.5">
+                {a.type === "spend-spike" ? "trending_up" : "savings"}
+              </span>
+              <span className="min-w-0">{a.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* KPI strip — workbench style: 5 cards with icon + sub-line */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <MetricCard
@@ -258,6 +284,9 @@ const [providerNameMap, setProviderNameMap] = useState({});
           <ProviderDistribution byProvider={stats.byProvider || {}} />
         </div>
       </div>
+
+      {/* Latency (TTFT p50/p95 + failover) & cache-hit telemetry */}
+      <LatencyCachePanel />
 
       {/* Top model billing */}
       <TopModelBilling byModel={stats.byModel || {}} modelNames={modelNames} />

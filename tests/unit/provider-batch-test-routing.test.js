@@ -60,7 +60,7 @@ describe("provider batch test routing", () => {
   it("tests only LLM API-key connections in the API Key batch", async () => {
     mocks.getProviderConnections.mockResolvedValue([
       { id: "ollama-key", provider: "ollama", authType: "apikey", name: "Ollama", isActive: true },
-      { id: "gemini-key", provider: "gemini", authType: "apikey", name: "Gemini", isActive: true },
+      { id: "deepseek-key", provider: "deepseek", authType: "apikey", name: "DeepSeek", isActive: true },
       { id: "tts-key", provider: "media-tts", authType: "apikey", name: "Media TTS", isActive: true },
       { id: "search-key", provider: "media-search", authType: "apikey", name: "Media Search", isActive: true },
     ]);
@@ -71,9 +71,9 @@ describe("provider batch test routing", () => {
 
     expect(response.status).toBe(200);
     expect(body.summary).toEqual({ total: 2, passed: 2, failed: 0 });
-    expect(body.results.map((result) => result.provider)).toEqual(["ollama", "gemini"]);
+    expect(body.results.map((result) => result.provider)).toEqual(["ollama", "deepseek"]);
     expect(mocks.testSingleConnection).toHaveBeenCalledTimes(2);
     expect(mocks.testSingleConnection).toHaveBeenCalledWith("ollama-key");
-    expect(mocks.testSingleConnection).toHaveBeenCalledWith("gemini-key");
+    expect(mocks.testSingleConnection).toHaveBeenCalledWith("deepseek-key");
   });
 });

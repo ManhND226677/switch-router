@@ -221,11 +221,32 @@ export const PATTERN_PRICING = [
 /**
  * Match a model ID against a glob pattern (* = wildcard). Case-insensitive:
  * registry ids mix casing (e.g. "MiniMax-M2.5" vs "minimax-m2.5").
+ *
+ * Regex is compiled ONCE per pattern: the PATTERN_* tables are static, but
+ * matchPattern runs hundreds of times per request (pattern loop × several
+ * getCapabilitiesForModel/getPricingForModel calls), and recompiling ~220
+ * RegExp objects per request showed up as hot-path CPU.
  */
-export function matchPattern(pattern, model) {
-  const regex = new RegExp("^" + pattern.split("*").map(s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*") + "$", "i");
-  return regex.test(model);
+const patternRegexCache = new Map();
+
+function patternRegex(pattern) {
+  let re = patternRegexCache.get(pattern);
+  if (!re) {
+    if (patternRegexCache.size > 512) patternRegexCache.clear(); // safety valve for unbounded callers
+    re = new RegExp("^" + pattern.split("*").map(s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*") + "$", "i");
+    patternRegexCache.set(pattern, re);
+  }
+  return re;
 }
+
+export function matchPattern(pattern, model) {
+  return patternRegex(pattern).test(model);
+}
+
+// Memoized pricing resolution — tables are static module constants (user pricing
+// overrides live in pricingRepo), so results never go stale.
+const pricingMemo = new Map();
+const PRICING_MEMO_MAX = 2048;
 
 /**
  * Resolve pricing for a model using the 3-step fallback chain:
@@ -240,6 +261,16 @@ export function matchPattern(pattern, model) {
 export function getPricingForModel(provider, model) {
   if (!model) return null;
 
+  const memoKey = `${provider || ""}|${model}`;
+  if (pricingMemo.has(memoKey)) return pricingMemo.get(memoKey);
+
+  const pricing = computePricingForModel(provider, model);
+  if (pricingMemo.size >= PRICING_MEMO_MAX) pricingMemo.clear();
+  pricingMemo.set(memoKey, pricing);
+  return pricing;
+}
+
+function computePricingForModel(provider, model) {
   // 1. Provider-specific override
   if (provider && PROVIDER_PRICING[provider]?.[model]) {
     return PROVIDER_PRICING[provider][model];

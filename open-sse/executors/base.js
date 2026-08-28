@@ -137,14 +137,22 @@ export class BaseExecutor {
         if (dynamic != null) waitMs = dynamic;
       }
       retryAttemptsByUrl[urlIndex]++;
-      log?.debug?.("RETRY", `${reason} retry ${retryAttemptsByUrl[urlIndex]}/${attempts} after ${waitMs / 1000}s`);
-      await new Promise(resolve => setTimeout(resolve, waitMs));
+      // ±25% jitter: aligned retries (e.g. after a provider blip) would otherwise
+      // hit the upstream again in the same synchronized burst.
+      const jitter = waitMs * 0.25 * (Math.random() * 2 - 1);
+      const sleepMs = Math.max(0, Math.round(waitMs + jitter));
+      log?.debug?.("RETRY", `${reason} retry ${retryAttemptsByUrl[urlIndex]}/${attempts} after ${(sleepMs / 1000).toFixed(1)}s`);
+      await new Promise(resolve => setTimeout(resolve, sleepMs));
       return true;
     };
 
     for (let urlIndex = 0; urlIndex < fallbackCount; urlIndex++) {
-      const url = this.buildUrl(model, stream, urlIndex, credentials);
+      // Order matters: transformRequest may record per-call state that buildUrl
+      // and buildHeaders read (Codex `_isCompact` → /compact suffix, session ids;
+      // OpenCodeGo caches the model in buildUrl for its headers), so the body is
+      // transformed first, then the URL, then the headers.
       const transformedBody = this.transformRequest(model, body, stream, credentials);
+      const url = this.buildUrl(model, stream, urlIndex, credentials);
       const headers = this.buildHeaders(credentials, stream);
 
       if (!retryAttemptsByUrl[urlIndex]) retryAttemptsByUrl[urlIndex] = 0;

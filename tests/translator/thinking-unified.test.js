@@ -83,10 +83,10 @@ describe("applyThinking per provider format", () => {
     expect(out.generationConfig.thinkingConfig.thinkingLevel).toBe("high");
   });
   it("gemini-3 high thinking raises too-small maxOutputTokens", () => {
-    const out = apply("gemini-cli", "gemini-3.1-pro-preview", {
+    const out = apply("antigravity", "gemini-3.1-pro-preview", {
       request: { generationConfig: { maxOutputTokens: 128 } },
       reasoning_effort: "high",
-    }, "gemini-cli");
+    }, "antigravity");
     expect(out.request.generationConfig.thinkingConfig).toEqual({ thinkingLevel: "high", includeThoughts: true });
     expect(out.request.generationConfig.maxOutputTokens).toBe(65535);
   });
@@ -96,10 +96,10 @@ describe("applyThinking per provider format", () => {
     expect(out.generationConfig.thinkingConfig.thinkingLevel).toBeUndefined();
   });
   it("gemini-2.5 budget thinking keeps enough room for answer tokens", () => {
-    const out = apply("gemini-cli", "gemini-2.5-pro", {
+    const out = apply("gemini", "gemini-2.5-pro", {
       request: { generationConfig: { maxOutputTokens: 1024 } },
       reasoning_effort: "high",
-    }, "gemini-cli");
+    }, "gemini");
     expect(out.request.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 24576, includeThoughts: true });
     expect(out.request.generationConfig.maxOutputTokens).toBe(32768);
   });

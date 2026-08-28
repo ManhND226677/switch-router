@@ -20,9 +20,12 @@ export function createBetterSqliteAdapter(filePath) {
     return stmt;
   }
 
-  // Truncate WAL periodically so file stays small for backup/copy
+  // Periodic checkpoint keeps the WAL from growing unboundedly. PASSIVE instead
+  // of TRUNCATE: TRUNCATE blocks until it can reset the WAL file, which showed
+  // up as a periodic event-loop stall under concurrent readers (every stream in
+  // flight froze). Full TRUNCATE still happens on close/shutdown below.
   const checkpointTimer = setInterval(() => {
-    try { db.pragma("wal_checkpoint(TRUNCATE)"); } catch {}
+    try { db.pragma("wal_checkpoint(PASSIVE)"); } catch {}
   }, CHECKPOINT_INTERVAL_MS);
   if (typeof checkpointTimer.unref === "function") checkpointTimer.unref();
 

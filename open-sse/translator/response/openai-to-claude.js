@@ -95,26 +95,76 @@ function tryParseJsonObject(value) {
   }
 }
 
+// Incremental JSON bracket/quote scan. Tracked per tool call alongside the
+// accumulated argument buffer so the per-chunk merge can tell whether the
+// buffer could possibly contain a complete top-level object without parsing it.
+function scanJsonChunk(chunk, prev = { depth: 0, inString: false, escaped: false }) {
+  const state = { depth: prev.depth, inString: prev.inString, escaped: prev.escaped };
+  for (let i = 0; i < chunk.length; i++) {
+    const char = chunk[i];
+    if (state.inString) {
+      if (state.escaped) state.escaped = false;
+      else if (char === "\\") state.escaped = true;
+      else if (char === "\"") state.inString = false;
+      continue;
+    }
+    if (char === "\"") state.inString = true;
+    else if (char === "{") state.depth++;
+    else if (char === "}") state.depth--;
+  }
+  return state;
+}
+
+// Cheap O(1) fallback gate when no scan state is available (first/last char).
+function couldBeCompleteJsonObject(source) {
+  return source.length >= 2 && source[0] === "{" && source[source.length - 1] === "}";
+}
+
+function isScanCompleteObject(scan, source) {
+  return Boolean(scan)
+    && scan.depth <= 0
+    && !scan.inString
+    && source.length >= 2
+    && source[0] === "{";
+}
+
 // Some OpenAI-compatible streams repeat a complete arguments object on every
 // chunk instead of emitting only the suffix. Keep one valid object rather than
 // producing two adjacent JSON objects, which Claude clients reject.
-function mergeToolArgumentChunks(previousValue, incomingValue) {
+//
+// Tracked variant returns { value, scan } so callers can keep the incremental
+// bracket scan going. The parse attempts are gated on the scan: a fragment
+// stream (prefix + suffixes) never re-parses the whole accumulated buffer on
+// every chunk — that was O(N²) CPU on long tool arguments.
+function mergeToolArgumentChunksTracked(previousValue, incomingValue, previousScan = null) {
   const previous = normalizeToolArgumentChunk(previousValue);
   const incoming = normalizeToolArgumentChunk(incomingValue);
-  if (!previous) return incoming;
-  if (!incoming || previous === incoming) return previous;
+  if (!previous) {
+    return { value: incoming, scan: scanJsonChunk(incoming) };
+  }
+  if (!incoming || previous === incoming) {
+    return { value: previous, scan: previousScan || scanJsonChunk(previous) };
+  }
 
-  if (incoming.startsWith(previous)) return incoming;
-  if (previous.startsWith(incoming)) return previous;
+  if (incoming.startsWith(previous)) {
+    return { value: incoming, scan: scanJsonChunk(incoming) };
+  }
+  if (previous.startsWith(incoming)) {
+    return { value: previous, scan: previousScan || scanJsonChunk(previous) };
+  }
 
-  const previousObject = tryParseJsonObject(previous);
-  const incomingObject = tryParseJsonObject(incoming);
+  const previousComplete = isScanCompleteObject(previousScan, previous) || couldBeCompleteJsonObject(previous);
+  const incomingComplete = couldBeCompleteJsonObject(incoming);
+
+  const previousObject = previousComplete ? tryParseJsonObject(previous) : null;
+  const incomingObject = incomingComplete ? tryParseJsonObject(incoming) : null;
   if (previousObject && incomingObject) {
-    return JSON.stringify(mergeJsonObjects(previousObject, incomingObject));
+    // Result of merging two complete objects is itself a complete object.
+    return { value: JSON.stringify(mergeJsonObjects(previousObject, incomingObject)), scan: { depth: 0, inString: false, escaped: false } };
   }
 
   // Standard OpenAI streams send an object prefix followed by its suffix.
-  return previous + incoming;
+  return { value: previous + incoming, scan: scanJsonChunk(incoming, previousScan || scanJsonChunk(previous)) };
 }
 
 function findJsonObjectEnd(source, start) {
@@ -385,9 +435,17 @@ export function openaiToClaudeResponse(chunk, state) {
       if (tc.function?.arguments) {
         const toolInfo = state.toolCalls.get(idx);
         if (toolInfo) {
-          // Buffer args instead of streaming — sanitize at finish to fix bad params
+          // Buffer args instead of streaming — sanitize at finish to fix bad params.
+          // toolArgScans carries the incremental bracket scan for the merge gate.
           if (!state.toolArgBuffers) state.toolArgBuffers = new Map();
-          state.toolArgBuffers.set(idx, mergeToolArgumentChunks(state.toolArgBuffers.get(idx), tc.function.arguments));
+          if (!state.toolArgScans) state.toolArgScans = new Map();
+          const merged = mergeToolArgumentChunksTracked(
+            state.toolArgBuffers.get(idx),
+            tc.function.arguments,
+            state.toolArgScans.get(idx),
+          );
+          state.toolArgBuffers.set(idx, merged.value);
+          state.toolArgScans.set(idx, merged.scan);
         }
       }
     }

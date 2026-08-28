@@ -105,25 +105,6 @@ exports[`GOLDEN buildHeaders (default executor providers) > deepseek → headers
 }
 `;
 
-exports[`GOLDEN buildHeaders (default executor providers) > gemini → headers (apiKey / oauth) 1`] = `
-{
-  "apiKey": {
-    "Accept": "text/event-stream",
-    "Content-Type": "application/json",
-    "x-goog-api-key": "<CRED>",
-  },
-  "nonStream": {
-    "Content-Type": "application/json",
-    "x-goog-api-key": "<CRED>",
-  },
-  "oauth": {
-    "Accept": "text/event-stream",
-    "Authorization": "Bearer <TOK>",
-    "Content-Type": "application/json",
-  },
-}
-`;
-
 exports[`GOLDEN buildHeaders (default executor providers) > glm → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -478,13 +459,6 @@ exports[`GOLDEN buildUrl (default executor providers) > deepseek → url (stream
 {
   "nonStream": "https://api.deepseek.com/chat/completions",
   "stream": "https://api.deepseek.com/chat/completions",
-}
-`;
-
-exports[`GOLDEN buildUrl (default executor providers) > gemini → url (stream + non-stream) 1`] = `
-{
-  "nonStream": "https://generativelanguage.googleapis.com/v1beta/models/test-model:generateContent",
-  "stream": "https://generativelanguage.googleapis.com/v1beta/models/test-model:streamGenerateContent?alt=sse",
 }
 `;
 
