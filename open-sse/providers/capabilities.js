@@ -250,6 +250,23 @@ export const PATTERN_CAPABILITIES = [
 ];
 
 /**
+ * Record whether each numeric limit came from a table or from the safe floor.
+ *
+ * Every result is merged over DEFAULT_CAPABILITIES, so `contextWindow: 200000`
+ * means either "a table says so" or "we know nothing". Consumers that size a
+ * request (context guard, budget checks) must only trust `'declared'`.
+ */
+function withProvenance(delta) {
+  const declared = key => (Object.prototype.hasOwnProperty.call(delta, key) ? "declared" : "default");
+  return {
+    ...DEFAULT_CAPABILITIES,
+    ...delta,
+    contextWindowSource: declared("contextWindow"),
+    maxOutputSource: declared("maxOutput"),
+  };
+}
+
+/**
  * Resolve capabilities for a model using the 4-step fallback chain,
  * merged over DEFAULT_CAPABILITIES so the result is always complete.
  *
@@ -260,14 +277,17 @@ export const PATTERN_CAPABILITIES = [
  *
  * @param {string} provider
  * @param {string} model
- * @returns {object} full capabilities object
+ * @returns {object} full capabilities object, including `contextWindowSource`
+ *   and `maxOutputSource` ('declared' | 'default'). Anything reported as
+ *   'default' is the safe floor, not provider data — never size a request from
+ *   it (custom, passthrough and user-added models all land on 200k).
  */
 if (!global._capabilitiesMemo) global._capabilitiesMemo = new Map();
 const capsMemo = global._capabilitiesMemo;
 const CAPS_MEMO_MAX = 2048;
 
 export function getCapabilitiesForModel(provider, model) {
-  if (!model) return { ...DEFAULT_CAPABILITIES };
+  if (!model) return withProvenance({});
 
   const memoKey = `${provider || ""}|${model}`;
   const hit = capsMemo.get(memoKey);
@@ -286,21 +306,21 @@ function computeCapabilitiesForModel(provider, model) {
   // 1. Provider-specific override
   if (provider) {
     const providerCaps = PROVIDER_CAPABILITIES[provider];
-    if (providerCaps?.[model]) return { ...DEFAULT_CAPABILITIES, ...providerCaps[model] };
-    if (providerCaps?.[baseModel]) return { ...DEFAULT_CAPABILITIES, ...providerCaps[baseModel] };
+    if (providerCaps?.[model]) return withProvenance(providerCaps[model]);
+    if (providerCaps?.[baseModel]) return withProvenance(providerCaps[baseModel]);
   }
 
   // 2. Canonical exact
-  if (MODEL_CAPABILITIES[baseModel]) return { ...DEFAULT_CAPABILITIES, ...MODEL_CAPABILITIES[baseModel] };
-  if (MODEL_CAPABILITIES[model]) return { ...DEFAULT_CAPABILITIES, ...MODEL_CAPABILITIES[model] };
+  if (MODEL_CAPABILITIES[baseModel]) return withProvenance(MODEL_CAPABILITIES[baseModel]);
+  if (MODEL_CAPABILITIES[model]) return withProvenance(MODEL_CAPABILITIES[model]);
 
   // 3. Pattern match (first match wins)
   for (const { pattern, caps } of PATTERN_CAPABILITIES) {
     if (matchPattern(pattern, baseModel) || matchPattern(pattern, model)) {
-      return { ...DEFAULT_CAPABILITIES, ...caps };
+      return withProvenance(caps);
     }
   }
 
   // 4. Floor
-  return { ...DEFAULT_CAPABILITIES };
+  return withProvenance({});
 }
