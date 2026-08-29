@@ -4,9 +4,14 @@ const path = require("path");
 const crypto = require("crypto");
 const { WebSocket, WebSocketServer } = require("ws");
 
-const localEnvFile = path.join(__dirname, ".env.local");
-if (typeof process.loadEnvFile === "function" && fs.existsSync(localEnvFile)) {
-  process.loadEnvFile(localEnvFile);
+// Load .env first, then .env.local: loadEnvFile overwrites already-set vars,
+// so .env.local keeps precedence — same ordering Next applies in dev. Without
+// this, variables present only in .env were silently ignored in production.
+if (typeof process.loadEnvFile === "function") {
+  const envFile = path.join(__dirname, ".env");
+  if (fs.existsSync(envFile)) process.loadEnvFile(envFile);
+  const localEnvFile = path.join(__dirname, ".env.local");
+  if (fs.existsSync(localEnvFile)) process.loadEnvFile(localEnvFile);
 }
 
 if (!process.env.SWITCH_ROUTER_INTERNAL_SECRET) {
