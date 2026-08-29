@@ -269,9 +269,9 @@ describe("openaiToClaudeResponse tool argument sanitization", () => {
       }, state);
 
       const logs = logSpy.mock.calls.flat().join("\n");
-      expect(logs).toContain("[OFFICE-SSE] tool=AskUserQuestion");
+      expect(logs).toContain("[DBG:OFFICE-SSE] tool=AskUserQuestion");
       expect(logs).toContain("shape=questions:array");
-      expect(logs).toContain("[OFFICE-SSE] complete");
+      expect(logs).toContain("[DBG:OFFICE-SSE] complete");
       expect(logs).not.toContain(secretQuestion);
       expect(logs).not.toContain('"options"');
     } finally {

@@ -63,8 +63,20 @@ export async function createSqlJsAdapter(filePath) {
     return params;
   }
 
+  // sql.js prepare() compiles WASM SQLite statements per call — cache them like
+  // the native adapters do. Statements are reset() after use, freed in close().
+  const stmtCache = new Map();
+  function prepare(sql) {
+    let stmt = stmtCache.get(sql);
+    if (!stmt) {
+      stmt = db.prepare(sql);
+      stmtCache.set(sql, stmt);
+    }
+    return stmt;
+  }
+
   function run(sql, params = []) {
-    const stmt = db.prepare(sql);
+    const stmt = prepare(sql);
     try {
       stmt.bind(paramsObj(params));
       stmt.step();
@@ -73,30 +85,30 @@ export async function createSqlJsAdapter(filePath) {
       scheduleSave();
       return { changes, lastInsertRowid };
     } finally {
-      stmt.free();
+      try { stmt.reset(); } catch {}
     }
   }
 
   function get(sql, params = []) {
-    const stmt = db.prepare(sql);
+    const stmt = prepare(sql);
     try {
       stmt.bind(paramsObj(params));
       if (stmt.step()) return stmt.getAsObject();
       return undefined;
     } finally {
-      stmt.free();
+      try { stmt.reset(); } catch {}
     }
   }
 
   function all(sql, params = []) {
-    const stmt = db.prepare(sql);
+    const stmt = prepare(sql);
     try {
       stmt.bind(paramsObj(params));
       const rows = [];
       while (stmt.step()) rows.push(stmt.getAsObject());
       return rows;
     } finally {
-      stmt.free();
+      try { stmt.reset(); } catch {}
     }
   }
 
@@ -122,6 +134,10 @@ export async function createSqlJsAdapter(filePath) {
   function close() {
     if (saveTimer) clearTimeout(saveTimer);
     if (dirty) persist();
+    for (const stmt of stmtCache.values()) {
+      try { stmt.free(); } catch {}
+    }
+    stmtCache.clear();
     db.close();
   }
 
