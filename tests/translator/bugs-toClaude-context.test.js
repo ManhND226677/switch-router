@@ -182,3 +182,92 @@ describe("OpenAI → Claude context mapping", () => {
     expect(assistant.content[0].signature).toBeUndefined();
   });
 });
+
+// Anthropic rejects >1 tool_result per tool_use with 400 "each tool_use must
+// have a single result" (seen on antigravity claude-opus-4-6-thinking). The
+// merge pass in fixToolUseOrdering concatenates same-role user messages, so
+// duplicated client tool results must be collapsed to one block per id.
+describe("duplicate tool_result dedupe (claude.js fixToolUseOrdering)", () => {
+  const allToolResults = (out) =>
+    out.messages.flatMap((m) => (Array.isArray(m.content) ? m.content : [])).filter((b) => b.type === "tool_result");
+
+  it("two tool messages with the same tool_call_id collapse to one tool_result", () => {
+    const out = T({
+      messages: [
+        { role: "user", content: "q" },
+        { role: "assistant", content: "", tool_calls: [{ id: "call_A", type: "function", function: { name: "f", arguments: "{}" } }] },
+        { role: "tool", tool_call_id: "call_A", content: "result 1" },
+        { role: "tool", tool_call_id: "call_A", content: "result 2" },
+      ],
+    });
+    const results = allToolResults(out);
+    expect(results).toHaveLength(1);
+    expect(results[0].tool_use_id).toBe("call_A");
+    expect(results[0].content).toBe("result 1");
+  });
+
+  it("distinct tool_call_ids are kept", () => {
+    const out = T({
+      messages: [
+        { role: "user", content: "q" },
+        {
+          role: "assistant", content: "",
+          tool_calls: [
+            { id: "call_A", type: "function", function: { name: "f", arguments: "{}" } },
+            { id: "call_B", type: "function", function: { name: "g", arguments: "{}" } },
+          ],
+        },
+        { role: "tool", tool_call_id: "call_A", content: "a" },
+        { role: "tool", tool_call_id: "call_B", content: "b" },
+        { role: "tool", tool_call_id: "call_A", content: "a again" },
+      ],
+    });
+    const results = allToolResults(out);
+    expect(results.map((r) => r.tool_use_id).sort()).toEqual(["call_A", "call_B"]);
+  });
+
+  it("native Claude body with duplicated tool_result blocks in one message keeps one, preferring non-empty", () => {
+    const out = prepareClaudeRequest({
+      model: "m",
+      messages: [
+        { role: "user", content: [{ type: "text", text: "q" }] },
+        { role: "assistant", content: [{ type: "tool_use", id: "toolu_1", name: "Read", input: {} }] },
+        {
+          role: "user",
+          content: [
+            { type: "tool_result", tool_use_id: "toolu_1", content: "" },
+            { type: "tool_result", tool_use_id: "toolu_1", content: "the real result" },
+          ],
+        },
+        { role: "user", content: [{ type: "text", text: "go on" }] },
+      ],
+    }, "anthropic");
+    const results = allToolResults(out);
+    expect(results).toHaveLength(1);
+    expect(results[0].content).toBe("the real result");
+  });
+
+  it("duplicate tool_use_id across non-consecutive turns is dropped conversation-wide", () => {
+    const out = prepareClaudeRequest({
+      model: "m",
+      messages: [
+        { role: "user", content: [{ type: "text", text: "q" }] },
+        { role: "assistant", content: [{ type: "tool_use", id: "toolu_1", name: "Read", input: {} }] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_1", content: "first" }] },
+        { role: "assistant", content: [{ type: "text", text: "ok" }] },
+        {
+          role: "user",
+          content: [
+            { type: "tool_result", tool_use_id: "toolu_1", content: "resent" },
+            { type: "text", text: "next question" },
+          ],
+        },
+      ],
+    }, "anthropic");
+    const results = allToolResults(out);
+    expect(results).toHaveLength(1);
+    expect(results[0].content).toBe("first");
+    const last = out.messages[out.messages.length - 1];
+    expect(last.content.some((b) => b.type === "text" && b.text === "next question")).toBe(true);
+  });
+});
