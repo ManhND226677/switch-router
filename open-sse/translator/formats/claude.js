@@ -22,9 +22,40 @@ export function hasValidContent(msg) {
   return false;
 }
 
+function isToolResultContentEmpty(content) {
+  if (content == null || content === "") return true;
+  if (Array.isArray(content)) return content.length === 0;
+  return false;
+}
+
+// Anthropic allows exactly one tool_result per tool_use ("each tool_use must
+// have a single result"). Clients that resend or duplicate tool results leave
+// multiples in the conversation, which upstream rejects with 400 — keep the
+// first block per tool_use_id and drop later duplicates. If the kept block
+// has empty content, swap in content from a duplicate that has some.
+function dedupeToolResultsWith(content, keptById) {
+  const out = [];
+  for (const block of content) {
+    if (block?.type === CLAUDE_BLOCK.TOOL_RESULT && block.tool_use_id) {
+      const kept = keptById.get(block.tool_use_id);
+      if (kept) {
+        if (isToolResultContentEmpty(kept.content) && !isToolResultContentEmpty(block.content)) {
+          kept.content = block.content;
+        }
+        continue;
+      }
+      keptById.set(block.tool_use_id, block);
+    }
+    out.push(block);
+  }
+  return out;
+}
+
 // Fix tool_use/tool_result ordering for Claude API
 // 1. Assistant message with tool_use: remove text AFTER tool_use (Claude doesn't allow)
 // 2. Merge consecutive same-role messages
+// 3. Dedupe tool_result blocks per tool_use_id (duplicates arise from the
+//    merge above or from clients resending the same tool result)
 export function fixToolUseOrdering(messages) {
   if (messages.length <= 1) return messages;
 
@@ -76,6 +107,13 @@ export function fixToolUseOrdering(messages) {
       const content = Array.isArray(msg.content) ? msg.content : [{ type: CLAUDE_BLOCK.TEXT, text: msg.content }];
       merged.push({ role: msg.role, content: [...content] });
     }
+  }
+
+  // Pass 3: one tool_result per tool_use_id across the whole conversation
+  const seenToolResultIds = new Map();
+  for (const msg of merged) {
+    if (!Array.isArray(msg.content)) continue;
+    msg.content = dedupeToolResultsWith(msg.content, seenToolResultIds);
   }
 
   return merged;
