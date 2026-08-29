@@ -3,7 +3,6 @@ import { getProviderNodeById } from "@/models";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, AI_PROVIDERS } from "@/shared/constants/providers";
 import { getDefaultModel } from "open-sse/config/providerModels.js";
 import { resolveXiaomiTokenplanBaseUrl, PROVIDERS } from "open-sse/config/providers.js";
-import { openaiToCommandCodeRequest } from "open-sse/translator/request/openai-to-commandcode.js";
 import { normalizeProviderId } from "@/lib/providerNormalization";
 import { getVilaoModelsUrl } from "open-sse/providers/vilao.js";
 import { resolveStepFunEndpoints } from "open-sse/providers/stepfun.js";
@@ -161,11 +160,9 @@ export async function POST(request) {
         }
         case "deepseek":
         case "groq":
-        case "xai":
         case "mistral":
         case "stepfun":
         case "ollama":
-        case "xiaomi-mimo":
         case "xiaomi-tokenplan": {
           const endpoints = {
             ...Object.fromEntries(
@@ -178,11 +175,8 @@ export async function POST(request) {
           const headers = {};
           if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
           const res = await fetch(endpoints[provider], { headers, signal: AbortSignal.timeout(8000) });
-          // xai returns 400 for bad key, 403 for valid-but-no-credit. Other providers use 401.
           if (provider === "stepfun") {
             isValid = res.ok;
-          } else if (provider === "xai") {
-            isValid = res.status === 200 || res.status === 403;
           } else if (provider === "xiaomi-tokenplan") {
             // /models returns 403 for valid keys lacking list permission; only 401 means invalid
             isValid = res.status !== 401;
@@ -202,29 +196,6 @@ export async function POST(request) {
               max_tokens: 1,
               stream: false,
             }),
-            signal: AbortSignal.timeout(VALIDATE_TIMEOUT_MS),
-          });
-          isValid = res.status !== 401 && res.status !== 403;
-          break;
-        }
-
-        case "commandcode": {
-          const cfg = PROVIDERS.commandcode;
-          const model = getDefaultModel("commandcode");
-          const payload = openaiToCommandCodeRequest(model, {
-            messages: [{ role: "user", content: "ping" }],
-            max_tokens: 1,
-            stream: false,
-          }, false);
-          const res = await fetch(cfg.baseUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...(cfg.headers || {}),
-              "x-session-id": crypto.randomUUID(),
-              "Authorization": `Bearer ${apiKey}`,
-            },
-            body: JSON.stringify(payload),
             signal: AbortSignal.timeout(VALIDATE_TIMEOUT_MS),
           });
           isValid = res.status !== 401 && res.status !== 403;

@@ -51,7 +51,6 @@ const OAUTH_TEST_CONFIG = {
   qwen: { checkExpiry: true, refreshable: true },
 
   "kimi-coding": { checkExpiry: true, refreshable: false },
-  cursor: { tokenExists: true },
   kilocode: {
     url: `${KILOCODE_CONFIG.apiBaseUrl}/api/profile`,
     method: "GET",
@@ -183,7 +182,7 @@ async function refreshOAuthToken(connection) {
       return { accessToken: data.access_token, expiresIn: data.expires_in, refreshToken: data.refresh_token || refreshToken };
     }
 
-    if (provider === "codex" || provider === "grok-cli" || provider === "xai") {
+    if (provider === "codex" || provider === "grok-cli") {
       return await refreshProviderCredentials(provider, connection, console);
     }
 
@@ -285,11 +284,6 @@ async function testOAuthConnection(connection, effectiveProxy = null) {
   const config = OAUTH_TEST_CONFIG[connection.provider];
   if (!config) return { valid: false, error: "Provider test not supported", refreshed: false };
   if (!connection.accessToken) return { valid: false, error: "No access token", refreshed: false };
-
-  // Cursor uses protobuf API - can only verify token exists, not test endpoint
-  if (config.tokenExists) {
-    return { valid: true, error: null, refreshed: false, newTokens: null };
-  }
 
   let accessToken = connection.accessToken;
   let refreshed = false;
@@ -588,10 +582,6 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
         const res = await fetchWithConnectionProxy("https://api.mistral.ai/v1/models", { headers: { Authorization: `Bearer ${connection.apiKey}` } }, effectiveProxy);
         return { valid: res.ok, error: res.ok ? null : "Invalid API key" };
       }
-      case "xai": {
-        const res = await fetchWithConnectionProxy("https://api.x.ai/v1/models", { headers: { Authorization: `Bearer ${connection.apiKey}` } }, effectiveProxy);
-        return { valid: res.ok, error: res.ok ? null : "Invalid API key" };
-      }
       case "ollama": {
         const res = await fetch("https://ollama.com/api/tags", { headers: { Authorization: `Bearer ${connection.apiKey}` } });
         return { valid: res.ok, error: res.ok ? null : "Invalid API key" };
@@ -624,10 +614,8 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
         const valid = res.status !== 401 && res.status !== 403;
         return { valid, error: valid ? null : "Invalid API key" };
       }
-      case "xiaomi-mimo":
       case "xiaomi-tokenplan": {
-        const baseUrls = { "xiaomi-mimo": "https://api.xiaomimimo.com/v1", "xiaomi-tokenplan": "https://token-plan-sgp.xiaomimimo.com/v1" };
-        const res = await fetchWithConnectionProxy(`${baseUrls[connection.provider]}/models`, {
+        const res = await fetchWithConnectionProxy("https://token-plan-sgp.xiaomimimo.com/v1/models", {
           headers: { Authorization: `Bearer ${connection.apiKey}` },
         }, effectiveProxy);
         return { valid: res.ok, error: res.ok ? null : "Invalid API key" };

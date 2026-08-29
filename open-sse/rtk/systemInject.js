@@ -20,7 +20,7 @@ export function injectSystemPrompt(body, format, prompt) {
       injectGeminiSystem(body, prompt);
       return;
     default:
-      // OpenAI and OpenAI-shaped formats (responses/codex/cursor/ollama)
+      // OpenAI and OpenAI-shaped formats (responses/codex/ollama)
       injectMessagesSystem(body, prompt);
   }
 }

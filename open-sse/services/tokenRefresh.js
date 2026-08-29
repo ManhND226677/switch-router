@@ -1,7 +1,7 @@
 import { PROVIDERS } from "../config/providers.js";
 import { OAUTH_ENDPOINTS, REFRESH_LEAD_MS } from "../config/appConstants.js";
 import {
-  refreshXaiToken,
+  refreshGrokCliToken,
   refreshAccessToken,
   refreshClaudeOAuthToken,
   refreshGoogleToken,
@@ -47,10 +47,9 @@ const REFRESH_HANDLERS = {
   codex: (c, log) => refreshCodexToken(c.refreshToken, log),
   qwen: (c, log) => refreshQwenToken(c.refreshToken, log),
   github: (c, log) => refreshGitHubToken(c.refreshToken, log),
-  xai: (c, log) => refreshXaiToken(c.refreshToken, log),
-  // Grok CLI shares xAI OAuth client + token endpoint (device-code tokens refresh the same way)
-  "grok-cli": (c, log) => refreshXaiToken(c.refreshToken, log),
-  gcli: (c, log) => refreshXaiToken(c.refreshToken, log),
+  // Grok CLI device-code tokens refresh against the shared xAI OAuth token endpoint
+  "grok-cli": (c, log) => refreshGrokCliToken(c.refreshToken, log),
+  gcli: (c, log) => refreshGrokCliToken(c.refreshToken, log),
 };
 
 export async function getAccessToken(provider, credentials, log) {
@@ -94,7 +93,6 @@ export function formatProviderCredentials(provider, credentials, log) {
     case "qwen":
     case "openai":
     case "openrouter":
-    case "xai":
     case "grok-cli":
       return {
         apiKey: credentials.apiKey,

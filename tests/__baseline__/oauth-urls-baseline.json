@@ -26,14 +26,12 @@
     "claude": "https://api.anthropic.com/v1/oauth/token",
     "codex": "https://auth.openai.com/oauth/token",
     "qwen": "https://chat.qwen.ai/api/v1/oauth2/token",
-    "xai": "https://auth.x.ai/oauth2/token",
     "grok-cli": "https://auth.x.ai/oauth2/token",
     "kimi-coding": "https://auth.kimi.com/api/oauth/token"
   },
   "authUrls": {},
   "refreshUrls": {
     "kimi-coding": "https://auth.kimi.com/api/oauth/token",
-    "xai": "https://auth.x.ai/oauth2/token",
     "grok-cli": "https://auth.x.ai/oauth2/token"
   },
   "clientIds": {

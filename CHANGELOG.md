@@ -2,6 +2,17 @@
 
 This file tracks changes for the local personal build only.
 
+## 0.10.9 - 2026-08-30
+
+### Removed
+
+- **Gỡ 4 provider khỏi registry: `xai`, `cursor`, `commandcode`, `xiaomi-mimo`.** Xóa 24 file riêng (4 registry entry, executor + translator 2 chiều của cursor/commandcode, `cursorProtobuf`/`cursorChecksum`, OAuth service + constants của xai/cursor, `CursorAuthModal`, 2 route `oauth/cursor/*`, 6 test dedicated), dọn toàn bộ tham chiếu trong file chung (executors/translator index, concerns, oauth `providers.js` + route `[provider]/[action]` về codex-only, `tokenRefresh`, UI trang provider + `dashboardGuard` + `providerNormalization`), `index.js` regenerate qua `scripts/generate-registry-index.mjs` (còn 25 provider). `grok-cli`/`grok-web` (cùng dòng xAI) và `xiaomi-tokenplan` giữ nguyên — provider riêng biệt; `refreshGrokCliToken` giờ tự refresh trực tiếp theo `oauth.refreshUrl`/`clientId` của grok-cli thay vì qua `XaiService` đã xóa. Baselines/snapshot golden regen; `qa-provider-drift.mjs` thêm 4 id vào REMOVED_LIST.
+- **Migration 006 `retire-removed-providers`** (SCHEMA_VERSION 5 → 6): tắt (isActive=0, KHÔNG xoá — credential vẫn nằm trong cột `data` để truy hồi) các connection còn sót của 4 provider trên; idempotent, migrate.js tự chụp backup trước khi áp.
+
+### Fixed
+
+- **3 test source-contract fail tùy cwd:** `antigravity-project-required`, `model-ping-timeout`, `model-probe-mode` resolve repo root bằng `process.cwd()/..` — chỉ đúng khi chạy với cwd = `tests/` (như `npm test`); chạy vitest từ root thì ENOENT `D:\MyProject\src\...`. Giờ resolve từ vị trí chính file test qua `import.meta.url` nên pass ở mọi cwd.
+
 ## 0.10.8 - 2026-08-29
 
 ### Added

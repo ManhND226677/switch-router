@@ -13,51 +13,7 @@ import {
   registerCodexSession,
   getCodexSessionStatus,
   clearCodexSession,
-  startXaiProxy,
-  stopXaiProxy,
-  registerXaiSession,
-  getXaiSessionStatus,
-  clearXaiSession,
 } from "@/lib/oauth/utils/server";
-
-async function completeXaiManualCode(code, state) {
-  const session = state ? getXaiSessionStatus(state) : null;
-  if (!session) {
-    throw new Error("xAI OAuth session not found; restart the login flow and paste the code again");
-  }
-  if (!code) throw new Error("Missing xAI authorization code");
-
-  try {
-    const tokenData = await exchangeTokens(
-      "xai",
-      code,
-      session.redirectUri,
-      session.codeVerifier,
-      state
-    );
-    const connection = await createProviderConnection({
-      provider: "xai",
-      authType: "oauth",
-      ...tokenData,
-      expiresAt: tokenData.expiresIn
-        ? new Date(Date.now() + tokenData.expiresIn * 1000).toISOString()
-        : null,
-      testStatus: "active",
-    });
-    clearXaiSession(state);
-    stopXaiProxy();
-    return {
-      id: connection.id,
-      provider: connection.provider,
-      email: connection.email,
-      displayName: connection.displayName,
-    };
-  } catch (err) {
-    clearXaiSession(state);
-    stopXaiProxy();
-    throw err;
-  }
-}
 
 function providerNotFoundResponse(provider) {
   try {
@@ -93,8 +49,8 @@ export async function GET(request, { params }) {
     }
 
     if (action === "start-proxy") {
-      if (!["codex", "xai"].includes(provider)) {
-        return NextResponse.json({ error: "Proxy only supported for codex/xai" }, { status: 400 });
+      if (provider !== "codex") {
+        return NextResponse.json({ error: "Proxy only supported for codex" }, { status: 400 });
       }
       const appPort = searchParams.get("app_port");
       if (!appPort) {
@@ -103,43 +59,37 @@ export async function GET(request, { params }) {
       const state = searchParams.get("state");
       const codeVerifier = searchParams.get("code_verifier");
       const redirectUri = searchParams.get("redirect_uri");
-      const result = provider === "xai"
-        ? await startXaiProxy(Number(appPort))
-        : await startCodexProxy(Number(appPort));
+      const result = await startCodexProxy(Number(appPort));
       let serverSide = false;
       if (result.success && state && codeVerifier && redirectUri) {
-        serverSide = provider === "xai"
-          ? registerXaiSession({ state, codeVerifier, redirectUri })
-          : registerCodexSession({ state, codeVerifier, redirectUri });
+        serverSide = registerCodexSession({ state, codeVerifier, redirectUri });
       }
       return NextResponse.json({ ...result, serverSide });
     }
 
     if (action === "poll-status") {
-      if (!["codex", "xai"].includes(provider)) {
-        return NextResponse.json({ error: "Poll only supported for codex/xai" }, { status: 400 });
+      if (provider !== "codex") {
+        return NextResponse.json({ error: "Poll only supported for codex" }, { status: 400 });
       }
       const state = searchParams.get("state");
       if (!state) {
         return NextResponse.json({ error: "Missing state" }, { status: 400 });
       }
-      const session = provider === "xai" ? getXaiSessionStatus(state) : getCodexSessionStatus(state);
+      const session = getCodexSessionStatus(state);
       if (!session) return NextResponse.json({ status: "unknown" });
       if (session.status === "done" || session.status === "error") {
         const payload = { ...session };
-        if (provider === "xai") clearXaiSession(state);
-        else clearCodexSession(state);
+        clearCodexSession(state);
         return NextResponse.json(payload);
       }
       return NextResponse.json({ status: session.status });
     }
 
     if (action === "stop-proxy") {
-      if (!["codex", "xai"].includes(provider)) {
-        return NextResponse.json({ error: "Proxy only supported for codex/xai" }, { status: 400 });
+      if (provider !== "codex") {
+        return NextResponse.json({ error: "Proxy only supported for codex" }, { status: 400 });
       }
-      if (provider === "xai") stopXaiProxy();
-      else stopCodexProxy();
+      stopCodexProxy();
       return NextResponse.json({ success: true });
     }
 
@@ -318,15 +268,6 @@ export async function POST(request, { params }) {
         errorDescription: result.errorDescription,
         pending: isPending,
       });
-    }
-
-    if (action === "manual-code") {
-      if (provider !== "xai") {
-        return NextResponse.json({ error: "Manual code only supported for xai" }, { status: 400 });
-      }
-      const { code, state } = body;
-      const connection = await completeXaiManualCode(String(code || "").trim(), String(state || "").trim());
-      return NextResponse.json({ success: true, connection });
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 404 });

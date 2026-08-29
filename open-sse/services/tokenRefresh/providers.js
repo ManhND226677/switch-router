@@ -4,16 +4,28 @@ import { proxyAwareFetch } from "../../utils/proxyFetch.js";
 import { dedupRefresh } from "./dedup.js";
 
 
-let _xaiServiceSingleton = null;
-export async function refreshXaiToken(refreshToken, log) {
+export async function refreshGrokCliToken(refreshToken, log) {
   if (!refreshToken) return null;
-  return dedupRefresh("xai", refreshToken, async () => {
+  return dedupRefresh("grok-cli", refreshToken, async () => {
     try {
-      if (!_xaiServiceSingleton) {
-        const mod = await import("../../../src/lib/oauth/services/xai.js");
-        _xaiServiceSingleton = new mod.XaiService();
+      const oauth = PROVIDER_OAUTH["grok-cli"];
+      const response = await fetch(oauth.refreshUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+        },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          client_id: oauth.clientId,
+          refresh_token: refreshToken,
+        }),
+      });
+      if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`grok-cli token refresh failed: ${err}`);
       }
-      const tokens = await _xaiServiceSingleton.refreshAccessToken(refreshToken);
+      const tokens = await response.json();
       return {
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token || refreshToken,
@@ -21,7 +33,7 @@ export async function refreshXaiToken(refreshToken, log) {
         idToken: tokens.id_token,
       };
     } catch (e) {
-      log?.warn?.("TOKEN_REFRESH", `xai refresh failed: ${e?.message || e}`);
+      log?.warn?.("TOKEN_REFRESH", `grok-cli refresh failed: ${e?.message || e}`);
       const msg = String(e?.message || "");
       if (msg.includes("invalid_grant") || msg.includes("invalid_request")) {
         return { error: "invalid_grant" };

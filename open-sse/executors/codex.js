@@ -474,10 +474,10 @@ export class CodexExecutor extends BaseExecutor {
     delete body.max_tokens;
     delete body.max_completion_tokens;
     delete body.max_output_tokens; // Responses API clients send this but Codex rejects it
-    delete body.user; // Cursor sends this but Codex doesn't support it
-    delete body.prompt_cache_retention; // Cursor sends this but Codex doesn't support it
-    delete body.metadata; // Cursor sends this but Codex doesn't support it
-    delete body.stream_options; // Cursor sends this but Codex doesn't support it
+    delete body.user; // Some clients send this but Codex doesn't support it
+    delete body.prompt_cache_retention; // Some clients send this but Codex doesn't support it
+    delete body.metadata; // Some clients send this but Codex doesn't support it
+    delete body.stream_options; // Some clients send this but Codex doesn't support it
     delete body.safety_identifier; // Droid CLI sends this but Codex doesn't support it
     delete body.previous_response_id; // store=false → backend can't resolve previous resp; avoid 404
 

@@ -148,7 +148,7 @@ describe("GrokCliExecutor", () => {
       ],
       temperature: 0.7,
       max_tokens: 100,
-      user: "cursor-user",
+      user: "test-user",
     };
 
     // Simulate translator already converting messages→input; also test messages fallback

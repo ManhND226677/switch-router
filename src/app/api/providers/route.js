@@ -113,7 +113,7 @@ export async function POST(request) {
 
     // Validation
     const isWebCookieProvider = !!WEB_COOKIE_PROVIDERS[provider];
-    // Dual-auth providers (e.g. xai) live under category "oauth" but also
+    // Dual-auth providers live under category "oauth" but also
     // accept an API key via authModes — they aren't in APIKEY_PROVIDERS, so allow them here.
     const supportsApiKeyMode = !!AI_PROVIDERS[provider]?.authModes?.includes("apikey");
     const isValidProvider = APIKEY_PROVIDERS[provider] ||

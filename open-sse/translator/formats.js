@@ -8,9 +8,7 @@ export const FORMATS = {
   GEMINI_CLI: "gemini-cli",
   CODEX: "codex",
   ANTIGRAVITY: "antigravity",
-  CURSOR: "cursor",
-  OLLAMA: "ollama",
-  COMMANDCODE: "commandcode"
+  OLLAMA: "ollama"
 };
 
 /**
@@ -24,7 +22,7 @@ export function detectFormatByEndpoint(pathname, body) {
   // /v1/messages is always Claude
   if (pathname.includes("/v1/messages")) return FORMATS.CLAUDE;
 
-  // /v1/chat/completions + input[] → treat as openai (Cursor CLI sends Responses body via chat endpoint)
+  // /v1/chat/completions + input[] → treat as openai (some CLI clients send Responses body via chat endpoint)
   if (pathname.includes("/v1/chat/completions") && Array.isArray(body?.input)) {
     return FORMATS.OPENAI;
   }

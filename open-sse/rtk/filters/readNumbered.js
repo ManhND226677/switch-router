@@ -1,4 +1,4 @@
-// Handles Cursor/Codex read_file output: "  1|content\n  2|content".
+// Handles Codex-style read_file output: "  1|content\n  2|content".
 // Strategy mirrors Rust filter::smart_truncate (filter.rs): keep head+tail, drop middle.
 import { SMART_TRUNCATE_HEAD, SMART_TRUNCATE_TAIL, SMART_TRUNCATE_MIN_LINES } from "../constants.js";
 

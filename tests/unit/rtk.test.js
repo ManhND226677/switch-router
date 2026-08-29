@@ -366,7 +366,7 @@ describe("RTK filters (extras)", () => {
     expect(out.length).toBeLessThan(input.length);
   });
 
-  it("searchList: groups Cursor Glob output by parent dir", () => {
+  it("searchList: groups glob search output by parent dir", () => {
     const paths = [];
     for (let i = 0; i < 30; i++) paths.push(`- src/a/f${i}.js`);
     for (let i = 0; i < 10; i++) paths.push(`- src/b/g${i}.js`);
@@ -397,7 +397,7 @@ describe("autoDetectFilter (extras)", () => {
     ].join("\n");
     expect(autoDetectFilter(input).filterName).toBe("ls");
   });
-  it("detects Cursor search list", () => {
+  it("detects glob search list", () => {
     const input = "Result of search in '/x' (total 3 files):\n- a/b.js\n- a/c.js\n- a/d.js";
     expect(autoDetectFilter(input).filterName).toBe("search-list");
   });
