@@ -7,6 +7,7 @@ import { createStreamController } from "../utils/streamHandler.js";
 import { dbg } from "../utils/debugLog.js";
 import { acquireUpstreamSlot, releaseUpstreamSlot, getUpstreamInFlight, getUpstreamConcurrencyLimit } from "../utils/upstreamConcurrency.js";
 import { refreshWithRetry } from "../services/tokenRefresh.js";
+import { withCredentialRefreshLock } from "../services/oauthCredentialManager.js";
 import { createRequestLogger } from "../utils/requestLogger.js";
 import { getModelTargetFormat, getModelStrip, getModelUpstreamId, getModelType, PROVIDER_ID_TO_ALIAS } from "../config/providerModels.js";
 import { PROVIDERS } from "../config/providers.js";
@@ -343,7 +344,12 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // Handle 401/403 - try token refresh (skip for noAuth providers)
   if (!providerAdapter.noAuth && (providerResponse.status === HTTP_STATUS.UNAUTHORIZED || providerResponse.status === HTTP_STATUS.FORBIDDEN)) {
     try {
-      const newCredentials = await refreshWithRetry(() => providerAdapter.refreshCredentials(credentials, log), 3, log);
+      // Serialize per connection (same lock the proactive path uses): with
+      // rotating refresh tokens, N concurrent 401s each spending the same token
+      // makes every loser get invalid_grant and can revoke the whole grant.
+      const newCredentials = await withCredentialRefreshLock(provider, credentials, () =>
+        refreshWithRetry(() => providerAdapter.refreshCredentials(credentials, log), 3, log)
+      );
       if (newCredentials?.accessToken || newCredentials?.copilotToken) {
         if (log?.line) log.line(reqTag, "🔑", `TOKEN REFRESHED · ${provider}/${model}`);
         Object.assign(credentials, newCredentials);

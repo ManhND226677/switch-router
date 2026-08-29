@@ -11,6 +11,7 @@ import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { stripUnsupportedParams } from "../translator/concerns/paramSupport.js";
 import { SSE_DONE } from "../utils/sseConstants.js";
 import { ANTHROPIC_API_VERSION } from "../providers/shared.js";
+import { dedupRefresh } from "../services/tokenRefresh/dedup.js";
 import crypto from "crypto";
 
 export class GithubExecutor extends BaseExecutor {
@@ -393,12 +394,17 @@ export class GithubExecutor extends BaseExecutor {
   }
 
   async refreshCredentials(credentials, log, proxyOptions = null) {
-    let copilotResult = await this.refreshCopilotToken(credentials.accessToken, log, proxyOptions);
+    // dedupRefresh keys match the shared providers.js convention; the GitHub
+    // grant rotates its refresh token, so concurrent 401s must share one call.
+    let copilotResult = await dedupRefresh("copilot", credentials.accessToken,
+      () => this.refreshCopilotToken(credentials.accessToken, log, proxyOptions), log);
 
     if (!copilotResult && credentials.refreshToken) {
-      const githubTokens = await this.refreshGitHubToken(credentials.refreshToken, log, proxyOptions);
+      const githubTokens = await dedupRefresh("github", credentials.refreshToken,
+        () => this.refreshGitHubToken(credentials.refreshToken, log, proxyOptions), log);
       if (githubTokens?.accessToken) {
-        copilotResult = await this.refreshCopilotToken(githubTokens.accessToken, log, proxyOptions);
+        copilotResult = await dedupRefresh("copilot", githubTokens.accessToken,
+          () => this.refreshCopilotToken(githubTokens.accessToken, log, proxyOptions), log);
         if (copilotResult) {
           return { ...githubTokens, copilotToken: copilotResult.token, copilotTokenExpiresAt: copilotResult.expiresAt };
         }
