@@ -5,7 +5,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { executeMock, saveRequestDetailMock, createErrorResultMock } = vi.hoisted(() => ({
   executeMock: vi.fn(),
   saveRequestDetailMock: vi.fn(() => Promise.resolve()),
-  createErrorResultMock: vi.fn((status, message) => ({ success: false, status, error: message })),
+  createErrorResultMock: vi.fn((status, message) => ({
+    success: false,
+    status,
+    error: message,
+    response: new Response(JSON.stringify({ error: { message } }), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    }),
+  })),
 }));
 
 vi.mock("../../open-sse/executors/index.js", () => ({
@@ -170,6 +178,8 @@ describe("handleChatCore context guard", () => {
     expect(dispatched[1].size).toBeLessThan(dispatched[0].size);
     expect(result.success).toBe(true);
     expect(result.response.status).toBe(200);
+    expect(result.response.headers.get("x-switch-router-context-trim")).toMatch(/^applied; dropped=\d+; before=\d+; after=\d+; budget=\d+$/);
+    expect(result.response.headers.get("Access-Control-Expose-Headers")).toContain("x-switch-router-context-trim");
   });
 
   it("records what it dropped on the success row", async () => {
@@ -209,6 +219,7 @@ describe("handleChatCore context guard", () => {
     expect(result.error).toContain("maximum context length is 262144 tokens");
     const guard = savedDetails().map(d => d.contextGuard).find(Boolean);
     expect(guard).toMatchObject({ overflow: true, trimmed: false, reason: "auto-trim-disabled" });
+    expect(result.response.headers.get("x-switch-router-context-trim")).toBe("refused; reason=auto-trim-disabled");
   });
 
   it("never parses or trims when the client opts out by header", async () => {
@@ -233,6 +244,8 @@ describe("handleChatCore context guard", () => {
 
     expect(executeMock).toHaveBeenCalledTimes(1);
     expect(result.status).toBe(400);
+    expect(result.response.headers.has("x-switch-router-context-trim")).toBe(false);
+    expect(result.response.headers.has("Access-Control-Expose-Headers")).toBe(false);
     expect(savedDetails().every(d => d.contextGuard === undefined)).toBe(true);
   });
 
