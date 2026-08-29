@@ -2,6 +2,18 @@
 
 This file tracks changes for the local personal build only.
 
+## 0.10.8 - 2026-08-29
+
+### Added
+
+- **Error Analytics phân loại lỗi theo nguyên nhân (cause bucket).** Đọc từ `/api/usage/errors` cửa sổ 1000 request gần nhất: 115 lỗi nhưng chỉ ~6 nhóm nguyên nhân (quota 429 chiếm đa số, payload bug, context overflow, modality, auth/config, network, upstream) — trang lỗi trước đây chỉ liệt kê signature thô nên không trả lời được "sửa gì trước". Classifier mới `src/lib/db/helpers/errorBuckets.js` (pure, testable): rule message-pattern theo độ đặc hiệu trước, fallback theo status sau; `status 0` (không nhận được response nào = transport) → network, `null` → other. `getErrorAnalytics` trả thêm `buckets[]` (count + share, sort desc, phủ toàn bộ lỗi trong kỳ chứ không chỉ top-10 signature) và gắn `bucket` vào từng signature/recent row. UI `/dashboard/errors` thêm card **Errors by cause** (icon + bar + count + %) và chip bucket cạnh mỗi signature / lỗi gần đây. Test: `error-buckets` (24 case bằng chính message lỗi thật quan sát được), `error-analytics` mở rộng fixture mỗi bucket một ca.
+- **Backpressure cho model dính 429 lặp lại.** Đo thật: `workbuddy/hy4-preview` ăn 45 lỗi/ngày vì giữa các `modelLock_*` ngắn (2s→5p, reset khi success) traffic vẫn dồn vào model đang rate-limit. Registry mới `open-sse/services/modelThrottle.js` (in-memory, fail-open, sống sót hot-reload qua `globalThis`): sliding window 5 phút, **3 lỗi 429 → model HOT**, cooldown 60s và tăng ×4 khi tái phạm trong 30p (60s → 4p → 16p, trần 30p); `resetsAtMs`/Retry-After của provider được tôn trọng làm sàn cho cooldown; success xóa throttle ngay. `chat.js` ghi nhận mọi 429 trong `onFailure` (probe `x-9r-probe` không ghi) và clear trong `onRequestSuccess`. `combo.js` tách model HOT khỏi rotation trước khi thử: combo chỉ phục vụ model sẵn; khi không còn model sẵn (hoặc tất cả ready fail) trả **429 + header Retry-After** (reset sớm nhất) thay vì đốt thêm request vào model đang nóng. Request trực tiếp một model giữ nguyên ngữ nghĩa hiện tại (client chỉ định rõ target), account lock `modelLock_*` không đổi cho ca chết hẳn. Test: `model-throttle` (11, fake clock: ngưỡng/window/escalation/Retry-After floor/expire/clear/partition) + `combo-backpressure` (4: skip HOT, all-HOT → 429 không tốn attempt, ready fail không đốt HOT, fallback thường nguyên vẹn).
+
+### Fixed
+
+- **Translator: gộp `tool_result` trùng per `tool_use_id`.** Lỗi 400 Anthropic `each tool_use must have a single result` lặp lại trên antigravity claude (8 lần/cửa sổ): client gửi trùng kết quả tool (2 message `tool` cùng `tool_call_id` hoặc block lặp trong cùng message) và pass merge same-role của `fixToolUseOrdering` gộp chúng vào một message → 2 `tool_result` cùng id. Thêm pass 3 dedupe trên toàn conversation: giữ block đầu per id, ưu tiên content không rỗng nếu block giữ rỗng. Test: 4 case trong `bugs-toClaude-context` (trùng 2 tool message, id khác nhau giữ nguyên, native Claude trùng trong 1 message, trùng khác turn).
+- **CI regression gate fail vì snapshot phụ thuộc OS.** `golden-url-header` ghi `X-Msh-Device-Model: "win32 x64"` (header nhúng `process.platform + arch`) nên chạy trên CI Linux luôn lệch (`linux x64`) — fail từ trước bản này, không phải regression của 0.10.8. `sanitize()` trong test khử cặp platform/arch thành `<PLATFORM>` và regen snapshot; golden giờ deterministic trên mọi OS.
+
 ## 0.10.7 - 2026-08-29
 
 ### Added
