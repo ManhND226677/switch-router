@@ -176,6 +176,11 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         setStep("waiting");
 
         const deviceCodeUrl = new URL(`/api/oauth/${provider}/device-code`, window.location.origin);
+        // Forward flow variants (e.g. workbuddy mode=web to log in as a
+        // different account instead of importing the desktop app session).
+        if (oauthMeta) {
+          Object.entries(oauthMeta).forEach(([k, v]) => { if (v) deviceCodeUrl.searchParams.set(k, v); });
+        }
         const res = await fetch(deviceCodeUrl.toString());
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);

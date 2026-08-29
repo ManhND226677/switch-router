@@ -16,6 +16,24 @@ Tương đương: tạo connection với API key = `auto` — executor tự đ�
 của app (`%LOCALAPPDATA%\CodeBuddyExtension\Data\Public\auth\workbuddy-desktop-ai.info`)
 mỗi request, nên token luôn theo kịp mỗi khi app tự refresh.
 
+## Thêm tài khoản thứ hai (nhiều connection song song)
+
+Mỗi tài khoản WorkBuddy nhận connection riêng (phân biệt theo uid trong JWT):
+
+1. Trang WorkBuddy AI bấm **OAuth (Web Login)** — flow này luôn mở trang đăng nhập
+   web thật, kể cả khi app desktop đang đăng nhập (nút **OAuth** thường thì import
+   app session).
+2. Đăng nhập tài khoản mới (QR WeChat / TencentCloud). Modal poll và tạo connection
+   mới khi login hoàn tất — connection đặt tên theo **email/tên tài khoản** (lấy từ
+   Keycloak userinfo; mất mạng chỉ làm rơi tên về nickname mặc định).
+3. Lặp lại cho từng tài khoản. Đăng nhập lại một tài khoản đã có thì chỉ refresh
+   connection của nó, không tạo trùng (tên user tự đặt bằng Edit được giữ nguyên).
+
+Quirk phía WorkBuddy (giữ nguyên như ghi dưới Cách 2): browser **đã có phiên web**
+workbuddy.ai của tài khoản cũ thì trang login nhảy thẳng `/login/started` và không
+bàn giao state → dùng cửa sổ ẩn danh (incognito) hoặc logout phiên web cũ trước khi
+login tài khoản mới.
+
 ## Cách 2 — máy không cài app (login web)
 
 1. Bấm **OAuth** trên trang WorkBuddy AI.
@@ -54,4 +72,6 @@ curl http://127.0.0.1:28701/v1/chat/completions \
   file session mỗi lần refresh.
 - Hết promo free (`202608`) thì `hy4-preview`/`hy3` trừ credit như model thường —
   các model còn lại luôn trừ credit của tài khoản.
-- Đổi tài khoản trong app → bấm **OAuth** lại để import tài khoản mới.
+- Đổi tài khoản trong app → bấm **OAuth** lại để import tài khoản mới (connection
+  cũ cùng uid được refresh, không tạo trùng). Thêm tài khoản khác song song → dùng
+  **OAuth (Web Login)**, xem mục "Thêm tài khoản thứ hai".

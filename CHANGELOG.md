@@ -2,6 +2,12 @@
 
 This file tracks changes for the local personal build only.
 
+## 0.10.5 - 2026-08-29
+
+### Added
+
+- **WorkBuddy hỗ trợ nhiều tài khoản:** trước đây `upsertConnection` trong `src/app/api/oauth/workbuddy/[action]/route.js` luôn cập nhật connection đầu tiên tìm thấy → đăng nhập tài khoản mới chỉ ghi đè account cũ, không bao giờ thêm được connection thứ hai. Giờ dedupe theo `providerSpecificData.workbuddyUserId` (uid = claim `sub`, kèm decode JWT trên `apiKey`/`accessToken` đã lưu): trùng uid → refresh connection đó, uid mới → tạo connection riêng (priority max+1, đổi tên thêm đuôi `· xxxx` khi trùng tên). Nút **OAuth (Web Login)** mới trên trang WorkBuddy AI (`providers/[id]/page.js`) mở flow web thật kể cả khi app desktop đang đăng nhập — `GET /device-code?mode=web` bỏ qua fast-path import app và POST poll tôn trọng mode của flow (web không bao giờ import session app). Nút **OAuth** cũ giữ nguyên hành vi import app session. Connection được đặt tên theo email/tên tài khoản (Keycloak `userinfo`: email → name → preferred_username, fallback `nickname` của token; 2 connection cũ được migrate tên + email trực tiếp trong DB); re-login chỉ tự đổi tên khi tên hiện tại vẫn là tên tự sinh — tên user tự đặt được giữ nguyên. Test: `tests/unit/oauth-workbuddy-multi-account.test.js` (9 case).
+
 ## 0.10.4 - 2026-08-29
 
 ### Added
