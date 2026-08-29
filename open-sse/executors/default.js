@@ -7,6 +7,7 @@ import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { injectReasoningContent } from "../utils/reasoningContentInjector.js";
 import { stripUnsupportedParams } from "../translator/concerns/paramSupport.js";
 import { validateSafeBaseUrl } from "../utils/safeBaseUrl.js";
+import { dedupRefresh } from "../services/tokenRefresh/dedup.js";
 
 // Auth header descriptors — derived from registry transport.auth, fallback to hardcoded defaults.
 const BEARER = { combined: true, header: "Authorization", scheme: "bearer" };
@@ -247,7 +248,10 @@ export class DefaultExecutor extends BaseExecutor {
     if (!refresher) return null;
 
     try {
-      const result = await refresher();
+      // Keyed by the pre-refresh token: concurrent 401 bursts share one grant
+      // call, and callers arriving just after a rotation reuse the cached fresh
+      // result instead of re-spending the already-rotated token upstream.
+      const result = await dedupRefresh(this.provider, credentials.refreshToken, refresher, log);
       if (result) log?.info?.("TOKEN", `${this.provider} refreshed`);
       return result;
     } catch (error) {
