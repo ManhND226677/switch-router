@@ -48,13 +48,38 @@ const COOLDOWN = {
 };
 
 /**
+ * Context-window overflow signatures (lowercased substrings).
+ *
+ * These arrive inside arbitrarily nested JSON strings (StepFun double-encodes
+ * `error.message` three levels deep), which is fine for substring matching:
+ * escaping only backslashes the quotes, never the words themselves.
+ *
+ * The payload is at fault, not the account — every other account behind the
+ * SAME model has the same token window, so rotating cannot produce a
+ * different outcome. See `payloadFault` below.
+ */
+export const CONTEXT_OVERFLOW_TEXTS = [
+  "context_length_exceeded",
+  "maximum context length",
+  "prompt is too long",
+  "please reduce the length",
+  "exceeds the maximum number of tokens",
+  "input token count",
+  "context window exceeded",
+];
+
+/**
  * Unified error classification rules.
  * Checked top-to-bottom: text rules first (by order), then status rules.
- * Each rule: { text?, status?, cooldownMs?, backoff? }
+ * Each rule: { text?, status?, cooldownMs?, backoff?, payloadFault? }
  *   - text: substring match (case-insensitive) on error message
  *   - status: HTTP status code match
  *   - cooldownMs: fixed cooldown duration
  *   - backoff: true = use exponential backoff (rate limit)
+ *   - payloadFault: true = the request body itself is rejected. Never cool an
+ *     account down and never rotate accounts for it (the next account sits
+ *     behind the same model window). Combo model rotation still proceeds,
+ *     because a later model may accept the payload.
  */
 export const ERROR_RULES = [
   // --- Text-based rules (checked first, order = priority) ---
@@ -69,6 +94,11 @@ export const ERROR_RULES = [
   { text: "capacity",                 backoff: true },
   { text: "overloaded",               backoff: true },
 
+  // Context overflow sits BELOW the rate-limit texts on purpose: a 429 that
+  // happens to mention tokens must still cool down and rotate, or the payload
+  // guard would silently cost the user its account failover.
+  ...CONTEXT_OVERFLOW_TEXTS.map(text => ({ text, cooldownMs: 0, payloadFault: true })),
+
   // --- Status-based rules (fallback when text doesn't match) ---
   { status: 401, cooldownMs: COOLDOWN.long },
   { status: 402, cooldownMs: COOLDOWN.long },
@@ -77,12 +107,14 @@ export const ERROR_RULES = [
   { status: 429, backoff: true },
 
   // --- Deterministic client errors (cooldownMs 0 = never lock the account) ---
-  // Retrying these against another account of the SAME provider cannot help,
+  // Retrying these against another account of the SAME model cannot help,
   // but rotation must stay enabled so a combo still falls through to its next
   // model, and so the originating status reaches the client.
   { status: 400, cooldownMs: 0 },
   { status: 406, cooldownMs: 0 },
-  { status: 413, cooldownMs: 0 },
+  // 413 is a size cap on the payload itself, so it gets the same
+  // never-cool-the-account treatment as the overflow texts above.
+  { status: 413, cooldownMs: 0, payloadFault: true },
   { status: 422, cooldownMs: 0 },
 ];
 
