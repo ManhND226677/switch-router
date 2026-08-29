@@ -405,6 +405,9 @@ export function createSSEStream(options = {}) {
             if (buffer.startsWith("data:") && !buffer.startsWith("data: ")) {
               output = "data: " + buffer.slice(5);
             }
+            // Without a terminating newline the [DONE] sentinel below merges
+            // into this line ("data: {...}data: [DONE]") and becomes unparseable.
+            if (!output.endsWith("\n")) output += "\n";
             appendLogger("appendConvertedChunk", output);
             controller.enqueue(sharedEncoder.encode(output));
           }
@@ -428,7 +431,7 @@ export function createSSEStream(options = {}) {
         }
 
         if (buffer.trim()) {
-          const parsed = parseSSELine(buffer.trim());
+          const parsed = parseSSELine(buffer.trim(), targetFormat);
           if (parsed && !parsed.done) {
             const translated = translateResponse(targetFormat, sourceFormat, parsed, state);
 
