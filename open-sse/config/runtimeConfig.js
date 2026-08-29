@@ -73,6 +73,13 @@ export const DEFAULT_MIN_TOKENS = 32000;
 export const TOKEN_SAVER_HEADER = "x-switch-router-token-saver";
 export const LEGACY_TOKEN_SAVER_HEADER = "x-9router-token-saver";
 
+// Per-request control for the context guard: "off" never touches the payload,
+// "force" trims even when the setting is off. The response header reports what
+// the guard did so a client can tell a trimmed answer from a full one.
+export const CONTEXT_TRIM_HEADER = "x-switch-router-context-trim";
+export const LEGACY_CONTEXT_TRIM_HEADER = "x-9router-context-trim";
+export const CONTEXT_TRIM_RESPONSE_HEADER = CONTEXT_TRIM_HEADER;
+
 // Retry config for 429 responses (legacy - kept for backward compatibility)
 export const RETRY_CONFIG = {
   maxAttempts: 2,

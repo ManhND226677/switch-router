@@ -61,6 +61,12 @@ const DEFAULT_SETTINGS = {
   pxpipeAutoInstall: true,
   pxpipeMinChars: 25000,
   pxpipeTimeoutMs: 15000,
+  // Context guard: recognising a provider overflow costs one regex pass on a
+  // message the error path already parsed, and buys the log line + record.
+  // Dropping history is opt-in because it silently removes conversation.
+  contextGuardEnabled: true,
+  contextAutoTrimEnabled: false,
+  contextTrimMarginPct: 5,
   // Background half-open recovery prober (spends real upstream quota — opt-in).
   healthProberEnabled: false,
   // Budget/anomaly alerts: dashboard banner always; Windows toast is opt-in.
@@ -135,6 +141,14 @@ function sanitizeSettingValues(raw) {
       DEFAULT_SETTINGS.observabilityMaxJsonSize,
       1,
       64,
+    );
+  }
+  if (cleaned.contextTrimMarginPct !== undefined) {
+    cleaned.contextTrimMarginPct = clampInt(
+      cleaned.contextTrimMarginPct,
+      DEFAULT_SETTINGS.contextTrimMarginPct,
+      0,
+      25,
     );
   }
   return cleaned;

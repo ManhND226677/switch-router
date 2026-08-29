@@ -11,7 +11,7 @@ import { createRequestLogger } from "../utils/requestLogger.js";
 import { getModelTargetFormat, getModelStrip, getModelUpstreamId, getModelType, PROVIDER_ID_TO_ALIAS } from "../config/providerModels.js";
 import { PROVIDERS } from "../config/providers.js";
 import { createErrorResult, parseUpstreamError, formatProviderError } from "../utils/error.js";
-import { HTTP_STATUS, TOKEN_SAVER_HEADER, LEGACY_TOKEN_SAVER_HEADER } from "../config/runtimeConfig.js";
+import { HTTP_STATUS, TOKEN_SAVER_HEADER, LEGACY_TOKEN_SAVER_HEADER, CONTEXT_TRIM_HEADER, LEGACY_CONTEXT_TRIM_HEADER } from "../config/runtimeConfig.js";
 import { handleBypassRequest } from "../utils/bypassHandler.js";
 import { trackPendingRequest, appendRequestLog, saveRequestDetail } from "../../src/lib/usageDb.js";
 import { getProviderAdapter } from "../../src/core/providers/providerAdapter.js";
@@ -26,6 +26,8 @@ import { injectCaveman } from "../rtk/caveman.js";
 import { injectPonytail } from "../rtk/ponytail.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { compressWithPxpipe } from "../rtk/pxpipe.js";
+import { tryRecoverContextOverflow, summarizeContextGuard } from "./chatCore/contextGuard.js";
+import { formatTrimLog } from "../context-guard/trimmer.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { stripUnsupportedModalities } from "../translator/concerns/modality.js";
 import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
@@ -38,8 +40,11 @@ import { resolveSessionId } from "../utils/sessionManager.js";
  * @param {object} options.modelInfo - { provider, model }
  * @param {object} options.credentials - Provider credentials
  * @param {string} options.sourceFormatOverride - Override detected source format (e.g. "openai-responses")
+ * @param {boolean} options.contextGuardEnabled - Classify provider context-overflow errors
+ * @param {boolean} options.contextAutoTrimEnabled - Re-dispatch once with the oldest turns dropped
+ * @param {number} options.contextTrimMarginPct - Safety margin as a percentage of the window
  */
-export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled, pxpipeMinChars, pxpipeTimeoutMs, pxpipeTransform, onPxpipeEvent, sourceFormatOverride, providerThinking, preserveClientPayload = false, fastFail5xx = false, routingMetrics = null }) {
+export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled, pxpipeMinChars, pxpipeTimeoutMs, pxpipeTransform, onPxpipeEvent, sourceFormatOverride, providerThinking, preserveClientPayload = false, fastFail5xx = false, contextGuardEnabled = false, contextAutoTrimEnabled = false, contextTrimMarginPct, routingMetrics = null }) {
   const { provider, model } = modelInfo;
   const requestStartTime = Date.now();
   // Stable per-session color so all lines of one CLI conversation share a tag
@@ -196,6 +201,16 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     ?? clientRawRequest?.headers?.[LEGACY_TOKEN_SAVER_HEADER];
   const tokenSaverEnabled = tokenSaverHeader?.toLowerCase() !== "off";
 
+  // Context guard. `off` bypasses it entirely, `force` trims for this request
+  // even with the setting off. Office payloads are never rewritten — the caller
+  // owns that context, same rule the token savers follow.
+  const contextTrimHeader = (clientRawRequest?.headers?.[CONTEXT_TRIM_HEADER]
+    ?? clientRawRequest?.headers?.[LEGACY_CONTEXT_TRIM_HEADER] ?? "").toLowerCase();
+  const guardEnabled = !preserveClientPayload && contextTrimHeader !== "off"
+    && (contextGuardEnabled || contextTrimHeader === "force");
+  const guardAutoTrim = !preserveClientPayload && contextTrimHeader !== "off"
+    && (contextAutoTrimEnabled || contextTrimHeader === "force");
+
   // RTK: compress tool_result content
   const rtkStats = !preserveClientPayload && tokenSaverEnabled && rtkEnabled
     ? compressMessages(translatedBody, true)
@@ -351,10 +366,36 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     }
   }
 
+  // Context guard: a provider-confirmed overflow is the one upstream error this
+  // gateway can repair by itself — drop the oldest turns and re-dispatch once to
+  // the same account, instead of failing every sibling account in turn.
+  let contextGuard = null;
+  let contextGuardSummary = null;
+  if (!providerResponse.ok && guardEnabled) {
+    contextGuard = await tryRecoverContextOverflow({
+      providerResponse, providerAdapter, provider, model, translatedBody, stream,
+      credentials, signal: streamController.signal, log, proxyOptions, fastFail5xx,
+      autoTrim: guardAutoTrim, marginPct: contextTrimMarginPct,
+    });
+    contextGuardSummary = summarizeContextGuard(contextGuard);
+    if (contextGuard.recovered) {
+      providerResponse = contextGuard.response;
+      providerUrl = contextGuard.url;
+      providerHeaders = contextGuard.headers;
+      finalBody = contextGuard.transformedBody;
+      reqLogger.logTargetRequest(providerUrl, providerHeaders, finalBody);
+    }
+    if (contextGuard.matched && log?.line) {
+      log.line(reqTag, "⚙", contextGuard.recovered
+        ? `${formatTrimLog(contextGuard.stats)} → retried ${provider}/${model} OK`
+        : `[CTXGUARD] ${provider}/${model} overflow ${contextGuard.reason} → no retry`);
+    }
+  }
+
   // Provider returned error
   if (!providerResponse.ok) {
     trackPendingRequest(model, provider, connectionId, false, true);
-    const { statusCode, message, resetsAtMs } = await parseUpstreamError(providerResponse, providerAdapter);
+    const { statusCode, message, resetsAtMs } = contextGuard?.error ?? await parseUpstreamError(providerResponse, providerAdapter);
     appendRequestLog({ model, provider, connectionId, status: `FAILED ${statusCode}` }).catch(() => { });
     saveRequestDetail(buildRequestDetail({
       provider, model, connectionId,
@@ -364,6 +405,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       providerRequest: finalBody || translatedBody || null,
       response: { error: message, status: statusCode, thinking: null },
       pxpipe: pxpipeSummary,
+      contextGuard: contextGuardSummary,
       status: "error"
     })).catch(() => { });
 
@@ -376,7 +418,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     return createErrorResult(statusCode, errMsg, resetsAtMs);
   }
 
-  const sharedCtx = { provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, onRequestSuccess, pxpipe: pxpipeSummary, reqTag, log, routingMetrics };
+  const sharedCtx = { provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, onRequestSuccess, pxpipe: pxpipeSummary, contextGuard: contextGuardSummary, reqTag, log, routingMetrics };
   const appendLog = (extra) => appendRequestLog({ model, provider, connectionId, ...extra }).catch(() => { });
   const trackDone = () => trackPendingRequest(model, provider, connectionId, false);
 
