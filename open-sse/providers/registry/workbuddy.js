@@ -16,7 +16,7 @@ export default {
     notice: {
       text: "Tencent CodeBuddy desktop-app account, exposed as an OpenAI-compatible endpoint. " +
         "The OAuth button instantly imports the account already logged into the WorkBuddy AI desktop app on this machine; " +
-        "on hosts without the app it opens the real WorkBuddy web login instead. " +
+        "the OAuth (Web Login) button always opens the real WorkBuddy web login so additional accounts get their own connections. " +
         "API key \"auto\" also tracks the desktop app session, or paste an accessToken JWT. " +
         "hy4-preview / hy3 currently run a free trial; other models draw from the account's credits.",
     },

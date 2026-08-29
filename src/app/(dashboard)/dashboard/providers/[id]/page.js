@@ -49,6 +49,9 @@ export default function ProviderDetailPage() {
   const [providerNode, setProviderNode] = useState(null);
   const [proxyPools, setProxyPools] = useState([]);
   const [showOAuthModal, setShowOAuthModal] = useState(false);
+  // Extra OAuth flow variant (e.g. workbuddy "web login as another account"
+  // instead of importing the desktop app session); null = default flow.
+  const [oauthModalMeta, setOauthModalMeta] = useState(null);
   const [showAddApiKeyModal, setShowAddApiKeyModal] = useState(false);
   const [addConnectionError, setAddConnectionError] = useState("");
   const [showBulkImportCodex, setShowBulkImportCodex] = useState(false);
@@ -89,7 +92,8 @@ export default function ProviderDetailPage() {
 
   const AG_RISK_STORAGE_KEY = "ag_risk_confirmed";
 
-  const openOAuthConnection = () => {
+  const openOAuthConnection = (meta = null) => {
+    setOauthModalMeta(meta);
     setShowOAuthModal(true);
   };
 
@@ -107,6 +111,12 @@ export default function ProviderDetailPage() {
     }
     setAddConnectionError("");
     setShowAddApiKeyModal(true);
+  };
+
+  // WorkBuddy: the default OAuth button imports the desktop app session; this
+  // variant always opens the real web login so a second account can be added.
+  const triggerOAuthWebConnection = () => {
+    openOAuthConnection({ mode: "web" });
   };
 
   const triggerApiKeyConnection = () => {
@@ -1610,6 +1620,11 @@ export default function ProviderDetailPage() {
                     <Button size="sm" icon="lock" variant="secondary" onClick={triggerOAuthConnection}>
                       {oauthConnectionLabel}
                     </Button>
+                    {providerId === "workbuddy" && (
+                      <Button size="sm" icon="language" variant="secondary" onClick={triggerOAuthWebConnection}>
+                        OAuth (Web Login)
+                      </Button>
+                    )}
                     <Button size="sm" icon="key" onClick={triggerApiKeyConnection}>
                       {apiKeyConnectionLabel}
                     </Button>
@@ -1689,6 +1704,17 @@ export default function ProviderDetailPage() {
                       >
                         {oauthConnectionLabel}
                       </Button>
+                      {providerId === "workbuddy" && (
+                        <Button
+                          size="sm"
+                          icon="language"
+                          variant="secondary"
+                          onClick={triggerOAuthWebConnection}
+                          className="w-full sm:w-auto"
+                        >
+                          OAuth (Web Login)
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         icon="key"
@@ -1777,6 +1803,7 @@ export default function ProviderDetailPage() {
           isOpen={showOAuthModal}
           provider={providerId}
           providerInfo={providerInfo}
+          oauthMeta={oauthModalMeta || undefined}
           onSuccess={handleOAuthSuccess}
           onClose={() => setShowOAuthModal(false)}
         />
