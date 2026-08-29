@@ -137,6 +137,7 @@ export default function ProviderLimits() {
   const [hasHydratedAutoRefresh, setHasHydratedAutoRefresh] = useState(false);
   const [refreshingAll, setRefreshingAll] = useState(false);
   const [connectionsLoading, setConnectionsLoading] = useState(true);
+  const [openKebabId, setOpenKebabId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [togglingId, setTogglingId] = useState(null);
   const [resettingLimitId, setResettingLimitId] = useState(null);
@@ -1106,11 +1107,27 @@ export default function ProviderLimits() {
                     </div>
                     
                     {/* Secondary Actions (Kebab Menu) */}
-                    <div className="relative group/kebab ml-1">
-                      <button className="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                    <div
+                      className="relative ml-1"
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape" && openKebabId === conn.id) setOpenKebabId(null);
+                      }}
+                    >
+                      <button
+                        type="button"
+                        aria-label={`More actions for ${conn.displayName || conn.name || conn.email || conn.id}`}
+                        aria-haspopup="menu"
+                        aria-expanded={openKebabId === conn.id}
+                        onClick={() => setOpenKebabId(openKebabId === conn.id ? null : conn.id)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                      >
                         <span className="material-symbols-outlined text-lg">more_vert</span>
                       </button>
-                      <div className="absolute right-0 top-full mt-1 hidden w-48 flex-col rounded-lg border border-black/10 bg-white p-1 shadow-lg group-hover/kebab:flex dark:border-white/10 dark:bg-neutral-900 z-10">
+                      <div
+                        role="menu"
+                        onClick={() => setOpenKebabId(null)}
+                        className={`absolute right-0 top-full mt-1 w-48 flex-col rounded-lg border border-black/10 bg-white p-1 shadow-lg dark:border-white/10 dark:bg-neutral-900 z-10 ${openKebabId === conn.id ? "flex" : "hidden"}`}
+                      >
                         {isCodex && (
                           <>
                             <button

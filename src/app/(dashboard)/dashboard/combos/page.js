@@ -15,6 +15,7 @@ export default function CombosPage() {
   const [comboStrategies, setComboStrategies] = useState({});
   const [modelCaps, setModelCaps] = useState({});
   const [confirmState, setConfirmState] = useState(null);
+  const [loadError, setLoadError] = useState(false);
   const { copied, copy } = useCopyToClipboard();
   const notifyError = useNotificationStore((s) => s.error);
 
@@ -29,7 +30,8 @@ export default function CombosPage() {
       const combosData = await combosRes.json();
       const providersData = await providersRes.json();
       const settingsData = settingsRes.ok ? await settingsRes.json() : {};
-      
+
+      setLoadError(!combosRes.ok);
       if (combosRes.ok) setCombos((combosData.combos || []).filter(c => !c.kind || c.kind === "llm"));
       if (providersRes.ok) {
         setActiveProviders(providersData.connections || []);
@@ -44,6 +46,7 @@ export default function CombosPage() {
       setComboStrategies(settingsData.comboStrategies || {});
     } catch (error) {
       console.error("Error fetching data:", error);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -166,7 +169,16 @@ export default function CombosPage() {
       </div>
 
       {/* Combos List */}
-      {combos.length === 0 ? (
+      {loadError ? (
+        <Card>
+          <div role="alert" className="text-center py-12 text-sm text-danger">
+            <p className="font-medium mb-3">Không tải được danh sách combo.</p>
+            <Button variant="outline" icon="refresh" onClick={() => { setLoading(true); fetchData(); }}>
+              Thử lại
+            </Button>
+          </div>
+        </Card>
+      ) : combos.length === 0 ? (
         <Card>
           <div className="text-center py-12">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 text-primary mb-4">
