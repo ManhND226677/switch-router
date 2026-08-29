@@ -6,6 +6,7 @@ import { getDefaultModel } from "open-sse/config/providerModels.js";
 import { PROVIDERS } from "open-sse/config/providers.js";
 import { resolveVilaoConnectionEndpoint, VILAO_MODELS_PATH } from "open-sse/providers/vilao.js";
 import { resolveStepFunEndpoints } from "open-sse/providers/stepfun.js";
+import { resolveWorkbuddySession } from "open-sse/executors/workbuddy.js";
 import {
   refreshProviderCredentials,
   shouldRefreshCredentials,
@@ -251,7 +252,36 @@ function isTokenExpired(connection) {
   return shouldRefreshCredentials(connection.provider, connection);
 }
 
+// WorkBuddy: validate the resolved session (pasted token or the desktop app's
+// shared auth file) against the Keycloak userinfo endpoint — proves the token
+// is live without spending inference quota.
+async function probeWorkbuddySession(connection, effectiveProxy = null) {
+  const session = resolveWorkbuddySession(connection);
+  if (!session?.accessToken) {
+    return {
+      valid: false,
+      error: "No WorkBuddy session — log into the WorkBuddy AI desktop app or paste its accessToken",
+      refreshed: false,
+    };
+  }
+  try {
+    const res = await fetchWithConnectionProxy(
+      "https://www.workbuddy.ai/auth/realms/copilot/protocol/openid-connect/userinfo",
+      { method: "GET", headers: { Authorization: `Bearer ${session.accessToken}` } },
+      effectiveProxy,
+    );
+    return {
+      valid: res.ok,
+      error: res.ok ? null : `WorkBuddy session rejected (HTTP ${res.status})`,
+      refreshed: false,
+    };
+  } catch (err) {
+    return { valid: false, error: err.message, refreshed: false };
+  }
+}
+
 async function testOAuthConnection(connection, effectiveProxy = null) {
+  if (connection.provider === "workbuddy") return probeWorkbuddySession(connection, effectiveProxy);
   const config = OAUTH_TEST_CONFIG[connection.provider];
   if (!config) return { valid: false, error: "Provider test not supported", refreshed: false };
   if (!connection.accessToken) return { valid: false, error: "No access token", refreshed: false };
@@ -609,6 +639,9 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
           signal: AbortSignal.timeout(8000),
         }, effectiveProxy);
         return { valid: res.ok, error: res.ok ? null : "Invalid StepFun API key" };
+      }
+      case "workbuddy": {
+        return probeWorkbuddySession(connection, effectiveProxy);
       }
       default:
         return { valid: false, error: "Provider test not supported" };
