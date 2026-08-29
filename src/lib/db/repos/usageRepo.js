@@ -46,6 +46,7 @@ if (!global._usageChartCache) global._usageChartCache = { version: 0, entries: n
 if (!global._usageDailyLastUsedState) global._usageDailyLastUsedState = { adapter: null, ready: false, promise: null };
 if (!global._latestUsageIdState) global._latestUsageIdState = { adapter: null, value: null };
 if (!global._usageReferenceCache) global._usageReferenceCache = { adapter: null, value: null, updatedAt: 0, promise: null };
+if (!global._statsInvalidationState) global._statsInvalidationState = { lastAt: 0, trailingTimer: null };
 
 const pendingRequests = global._pendingRequests;
 const lastErrorProvider = global._lastErrorProvider;
@@ -58,6 +59,7 @@ const chartCache = global._usageChartCache;
 const dailyLastUsedState = global._usageDailyLastUsedState;
 const latestUsageIdState = global._latestUsageIdState;
 const referenceCache = global._usageReferenceCache;
+const statsInvalidationState = global._statsInvalidationState;
 
 export const statsEmitter = global._statsEmitter;
 
@@ -82,6 +84,32 @@ function scheduleStatsEvent(event, delayMs = 150) {
     statsEmitter.emit(event);
   }, delayMs);
   statsEmitTimers[key]?.unref?.();
+}
+
+const USAGE_STATS_INVALIDATE_MIN_INTERVAL_MS = 3000;
+
+// Hot-path variant of invalidateUsageStatsCache: bumping the version on every
+// persisted entry makes each open dashboard refetch and recompute the full
+// usage aggregations under traffic (each bump defeats the 2.5s cache TTL).
+// Coalesce to at most one invalidation per interval, with a trailing one so
+// writes that land inside the window are still surfaced.
+function coalescedStatsInvalidation() {
+  const now = Date.now();
+  const elapsed = now - statsInvalidationState.lastAt;
+  if (elapsed >= USAGE_STATS_INVALIDATE_MIN_INTERVAL_MS) {
+    statsInvalidationState.lastAt = now;
+    invalidateUsageStatsCache();
+    scheduleStatsEvent("update", 250);
+    return;
+  }
+  if (statsInvalidationState.trailingTimer) return;
+  statsInvalidationState.trailingTimer = setTimeout(() => {
+    statsInvalidationState.trailingTimer = null;
+    statsInvalidationState.lastAt = Date.now();
+    invalidateUsageStatsCache();
+    scheduleStatsEvent("update", 250);
+  }, USAGE_STATS_INVALIDATE_MIN_INTERVAL_MS - elapsed);
+  statsInvalidationState.trailingTimer.unref?.();
 }
 
 function getLocalDateKey(timestamp) {
@@ -627,8 +655,7 @@ async function persistUsageEntry(db, entry) {
       latestUsageIdState.adapter = db;
       latestUsageIdState.value = insertedId;
     }
-    invalidateUsageStatsCache();
-    scheduleStatsEvent("update", 250);
+    coalescedStatsInvalidation();
   }
 }
 
@@ -1152,7 +1179,7 @@ async function calculateUsageStats(period = "all") {
       stats.byModel[modelKey].completionTokens += completionTokens;
       stats.byModel[modelKey].cachedTokens += cachedTokens;
       stats.byModel[modelKey].cost += entryCost;
-      if (new Date(r.timestamp) > new Date(stats.byModel[modelKey].lastUsed)) stats.byModel[modelKey].lastUsed = r.timestamp;
+      stats.byModel[modelKey].lastUsed = maxTimestamp(stats.byModel[modelKey].lastUsed, r.timestamp);
 
       if (r.connectionId) {
         const accountName = connectionMap[r.connectionId] || `Account ${r.connectionId.slice(0, 8)}...`;
@@ -1165,7 +1192,7 @@ async function calculateUsageStats(period = "all") {
         stats.byAccount[accountKey].completionTokens += completionTokens;
         stats.byAccount[accountKey].cachedTokens += cachedTokens;
         stats.byAccount[accountKey].cost += entryCost;
-        if (new Date(r.timestamp) > new Date(stats.byAccount[accountKey].lastUsed)) stats.byAccount[accountKey].lastUsed = r.timestamp;
+        stats.byAccount[accountKey].lastUsed = maxTimestamp(stats.byAccount[accountKey].lastUsed, r.timestamp);
       }
 
       if (r.apiKey && typeof r.apiKey === "string") {
@@ -1178,14 +1205,14 @@ async function calculateUsageStats(period = "all") {
         }
         const ake = stats.byApiKey[akKey];
         ake.requests++; ake.promptTokens += promptTokens; ake.completionTokens += completionTokens; ake.cachedTokens += cachedTokens; ake.cost += entryCost;
-        if (new Date(r.timestamp) > new Date(ake.lastUsed)) ake.lastUsed = r.timestamp;
+        ake.lastUsed = maxTimestamp(ake.lastUsed, r.timestamp);
       } else {
         if (!stats.byApiKey["local-no-key"]) {
           stats.byApiKey["local-no-key"] = { requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0, rawModel: r.model, provider: providerDisplayName, apiKeyMasked: null, keyName: "Local (No API Key)", apiKeyKey: "local-no-key", lastUsed: r.timestamp };
         }
         const ake = stats.byApiKey["local-no-key"];
         ake.requests++; ake.promptTokens += promptTokens; ake.completionTokens += completionTokens; ake.cachedTokens += cachedTokens; ake.cost += entryCost;
-        if (new Date(r.timestamp) > new Date(ake.lastUsed)) ake.lastUsed = r.timestamp;
+        ake.lastUsed = maxTimestamp(ake.lastUsed, r.timestamp);
       }
 
       const endpoint = r.endpoint || "Unknown";
@@ -1195,7 +1222,7 @@ async function calculateUsageStats(period = "all") {
       }
       const epe = stats.byEndpoint[epKey];
       epe.requests++; epe.promptTokens += promptTokens; epe.completionTokens += completionTokens; epe.cachedTokens += cachedTokens; epe.cost += entryCost;
-      if (new Date(r.timestamp) > new Date(epe.lastUsed)) epe.lastUsed = r.timestamp;
+      epe.lastUsed = maxTimestamp(epe.lastUsed, r.timestamp);
     }
   }
 
