@@ -167,6 +167,9 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
         "kimi-coding",
         "kilocode",
         "grok-cli",
+        // WorkBuddy has no gateway-side OAuth backend; its "device code" flow
+        // polls for the desktop app's local session and imports it.
+        "workbuddy",
       ];
       if (deviceCodeProviders.includes(provider)) {
         setIsDeviceCode(true);

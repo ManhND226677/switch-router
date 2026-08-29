@@ -101,6 +101,32 @@ export const PROVIDER_CAPABILITIES = {
     "step-3.5-flash-2603": { reasoning: true, thinkingFormat: "step", contextWindow: 256000 },
     "stepaudio-2.5-chat": { audioInput: true, audioOutput: true, reasoning: true, thinkingFormat: "step", contextWindow: 128000 },
   },
+  // WorkBuddy AI (Tencent CodeBuddy) — context/output limits from the desktop
+  // app's cloud product config (models[].maxInputTokens/maxOutputTokens),
+  // captured 2026-08-28. All models accept images + tool calls; thinking uses
+  // the OpenAI-style `reasoning_content` delta. Alias models (default/fast/...)
+  // resolve upstream to whatever model the account tier routes them to.
+  "workbuddy": {
+    "hy4-preview": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 64000 },
+    "hy3": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 192000, maxOutput: 64000 },
+    "default-model": { vision: true, reasoning: false, contextWindow: 200000, maxOutput: 24000 },
+    "fast-model": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 200000, maxOutput: 32000 },
+    "balanced-model": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 256000, maxOutput: 32000 },
+    "primary-model": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 72000 },
+    "deep-model": { vision: true, reasoning: false, contextWindow: 200000, maxOutput: 24000 },
+    "gpt-5.6-sol": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 128000 },
+    "gpt-5.6-terra": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 128000 },
+    "gpt-5.6-luna": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 128000 },
+    "gpt-5.5": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 128000 },
+    "gpt-5.4": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 72000 },
+    "gpt-5.3-codex": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 272000, maxOutput: 72000 },
+    "gemini-3.5-flash": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 65536 },
+    "glm-5.3": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 48000 },
+    "glm-5.2": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 48000 },
+    "kimi-k3": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 32000 },
+    "kimi-k2.6": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 256000, maxOutput: 32000 },
+    "minimax-m3": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 512000, maxOutput: 128000 },
+  },
 };
 
 /**

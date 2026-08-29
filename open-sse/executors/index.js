@@ -11,6 +11,7 @@ import { CommandCodeExecutor } from "./commandcode.js";
 import { XiaomiTokenplanExecutor } from "./xiaomi-tokenplan.js";
 import { StepFunExecutor } from "./stepfun.js";
 import { VilaoExecutor } from "./vilao.js";
+import { WorkbuddyExecutor } from "./workbuddy.js";
 import { DefaultExecutor } from "./default.js";
 
 const executors = {
@@ -30,6 +31,7 @@ const executors = {
   "xiaomi-tokenplan": new XiaomiTokenplanExecutor(),
   stepfun: new StepFunExecutor(),
   vilao: new VilaoExecutor(),
+  workbuddy: new WorkbuddyExecutor(),
 };
 
 const defaultCache = new Map();

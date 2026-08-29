@@ -55,6 +55,7 @@ docs/*
 !docs/ARCHITECTURE.md
 !docs/WINDOWS-TRAY.md
 !docs/QA-WORKFLOW.md
+!docs/WORKBUDDY-FREE-HY4.md
 test/*
 open-sse/test/*
 RM.vn.md

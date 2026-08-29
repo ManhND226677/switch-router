@@ -27,6 +27,7 @@ import p24 from "./vilao.js";
 import p25 from "./xai.js";
 import p26 from "./xiaomi-mimo.js";
 import p27 from "./xiaomi-tokenplan.js";
+import p28 from "./workbuddy.js";
 
 export default [
   p0,
@@ -56,5 +57,6 @@ export default [
   p24,
   p25,
   p26,
-  p27
+  p27,
+  p28
 ];

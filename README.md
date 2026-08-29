@@ -9,6 +9,7 @@ Switch-Router is a local-first, single-user AI gateway and Web dashboard. It exp
 - **Combos & fallback** — ordered model fallback or round-robin across providers and accounts.
 - **Local-only dashboard** — loopback-gated, no password/OIDC login; gateway auth stays separate.
 - **SQLite storage** — driver chain `bun:sqlite` → `better-sqlite3` → `node:sqlite` → `sql.js` (pure-JS fallback always works).
+- **WorkBuddy AI (free Hy4 Preview)** — one-click import of the logged-in WorkBuddy AI desktop-app session (or real web login on app-less hosts), self-refreshing tokens, 19 models incl. the free-trial `hy4-preview`. Guide: [`docs/WORKBUDDY-FREE-HY4.md`](docs/WORKBUDDY-FREE-HY4.md).
 
 ## Requirements
 

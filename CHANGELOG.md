@@ -2,6 +2,16 @@
 
 This file tracks changes for the local personal build only.
 
+## 0.10.4 - 2026-08-29
+
+### Added
+
+- **Provider mới `workbuddy` (alias `wb`) — WorkBuddy AI / Tencent CodeBuddy, xếp nhóm OAuth Providers:** upstream `https://www.workbuddy.ai/v2/chat/completions` (OpenAI-compatible, 19 model: `hy4-preview` context 1M + vision + reasoning, `hy3`, `gpt-5.6-*`, `gemini-3.5-flash`, `kimi-k3`, …). Hai quirk đo thật được xử lý trong executor mới `open-sse/executors/workbuddy.js`: upstream từ chối non-stream (code 11101) nên `transformRequest` đồng bộ `body.stream` với cờ forceStream (trước đó body giữ `stream:false` của client và bị 400), và message đầu bắt buộc là system (11128) nên tự prepend system mặc định khi thiếu. Auth = `Authorization: Bearer <accessToken>` + `X-User-Id` (uid lấy từ claim `sub` của JWT, không cần field riêng). `capabilities.js` khai báo context/output thật của từng model.
+- **Ba đường lấy credential (ưu tiên: token paste > token của connection > session app desktop):** (1) nút **OAuth** trên máy có app WorkBuddy đang đăng nhập import thẳng session của app — route `src/app/api/oauth/workbuddy/[action]/route.js` trả device-code **không** kèm `verification_uri` nên modal không mở tab nào và poll đầu tiên thành công ngay; (2) máy không có app đi flow web login thật của hãng (`POST /v2/plugin/auth/state?platform=workbuddy-ai` → mở `authUrl` → poll `GET /v2/plugin/auth/token?state=`, pending = code 11217); (3) API key `auto` đọc file session `%LOCALAPPDATA%\CodeBuddyExtension\Data\Public\auth\workbuddy-desktop-ai.info` (app tự refresh và ghi lại), hoặc paste JWT (~11 tháng).
+- **Token tự refresh không cần app desktop:** executor `refreshCredentials` gọi đúng endpoint của app (`POST /v2/plugin/auth/token/refresh` với `X-Refresh-Token` + `X-Auth-Refresh-Source: plugin`) khi gặp 401; token mới được chatCore ghi lại vào connection.
+- **Test connection cho workbuddy:** `testUtils.js` probe Keycloak `userinfo` bằng session đã resolve (không tốn quota inference) cho cả connection authType oauth lẫn apikey; nút Test hết báo "Provider test not supported".
+- **Hướng dẫn dùng free Hy4:** `docs/WORKBUDDY-FREE-HY4.md` — ba cách đăng nhập (import app / web login / paste JWT), cách gọi `wb/hy4-preview`, kèm quirk phía WorkBuddy: browser đã có phiên web thì trang login nhảy `/login/started` và không bàn giao state cho backend → poll web không nhận, phải dùng đường import app hoặc paste token. README thêm bullet Features trỏ tới doc này.
+
 ## 0.10.3 - 2026-08-28
 
 ### Fixed
