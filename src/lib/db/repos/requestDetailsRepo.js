@@ -1,5 +1,6 @@
 import { getAdapter } from "../driver.js";
 import { parseJson, stringifyJson } from "../helpers/jsonCol.js";
+import { classifyErrorBucket, aggregateErrorBuckets } from "../helpers/errorBuckets.js";
 import { toValidDateIso, toValidDateUpperBoundIso } from "./dateFilter.js";
 
 const DEFAULT_MAX_RECORDS = 200;
@@ -362,7 +363,7 @@ export async function getErrorAnalytics({
      ORDER BY count DESC
      LIMIT ?`,
     [...params, sigLimit]
-  );
+  ).map((s) => ({ ...s, bucket: classifyErrorBucket(s.status, s.message) }));
 
   const totalRequests = (db.get(`SELECT COUNT(*) AS c FROM requestDetails ${dateWhere}`, allParams) || {}).c || 0;
   const totalErrors = (db.get(`SELECT COUNT(*) AS c FROM requestDetails ${errWhere}`, params) || {}).c || 0;
@@ -370,6 +371,17 @@ export async function getErrorAnalytics({
     `SELECT COALESCE(ROUND(SUM(json_extract(data,'$.latency.total')), 1), 0) AS ms FROM requestDetails ${errWhere}`,
     params
   ) || {}).ms || 0;
+
+  // Bucket aggregates cover every error in the window (not just the top-N
+  // signatures). requestDetails is capped (MAX_RECORDS_CEILING), so pulling
+  // status+message and classifying in JS stays small and needs no new SQL.
+  const errorRows = db.all(
+    `SELECT COALESCE(json_extract(data,'$.response.status'), 0) AS status,
+            substr(replace(${ERROR_MESSAGE_SQL}, char(10), ' '), 1, 160) AS message
+     FROM requestDetails ${errWhere}`,
+    params
+  );
+  const buckets = aggregateErrorBuckets(errorRows);
 
   const recent = db.all(
     `SELECT id, timestamp, provider, model, connectionId,
@@ -380,7 +392,7 @@ export async function getErrorAnalytics({
      ORDER BY timestamp DESC
      LIMIT ?`,
     [...params, limit]
-  );
+  ).map((r) => ({ ...r, bucket: classifyErrorBucket(r.statusCode, r.errorMessage) }));
 
   return {
     groupBy: ERROR_GROUP_COLUMNS[groupBy] ? groupBy : "provider:model",
@@ -391,6 +403,7 @@ export async function getErrorAnalytics({
       successRate: totalRequests ? Math.round(((totalRequests - totalErrors) / totalRequests) * 1000) / 10 : 100,
       errorLatencyMs,
     },
+    buckets,
     byGroup,
     byDay,
     signatures,
