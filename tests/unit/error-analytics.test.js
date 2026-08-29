@@ -48,6 +48,11 @@ beforeAll(async () => {
   insertDetail({ id: "e-3", timestamp: "2026-08-26T05:00:00.000Z", provider: "openrouter", model: "glm-5", status: "error", data: errorData(null, "fetch connect timeout", 5000) });
   // A row whose status column never got written still has to show up as a failure.
   insertDetail({ id: "e-4", timestamp: "2026-08-26T06:00:00.000Z", provider: "openrouter", model: "glm-5", status: null, data: { latency: { total: 10 } } });
+  // One fixture per cause bucket (quota already has e-1/e-2).
+  insertDetail({ id: "e-5", timestamp: "2026-08-27T07:00:00.000Z", provider: "antigravity", model: "claude-sonnet-5", status: "error", data: errorData(400, "messages.4.content.1: each tool_use must have a single result. Found multiple `tool_result` blocks", 1000) });
+  insertDetail({ id: "e-6", timestamp: "2026-08-27T08:00:00.000Z", provider: "stepfun", model: "step-3.7-flash", status: "error", data: errorData(400, "This model's maximum context length is 200000 tokens.", 1000) });
+  insertDetail({ id: "e-7", timestamp: "2026-08-26T07:00:00.000Z", provider: "vilao", model: "kimi-k3-free", status: "error", data: errorData(403, "Please subscribe to model in the API Key: kimi-k3-free", 1000) });
+  insertDetail({ id: "e-8", timestamp: "2026-08-26T08:00:00.000Z", provider: "antigravity", model: "gemini-2.5-pro", status: "error", data: errorData(503, "No capacity available for model gemini-2.5-pro on the server", 1000) });
 });
 
 afterAll(() => {
@@ -61,20 +66,36 @@ afterAll(() => {
 describe("getErrorAnalytics", () => {
   it("counts failures against all requests and reports a success rate", async () => {
     const { totals } = await getErrorAnalytics({});
-    expect(totals.totalRequests).toBe(6);
-    expect(totals.totalErrors).toBe(4);
-    expect(totals.successRate).toBe(33.3);
-    expect(totals.errorLatencyMs).toBe(71010);
+    expect(totals.totalRequests).toBe(10);
+    expect(totals.totalErrors).toBe(8);
+    expect(totals.successRate).toBe(20);
+    expect(totals.errorLatencyMs).toBe(75010);
+  });
+
+  it("aggregates failures into cause buckets covering every error", async () => {
+    const { buckets } = await getErrorAnalytics({});
+    expect(buckets[0]).toEqual({ bucket: "quota", count: 2, share: 25 });
+    const byName = Object.fromEntries(buckets.map((b) => [b.bucket, b.count]));
+    expect(byName).toMatchObject({
+      quota: 2,
+      network: 2,   // e-3 fetch connect timeout + e-4 never got a response (status 0)
+      payload: 1,   // e-5 duplicate tool_result
+      context: 1,   // e-6 maximum context length
+      config: 1,    // e-7 subscribe to model
+      upstream: 1,  // e-8 no capacity
+    });
+    expect(byName.other).toBeUndefined();
+    expect(buckets.reduce((sum, b) => sum + b.count, 0)).toBe(8);
   });
 
   it("groups by provider+model by default and honours groupBy", async () => {
     const byPair = await getErrorAnalytics({});
     expect(byPair.groupBy).toBe("provider:model");
-    expect(byPair.byGroup[0]).toMatchObject({ provider: "antigravity", model: "claude-sonnet-5", errors: 2 });
+    expect(byPair.byGroup[0]).toMatchObject({ provider: "antigravity", model: "claude-sonnet-5", errors: 3 });
 
     const byProvider = await getErrorAnalytics({ groupBy: "provider" });
-    expect(byProvider.byGroup).toHaveLength(2);
-    expect(byProvider.byGroup[0]).toMatchObject({ provider: "antigravity", errors: 2 });
+    expect(byProvider.byGroup).toHaveLength(4);
+    expect(byProvider.byGroup[0]).toMatchObject({ provider: "antigravity", errors: 4 });
     expect(byProvider.byGroup[0].model).toBeUndefined();
 
     // Unknown groupBy degrades to the default instead of failing.
@@ -88,35 +109,42 @@ describe("getErrorAnalytics", () => {
     // Unwrapped out of the JSON envelope, not the raw multi-line blob.
     expect(top.message).toBe("Resource has been exhausted (e.g. check quota).");
     expect(signatures.some((s) => s.message === "fetch connect timeout")).toBe(true);
+    // Every signature is tagged with its cause bucket for the errors page.
+    expect(top.bucket).toBe("quota");
+    const networkSig = signatures.find((s) => s.message === "fetch connect timeout");
+    expect(networkSig.bucket).toBe("network");
+    expect(signatures.every((s) => typeof s.bucket === "string" && s.bucket.length > 0)).toBe(true);
   });
 
   it("returns recent failures newest first without the multi-KB payload", async () => {
     const { recent } = await getErrorAnalytics({ recentLimit: 2 });
     expect(recent).toHaveLength(2);
-    expect(recent[0].id).toBe("e-2");
-    expect(recent[0]).toMatchObject({ provider: "antigravity", statusCode: 429, totalMs: 32000 });
+    expect(recent[0].id).toBe("e-6");
+    expect(recent[0]).toMatchObject({ provider: "stepfun", statusCode: 400, totalMs: 1000 });
     expect(recent[0].data).toBeUndefined();
+    expect(recent[0].bucket).toBe("context");
+    expect(recent[1].bucket).toBe("payload");
   });
 
   it("includes the whole endDate day for date-only bounds", async () => {
     // Regression: toValidDateIso("2026-08-27") is midnight, so an inclusive
     // upper bound silently dropped every request of the day the user picked.
     const oneDay = await getErrorAnalytics({ startDate: "2026-08-27", endDate: "2026-08-27" });
-    expect(oneDay.totals.totalRequests).toBe(4);
-    expect(oneDay.totals.totalErrors).toBe(2);
+    expect(oneDay.totals.totalRequests).toBe(6);
+    expect(oneDay.totals.totalErrors).toBe(4);
     expect(oneDay.period).toEqual({
       startDate: "2026-08-27T00:00:00.000Z",
       endDate: "2026-08-27T23:59:59.999Z",
     });
 
     const previousDay = await getErrorAnalytics({ startDate: "2026-08-26", endDate: "2026-08-26" });
-    expect(previousDay.totals.totalErrors).toBe(2);
+    expect(previousDay.totals.totalErrors).toBe(4);
   });
 
   it("clamps recentLimit and tolerates an unparseable date", async () => {
     expect((await getErrorAnalytics({ recentLimit: 9999 })).recent.length).toBeLessThanOrEqual(100);
     const garbage = await getErrorAnalytics({ startDate: "not-a-date" });
     expect(garbage.period.startDate).toBeNull();
-    expect(garbage.totals.totalErrors).toBe(4);
+    expect(garbage.totals.totalErrors).toBe(8);
   });
 });

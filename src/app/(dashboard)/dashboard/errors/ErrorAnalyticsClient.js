@@ -18,6 +18,57 @@ const GROUP_OPTIONS = [
   { value: "model", label: "Model only" },
 ];
 
+// Cause buckets computed server-side (src/lib/db/helpers/errorBuckets.js).
+// Keys are stable; labels/icons are presentation-only.
+const BUCKET_META = {
+  quota: { label: "Quota / rate limit", icon: "timer", dot: "bg-amber-500" },
+  context: { label: "Context overflow", icon: "wrap_text", dot: "bg-orange-500" },
+  modality: { label: "Modality mismatch", icon: "image", dot: "bg-purple-500" },
+  payload: { label: "Payload bug", icon: "bug_report", dot: "bg-red-500" },
+  config: { label: "Auth / config", icon: "key", dot: "bg-yellow-500" },
+  network: { label: "Network", icon: "wifi_off", dot: "bg-blue-500" },
+  upstream: { label: "Upstream down", icon: "cloud_off", dot: "bg-slate-500" },
+  other: { label: "Other", icon: "help", dot: "bg-gray-400" },
+};
+
+const bucketMeta = (key) => BUCKET_META[key] || BUCKET_META.other;
+
+function BucketChip({ bucket }) {
+  if (!bucket) return null;
+  const meta = bucketMeta(bucket);
+  return (
+    <span className="inline-flex items-center gap-1 shrink-0 font-mono text-[10px] px-1.5 py-0.5 rounded bg-bg-alt text-text-muted">
+      <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
+      {meta.label}
+    </span>
+  );
+}
+
+function BucketList({ rows }) {
+  const max = Math.max(...rows.map((r) => r.count), 1);
+  return (
+    <div className="flex flex-col gap-2">
+      {rows.map((r) => {
+        const meta = bucketMeta(r.bucket);
+        return (
+          <div key={r.bucket} className="flex items-center gap-3 text-sm min-w-0">
+            <span className="material-symbols-outlined text-base text-text-muted shrink-0">{meta.icon}</span>
+            <span className="w-32 shrink-0 truncate text-text-muted text-xs">{meta.label}</span>
+            <span className="flex-1 h-2 rounded-full bg-bg-alt overflow-hidden">
+              <span
+                className={`block h-full rounded-full ${meta.dot} opacity-80`}
+                style={{ width: `${Math.round((r.count / max) * 100)}%` }}
+              />
+            </span>
+            <span className="w-10 shrink-0 text-right font-mono text-xs text-text-main">{r.count}</span>
+            <span className="w-12 shrink-0 text-right font-mono text-xs text-text-muted">{r.share}%</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const POLL_INTERVAL_MS = 30000;
 const todayIso = () => new Date().toISOString().slice(0, 10);
 const fmtMs = (n) => (n == null ? "—" : n >= 1000 ? `${(n / 1000).toFixed(1)}s` : `${Math.round(n)}ms`);
@@ -96,6 +147,7 @@ function SignatureList({ rows }) {
           <span className="shrink-0 font-mono text-xs px-1.5 py-0.5 rounded bg-bg-alt text-text-main">
             {s.status || "—"}
           </span>
+          <BucketChip bucket={s.bucket} />
           <span className="flex-1 min-w-0 text-text-main break-words">
             {s.message || "(no message from upstream)"}
           </span>
@@ -115,6 +167,7 @@ function RecentList({ rows }) {
             <span className="font-mono text-xs text-text-muted">{fmtDateTime(r.timestamp)}</span>
             <span className="font-mono text-xs text-text-main">{[r.provider, r.model].filter(Boolean).join(" / ")}</span>
             {r.statusCode ? <span className="font-mono text-xs text-red-500">{r.statusCode}</span> : null}
+            <BucketChip bucket={r.bucket} />
             <span className="font-mono text-xs text-text-muted">{fmtMs(r.totalMs)}</span>
           </div>
           <div className="text-xs text-text-muted mt-0.5 break-words">
@@ -240,6 +293,14 @@ export default function ErrorAnalyticsClient() {
               sub={worst ? `${worst.errors} errors` : "No failures in period"}
             />
           </div>
+
+          <Card padding="md" title="Errors by cause" icon="category">
+            {data.buckets?.length ? (
+              <BucketList rows={data.buckets} />
+            ) : (
+              <p className="text-sm text-text-muted">No failures in the selected period.</p>
+            )}
+          </Card>
 
           <Card padding="md" title="Top error signatures" icon="warning">
             {data.signatures?.length ? <SignatureList rows={data.signatures} /> : <p className="text-sm text-text-muted">No failures in the selected period.</p>}
