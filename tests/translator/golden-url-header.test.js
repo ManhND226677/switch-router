@@ -24,6 +24,8 @@ const SPECIALIZED = new Set([
 ]);
 
 // Sanitize header: khử token + field thời gian động (kimi X-Msh-Device-Id) để snapshot ổn định.
+// X-Msh-Device-Model nhúng process.platform/arch → phải khử nốt, không thì
+// snapshot ghi trên Windows fail trên CI Linux.
 function sanitize(headers) {
   const out = {};
   for (const [k, v] of Object.entries(headers)) {
@@ -31,6 +33,7 @@ function sanitize(headers) {
       ? v.replace(/Bearer .+/, "Bearer <TOK>")
           .replace(/sk-test-APIKEY|tok-test-ACCESS/g, "<CRED>")
           .replace(/kimi-\d{10,}/g, "kimi-<TS>")
+          .replace(/(win32|linux|darwin) (x64|arm64|ia32|arm)/g, "<PLATFORM>")
       : v;
   }
   return out;
