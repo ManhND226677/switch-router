@@ -42,6 +42,7 @@ export default function ProxyPoolsPage() {
   const [healthProgress, setHealthProgress] = useState({ current: 0, total: 0 });
   const [bulkBusy, setBulkBusy] = useState(false);
   const [confirmState, setConfirmState] = useState(null);
+  const [loadError, setLoadError] = useState(false);
   // Selector từng action rồi gộp lại, thay vì subscribe cả store.
   // Các action ổn định (tạo 1 lần lúc create()) nên object `notify` cũng ổn
   // định; trước đây subscribe cả store khiến trang re-render mỗi lần có toast.
@@ -57,9 +58,15 @@ export default function ProxyPoolsPage() {
     try {
       const response = await fetch("/api/proxy-pools?includeUsage=true", { cache: "no-store" });
       const data = await response.json();
-      if (response.ok) setProxyPools((data.proxyPools || []).filter((pool) => pool.type === "http"));
+      if (response.ok) {
+        setProxyPools((data.proxyPools || []).filter((pool) => pool.type === "http"));
+        setLoadError(false);
+      } else {
+        setLoadError(true);
+      }
     } catch (error) {
       console.error("Error fetching local proxy pools:", error);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -446,7 +453,12 @@ export default function ProxyPoolsPage() {
           </div>
         </div>
 
-        {proxyPools.length === 0 ? (
+        {loadError ? (
+          <div role="alert" className="py-10 text-center text-sm text-danger">
+            <p className="mb-3 font-medium">Failed to load proxy pools.</p>
+            <Button variant="outline" icon="refresh" onClick={() => { setLoading(true); fetchProxyPools(); }}>Retry</Button>
+          </div>
+        ) : proxyPools.length === 0 ? (
           <div className="py-10 text-center">
             <p className="mb-1 font-medium text-text-main">No local proxy pools yet</p>
             <p className="mb-4 text-sm text-text-muted">Add a local HTTP proxy, then assign it to provider connections.</p>
@@ -454,14 +466,14 @@ export default function ProxyPoolsPage() {
           </div>
         ) : (
           <div className="flex flex-col divide-y divide-black/[0.04] dark:divide-white/[0.05]">
-            <div className="flex items-center gap-3 py-2 text-xs text-text-muted">
+            <label className="flex items-center gap-3 py-2 text-xs text-text-muted">
               <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} className="size-4 rounded" />
               Select all local pools
-            </div>
+            </label>
             {proxyPools.map((pool) => (
               <div key={pool.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 flex-1 items-start gap-3">
-                  <input type="checkbox" checked={selectedIds.includes(pool.id)} onChange={() => toggleSelect(pool.id)} className="mt-1 size-4 shrink-0 rounded" />
+                  <input type="checkbox" aria-label={`Select ${pool.name || pool.host || pool.id}`} checked={selectedIds.includes(pool.id)} onChange={() => toggleSelect(pool.id)} className="mt-1 size-4 shrink-0 rounded" />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="max-w-full truncate text-sm font-medium sm:max-w-[18rem]">{pool.name}</p>

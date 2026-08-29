@@ -124,6 +124,7 @@ export default function ProvidersPage() {
   const [providerNodes, setProviderNodes] = useState([]);
   const [statusNow, setStatusNow] = useState(() => Date.now());
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [showAllApikey, setShowAllApikey] = useState(false);
   const [showAddCompatibleModal, setShowAddCompatibleModal] = useState(false);
   const [showAddAnthropicCompatibleModal, setShowAddAnthropicCompatibleModal] =
@@ -161,29 +162,36 @@ export default function ProvidersPage() {
     [deferredQuery],
   );
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [connectionsRes, nodesRes] = await Promise.all([
-          fetch("/api/providers"),
-          fetch("/api/provider-nodes"),
-        ]);
-        const connectionsData = await connectionsRes.json();
-        const nodesData = await nodesRes.json();
-        if (connectionsRes.ok) {
-          const nextConnections = connectionsData.connections || [];
-          connectionsRef.current = nextConnections;
-          setConnections(nextConnections);
-        }
-        if (nodesRes.ok) setProviderNodes(nodesData.nodes || []);
-      } catch (error) {
-        console.error("Error fetching data:", error);
-      } finally {
-        setLoading(false);
+  const fetchData = useCallback(async () => {
+    try {
+      const [connectionsRes, nodesRes] = await Promise.all([
+        fetch("/api/providers"),
+        fetch("/api/provider-nodes"),
+      ]);
+      const connectionsData = await connectionsRes.json();
+      const nodesData = await nodesRes.json();
+      if (connectionsRes.ok) {
+        const nextConnections = connectionsData.connections || [];
+        connectionsRef.current = nextConnections;
+        setConnections(nextConnections);
+        setLoadError(false);
+      } else {
+        setLoadError(true);
       }
-    };
-    fetchData();
+      if (nodesRes.ok) setProviderNodes(nodesData.nodes || []);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  /* eslint-disable react-hooks/set-state-in-effect -- initial providers fetch; loading starts true so no flash. */
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Recompute as soon as the nearest cooldown expires, even when no API fetch
   // changes the connection list in the meantime.
@@ -470,6 +478,17 @@ export default function ProvidersPage() {
       <div className="flex flex-col gap-8">
         <CardSkeleton />
         <CardSkeleton />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div role="alert" className="py-16 text-center text-sm text-danger">
+        <p className="mb-3 font-medium">Failed to load providers.</p>
+        <Button variant="outline" icon="refresh" onClick={() => { setLoading(true); fetchData(); }}>
+          Retry
+        </Button>
       </div>
     );
   }

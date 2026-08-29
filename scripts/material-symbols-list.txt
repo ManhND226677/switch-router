@@ -143,6 +143,7 @@ toggle_on
 token
 transform
 translate
+trending_up
 update
 upload
 upload_file

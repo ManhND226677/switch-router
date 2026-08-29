@@ -49,6 +49,7 @@ export default function VirtualKeysPage() {
   const [keys, setKeys] = useState([]);
   const [modelOptions, setModelOptions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   const [showFormModal, setShowFormModal] = useState(false);
   const [editingKey, setEditingKey] = useState(null);
@@ -72,9 +73,15 @@ export default function VirtualKeysPage() {
     try {
       const response = await fetch("/api/keys", { cache: "no-store" });
       const data = await response.json();
-      if (response.ok) setKeys(data.keys || []);
+      if (response.ok) {
+        setKeys(data.keys || []);
+        setLoadError(false);
+      } else {
+        setLoadError(true);
+      }
     } catch (error) {
       console.error("Error fetching keys:", error);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -255,6 +262,17 @@ export default function VirtualKeysPage() {
           <div className="p-5 space-y-3">
             <CardSkeleton />
             <CardSkeleton />
+          </div>
+        ) : loadError ? (
+          <div role="alert" className="p-10 text-center text-sm text-danger">
+            Không tải được danh sách khóa.{" "}
+            <button
+              type="button"
+              onClick={() => { setLoading(true); fetchKeys(); }}
+              className="font-semibold underline underline-offset-2 cursor-pointer"
+            >
+              Thử lại
+            </button>
           </div>
         ) : keys.length === 0 ? (
           <div className="p-10 text-center text-sm text-text-muted">
