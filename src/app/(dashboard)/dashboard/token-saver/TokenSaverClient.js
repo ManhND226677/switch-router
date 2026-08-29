@@ -15,6 +15,9 @@ export default function TokenSaverClient({ embedded = false } = {}) {
   const [ponytailLevel, setPonytailLevel] = useState("full");
   const [pxpipeEnabled, setPxpipeEnabled] = useState(false);
   const [pxpipeMinChars, setPxpipeMinChars] = useState(25000);
+  const [contextGuardEnabled, setContextGuardEnabled] = useState(true);
+  const [contextAutoTrimEnabled, setContextAutoTrimEnabled] = useState(false);
+  const [contextTrimMarginPct, setContextTrimMarginPct] = useState(5);
   const [pxpipeStatus, setPxpipeStatus] = useState({
     installed: false,
     installing: false,
@@ -124,6 +127,23 @@ export default function TokenSaverClient({ embedded = false } = {}) {
     patchSetting({ pxpipeMinChars: next });
   };
 
+  const handleContextGuardEnabled = (value) => {
+    setContextGuardEnabled(value);
+    patchSetting({ contextGuardEnabled: value });
+  };
+
+  const handleContextAutoTrimEnabled = (value) => {
+    setContextAutoTrimEnabled(value);
+    patchSetting({ contextAutoTrimEnabled: value });
+  };
+
+  const handleContextMarginBlur = () => {
+    const parsed = Number.parseInt(contextTrimMarginPct, 10);
+    const next = Number.isFinite(parsed) ? Math.min(Math.max(parsed, 0), 25) : 5;
+    setContextTrimMarginPct(next);
+    patchSetting({ contextTrimMarginPct: next });
+  };
+
   useEffect(() => {
     const loadSettings = async () => {
       try {
@@ -137,6 +157,9 @@ export default function TokenSaverClient({ embedded = false } = {}) {
           setPonytailLevel(data.ponytailLevel || "full");
           setPxpipeEnabled(!!data.pxpipeEnabled);
           if (typeof data.pxpipeMinChars === "number") setPxpipeMinChars(data.pxpipeMinChars);
+          setContextGuardEnabled(data.contextGuardEnabled !== false);
+          setContextAutoTrimEnabled(!!data.contextAutoTrimEnabled);
+          if (typeof data.contextTrimMarginPct === "number") setContextTrimMarginPct(data.contextTrimMarginPct);
           // PXPIPE is experimental and hidden from the embedded Settings UI.
           // Keep the existing standalone behavior without making Settings load
           // hidden PXPIPE status/health endpoints on every visit.
@@ -345,6 +368,53 @@ export default function TokenSaverClient({ embedded = false } = {}) {
             disabled={!pxpipeStatus.installed}
             onChange={() => handlePxpipeEnabled(!pxpipeEnabled)}
           />
+        </div>
+        )}
+
+        <div className="flex items-center justify-between pt-4 border-t border-border gap-4 flex-wrap">
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">Context overflow detection</p>
+            <p className="text-sm text-text-muted">
+              Recognises a provider&apos;s &quot;prompt too long&quot; rejection and
+              stops replaying the same doomed request across every account.
+            </p>
+          </div>
+          <Toggle
+            checked={contextGuardEnabled}
+            onChange={() => handleContextGuardEnabled(!contextGuardEnabled)}
+          />
+        </div>
+
+        {contextGuardEnabled && (
+        <div className="flex items-center justify-between pt-4 border-t border-border gap-4 flex-wrap">
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">Trim &amp; retry once</p>
+            <p className="text-sm text-text-muted">
+              Drops the oldest turns until the request fits the window the provider
+              reported, then re-sends it to the same account. The answer is built on
+              a trimmed history — the response carries
+              <code className="mx-1 text-xs">x-switch-router-context-trim</code>
+              and the request detail records what was dropped.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            {contextAutoTrimEnabled && (
+              <div className="flex flex-col items-end gap-1">
+                <Input
+                  value={String(contextTrimMarginPct)}
+                  onChange={(e) => setContextTrimMarginPct(e.target.value)}
+                  onBlur={handleContextMarginBlur}
+                  placeholder="5"
+                  className="w-20 font-mono text-sm"
+                />
+                <p className="text-xs text-text-muted">margin %</p>
+              </div>
+            )}
+            <Toggle
+              checked={contextAutoTrimEnabled}
+              onChange={() => handleContextAutoTrimEnabled(!contextAutoTrimEnabled)}
+            />
+          </div>
         </div>
         )}
       </Card>

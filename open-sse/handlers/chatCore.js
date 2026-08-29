@@ -28,6 +28,7 @@ import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { compressWithPxpipe } from "../rtk/pxpipe.js";
 import { tryRecoverContextOverflow, summarizeContextGuard } from "./chatCore/contextGuard.js";
 import { formatTrimLog } from "../context-guard/trimmer.js";
+import { annotateContextGuard } from "../context-guard/header.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { stripUnsupportedModalities } from "../translator/concerns/modality.js";
 import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
@@ -415,7 +416,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       log.errorLine(reqTag, "✗", `ERROR ${statusCode} · ${provider}/${model} · ${Date.now() - requestStartTime}ms${urlStr}\n    ${errMsg}`);
     }
     reqLogger.logError(new Error(message), finalBody || translatedBody);
-    return createErrorResult(statusCode, errMsg, resetsAtMs);
+    return annotateContextGuard(createErrorResult(statusCode, errMsg, resetsAtMs), contextGuardSummary);
   }
 
   const sharedCtx = { provider, model, body, stream, translatedBody, finalBody, requestStartTime, connectionId, apiKey, clientRawRequest, onRequestSuccess, pxpipe: pxpipeSummary, contextGuard: contextGuardSummary, reqTag, log, routingMetrics };
@@ -425,19 +426,22 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // Provider forced streaming but client wants JSON
   if (!clientRequestedStreaming && providerRequiresStreaming) {
     const result = await handleForcedSSEToJson({ ...sharedCtx, providerResponse, sourceFormat, trackDone, appendLog });
-    if (result) { streamController.handleComplete(); return result; }
+    if (result) { streamController.handleComplete(); return annotateContextGuard(result, contextGuardSummary); }
   }
 
   // True non-streaming response
   if (!stream) {
     const result = await handleNonStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat, reqLogger, toolNameMap, trackDone, appendLog });
     streamController.handleComplete();
-    return result;
+    return annotateContextGuard(result, contextGuardSummary);
   }
 
   // Streaming response
   const { onStreamComplete, streamDetailId } = buildOnStreamComplete({ ...sharedCtx });
-  return handleStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId });
+  return annotateContextGuard(
+    await handleStreamingResponse({ ...sharedCtx, providerResponse, sourceFormat, targetFormat, userAgent, reqLogger, toolNameMap, streamController, onStreamComplete, streamDetailId }),
+    contextGuardSummary,
+  );
 }
 
 export function isTokenExpiringSoon(expiresAt, bufferMs = 5 * 60 * 1000) {
