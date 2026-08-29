@@ -18,7 +18,10 @@ export function getQuotaCooldown(backoffLevel = 0) {
  * @param {number} status - HTTP status code
  * @param {string} errorText - Error message text
  * @param {number} backoffLevel - Current backoff level for exponential backoff
- * @returns {{ shouldFallback: boolean, cooldownMs: number, newBackoffLevel?: number }}
+ * @returns {{ shouldFallback: boolean, cooldownMs: number, payloadFault: boolean, newBackoffLevel?: number }}
+ *   `payloadFault` marks a rejected request body (context overflow, size cap):
+ *   no account may be cooled down for it and the caller must stop rotating
+ *   accounts. Combo model rotation is a separate decision and stays enabled.
  */
 export function checkFallbackError(status, errorText, backoffLevel = 0) {
   const lowerError = errorText
@@ -30,23 +33,23 @@ export function checkFallbackError(status, errorText, backoffLevel = 0) {
     if (rule.text && lowerError && lowerError.includes(rule.text)) {
       if (rule.backoff) {
         const newLevel = Math.min(backoffLevel + 1, BACKOFF_CONFIG.maxLevel);
-        return { shouldFallback: true, cooldownMs: getQuotaCooldown(newLevel), newBackoffLevel: newLevel };
+        return { shouldFallback: true, cooldownMs: getQuotaCooldown(newLevel), payloadFault: false, newBackoffLevel: newLevel };
       }
-      return { shouldFallback: true, cooldownMs: rule.cooldownMs };
+      return { shouldFallback: true, cooldownMs: rule.cooldownMs, payloadFault: !!rule.payloadFault };
     }
 
     // Status-based rule: match HTTP status code
     if (rule.status && rule.status === status) {
       if (rule.backoff) {
         const newLevel = Math.min(backoffLevel + 1, BACKOFF_CONFIG.maxLevel);
-        return { shouldFallback: true, cooldownMs: getQuotaCooldown(newLevel), newBackoffLevel: newLevel };
+        return { shouldFallback: true, cooldownMs: getQuotaCooldown(newLevel), payloadFault: false, newBackoffLevel: newLevel };
       }
-      return { shouldFallback: true, cooldownMs: rule.cooldownMs };
+      return { shouldFallback: true, cooldownMs: rule.cooldownMs, payloadFault: !!rule.payloadFault };
     }
   }
 
   // Default: transient cooldown for any unmatched error
-  return { shouldFallback: true, cooldownMs: TRANSIENT_COOLDOWN_MS };
+  return { shouldFallback: true, cooldownMs: TRANSIENT_COOLDOWN_MS, payloadFault: false };
 }
 
 /**
