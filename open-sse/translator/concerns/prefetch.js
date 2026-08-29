@@ -42,8 +42,6 @@ function collectImageRefs(body, sourceFormat) {
   switch (sourceFormat) {
     case FORMATS.OPENAI:
     case FORMATS.OLLAMA:
-    case FORMATS.CURSOR:
-    case FORMATS.COMMANDCODE:
       pushOpenAI(body.messages);
       break;
     case FORMATS.CLAUDE:

@@ -1,13 +1,11 @@
 import { AntigravityExecutor } from "./antigravity.js";
 import { GithubExecutor } from "./github.js";
 import { CodexExecutor } from "./codex.js";
-import { CursorExecutor } from "./cursor.js";
 import { QwenExecutor } from "./qwen.js";
 import { OpenCodeExecutor } from "./opencode.js";
 import { OpenCodeGoExecutor } from "./opencode-go.js";
 import { GrokWebExecutor } from "./grok-web.js";
 import { GrokCliExecutor } from "./grok-cli.js";
-import { CommandCodeExecutor } from "./commandcode.js";
 import { XiaomiTokenplanExecutor } from "./xiaomi-tokenplan.js";
 import { StepFunExecutor } from "./stepfun.js";
 import { VilaoExecutor } from "./vilao.js";
@@ -18,8 +16,6 @@ const executors = {
   antigravity: new AntigravityExecutor(),
   github: new GithubExecutor(),
   codex: new CodexExecutor(),
-  cursor: new CursorExecutor(),
-  cu: new CursorExecutor(), // Alias for cursor
   qwen: new QwenExecutor(),
   opencode: new OpenCodeExecutor(),
   "opencode-go": new OpenCodeGoExecutor(),
@@ -27,7 +23,6 @@ const executors = {
   "grok-cli": new GrokCliExecutor(),
   gcli: new GrokCliExecutor(), // Alias
   gb: new GrokCliExecutor(), // Alias (Grok Build)
-  commandcode: new CommandCodeExecutor(),
   "xiaomi-tokenplan": new XiaomiTokenplanExecutor(),
   stepfun: new StepFunExecutor(),
   vilao: new VilaoExecutor(),
@@ -50,6 +45,5 @@ export { BaseExecutor } from "./base.js";
 export { AntigravityExecutor } from "./antigravity.js";
 export { GithubExecutor } from "./github.js";
 export { CodexExecutor } from "./codex.js";
-export { CursorExecutor } from "./cursor.js";
 export { DefaultExecutor } from "./default.js";
 

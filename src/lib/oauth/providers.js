@@ -5,7 +5,6 @@
 
 // Ensure outbound fetch respects HTTP(S)_PROXY/ALL_PROXY in Node runtime
 import "../../../open-sse/index.js";
-import crypto from "crypto";
 
 import { generatePKCE, generateState } from "./utils/pkce";
 import {
@@ -14,41 +13,18 @@ import {
   QWEN_CONFIG,
   ANTIGRAVITY_CONFIG,
   GITHUB_CONFIG,
-  CURSOR_CONFIG,
   KIMI_CODING_CONFIG,
   KILOCODE_CONFIG,
   GROK_CLI_CONFIG,
   getOAuthClientMetadata,
 } from "./constants/oauth";
-import { XAI_CONFIG, XAI_PKCE_VERIFIER_BYTES } from "./constants/xai";
 import {
-  validateXaiOAuthEndpoint,
   decodeXaiIdTokenEmail,
   extractEmailFromAccessToken,
   extractCodexAccountInfo,
 } from "./providerHelpers";
 
 export { extractCodexAccountInfo };
-
-// Inlined from services/xai.js to keep web route bundle free of `open` (CLI-only) package
-let cachedXaiDiscovery = null;
-
-async function discoverXaiEndpoints() {
-  if (cachedXaiDiscovery) return cachedXaiDiscovery;
-  try {
-    const res = await fetch(XAI_CONFIG.discoveryUrl, { headers: { Accept: "application/json" } });
-    if (res.ok) {
-      const data = await res.json();
-      cachedXaiDiscovery = {
-        authorizeUrl: validateXaiOAuthEndpoint(data.authorization_endpoint, "authorization_endpoint"),
-        tokenUrl: validateXaiOAuthEndpoint(data.token_endpoint, "token_endpoint"),
-      };
-      return cachedXaiDiscovery;
-    }
-  } catch { /* fall through to static fallback */ }
-  cachedXaiDiscovery = { authorizeUrl: XAI_CONFIG.authorizeUrl, tokenUrl: XAI_CONFIG.tokenUrl };
-  return cachedXaiDiscovery;
-}
 
 // Provider configurations
 const PROVIDERS = {
@@ -174,77 +150,6 @@ const PROVIDERS = {
     },
   },
 
-  xai: {
-    config: XAI_CONFIG,
-    flowType: "authorization_code_pkce",
-    fixedPort: XAI_CONFIG.loopbackPort,
-    callbackPath: XAI_CONFIG.callbackPath,
-    pkceVerifierBytes: XAI_PKCE_VERIFIER_BYTES,
-    prepareConfig: async (config) => {
-      const endpoints = await discoverXaiEndpoints();
-      return {
-        ...config,
-        authorizeUrl: endpoints.authorizeUrl,
-        tokenUrl: endpoints.tokenUrl,
-      };
-    },
-    buildAuthUrl: (config, redirectUri, state, codeChallenge) => {
-      // Mirror CLIProxyAPI BuildAuthorizeURL: includes nonce, plan, referrer
-      const nonce = crypto.randomBytes(16).toString("hex");
-      const params = {
-        response_type: "code",
-        client_id: config.clientId,
-        redirect_uri: redirectUri,
-        scope: config.scope,
-        code_challenge: codeChallenge,
-        code_challenge_method: config.codeChallengeMethod,
-        state,
-        nonce,
-        plan: "generic",
-        referrer: "cli-proxy-api",
-      };
-      const qs = Object.entries(params)
-        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
-        .join("&");
-      return `${config.authorizeUrl}?${qs}`;
-    },
-    exchangeToken: async (config, code, redirectUri, codeVerifier) => {
-      const response = await fetch(config.tokenUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          Accept: "application/json",
-        },
-        body: new URLSearchParams({
-          grant_type: "authorization_code",
-          client_id: config.clientId,
-          code,
-          redirect_uri: redirectUri,
-          code_verifier: codeVerifier,
-        }),
-      });
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`xAI token exchange failed: ${error}`);
-      }
-      return await response.json();
-    },
-    mapTokens: (tokens) => {
-      const mapped = {
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token,
-        expiresIn: tokens.expires_in,
-        scope: tokens.scope,
-      };
-      const email = decodeXaiIdTokenEmail(tokens.id_token);
-      if (email) mapped.email = email;
-      if (tokens.id_token) {
-        mapped.providerSpecificData = { idToken: tokens.id_token };
-      }
-      return mapped;
-    },
-  },
-
   // Grok CLI / Grok Build — device code flow to auth.x.ai, inference on cli-chat-proxy.grok.com
   "grok-cli": {
     config: GROK_CLI_CONFIG,
@@ -349,7 +254,7 @@ const PROVIDERS = {
         expiresIn: tokens.expires_in,
         // Surface an absolute expiry so the proactive refresh path
         // (shouldRefreshCredentials / checkAndRefreshToken) can refresh the
-        // xAI token before it silently expires ~40-45 min after login.
+        // Grok token before it silently expires ~40-45 min after login.
         // Without this, only the reactive 401 path in chatCore would refresh,
         // causing intermittent "token expired" failures for Grok CLI.
         expiresAt,
@@ -679,22 +584,6 @@ const PROVIDERS = {
         githubLogin: extra?.userInfo?.login,
         githubName: extra?.userInfo?.name,
         githubEmail: extra?.userInfo?.email,
-      },
-    }),
-  },
-
-  cursor: {
-    config: CURSOR_CONFIG,
-    flowType: "import_token",
-    // Cursor uses import token flow - tokens are extracted from local SQLite database
-    // No OAuth flow needed, handled by /api/oauth/cursor/import route
-    mapTokens: (tokens) => ({
-      accessToken: tokens.accessToken,
-      refreshToken: null, // Cursor doesn't have public refresh endpoint
-      expiresIn: tokens.expiresIn || 86400,
-      providerSpecificData: {
-        machineId: tokens.machineId,
-        authMethod: "imported",
       },
     }),
   },

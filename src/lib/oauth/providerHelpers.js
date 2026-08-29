@@ -1,20 +1,5 @@
 const BASE64_BLOCK_SIZE = 4;
 
-function validateXaiOAuthEndpoint(rawUrl, field) {
-  const value = String(rawUrl || "").trim();
-  if (!value) throw new Error(`xai discovery ${field} is empty`);
-  let parsed;
-  try { parsed = new URL(value); } catch (err) {
-    throw new Error(`xai discovery ${field} is invalid: ${err.message}`);
-  }
-  if (parsed.protocol !== "https:") throw new Error(`xai discovery ${field} must use https: ${value}`);
-  const host = parsed.hostname.toLowerCase().trim();
-  if (host !== "x.ai" && !host.endsWith(".x.ai")) {
-    throw new Error(`xai discovery ${field} host ${host} is not on x.ai`);
-  }
-  return value;
-}
-
 function decodeXaiIdTokenEmail(idToken) {
   if (!idToken || typeof idToken !== "string") return undefined;
   const parts = idToken.split(".");
@@ -63,7 +48,6 @@ export function extractCodexAccountInfo(idToken) {
 
 export {
   BASE64_BLOCK_SIZE,
-  validateXaiOAuthEndpoint,
   decodeXaiIdTokenEmail,
   decodeJwtPayload,
   extractEmailFromAccessToken,

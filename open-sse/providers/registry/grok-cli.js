@@ -5,7 +5,6 @@
  * talking to https://cli-chat-proxy.grok.com (OpenAI Responses API).
  *
  * Distinct from:
- *  - `xai`      → api.x.ai (API key / xAI API OAuth PKCE)
  *  - `grok-web` → grok.com web SSO cookie
  */
 import {
@@ -82,12 +81,12 @@ export default {
     usage: true,
   },
   oauth: {
-    // Same public client_id as Grok CLI / existing xai OAuth
+    // Public client_id shared with the Grok CLI OAuth flow
     clientId: "b1a00492-073a-47ea-816f-4c329264a828",
     deviceCodeUrl: "https://auth.x.ai/oauth2/device/code",
     tokenUrl: "https://auth.x.ai/oauth2/token",
     refreshUrl: "https://auth.x.ai/oauth2/token",
-    // HAR scope includes conversations read/write beyond the api-only xai scope
+    // HAR scope includes conversations read/write beyond the api-only scope
     scope:
       "openid profile email offline_access grok-cli:access api:access conversations:read conversations:write",
     referrer: "grok-build",

@@ -88,7 +88,7 @@ export function openaiResponsesToOpenAIRequest(model, body, stream, credentials)
         })
         : item.content;
       const msg = { role: item.role, content };
-      // Attach buffered reasoning to assistant turn (required by xiaomi-mimo + store=false continuity)
+      // Attach buffered reasoning to assistant turn (needed for store=false continuity)
       if (item.role === ROLE.ASSISTANT) attachPendingReasoning(msg);
       else {
         pendingReasoning = "";
@@ -256,7 +256,7 @@ function buildReasoningInputItem(msg) {
  * Convert OpenAI Chat Completions to OpenAI Responses API format
  */
 export function openaiToOpenAIResponsesRequest(model, body, stream, credentials) {
-  // Body already in Responses API format (e.g. Cursor CLI calling /chat/completions with input[])
+  // Body already in Responses API format (e.g. clients calling /chat/completions with input[])
   if (body.input) return { ...body, model, stream: true };
 
   const result = {

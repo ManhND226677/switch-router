@@ -18,8 +18,8 @@ const SPECIAL_CRED = {
 // Chúng được lock riêng ở 11-provider edge tests / unit test chuyên biệt.
 const SPECIALIZED = new Set([
   "antigravity", "github",
-  "codex", "cursor", "qwen", "opencode",
-  "opencode-go", "grok-web", "commandcode",
+  "codex", "qwen", "opencode",
+  "opencode-go", "grok-web",
   "xiaomi-tokenplan",
 ]);
 

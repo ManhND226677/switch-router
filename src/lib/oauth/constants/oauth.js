@@ -61,17 +61,6 @@ export function assertValidAwsRegion(region) {
   return region;
 }
 
-// Cursor OAuth Configuration (Import Token from Cursor IDE)
-// tokenStoragePaths: user-reference only, not stored in registry
-export const CURSOR_CONFIG = {
-  ...PROVIDER_OAUTH["cursor"],
-  tokenStoragePaths: {
-    linux: "~/.config/Cursor/User/globalStorage/state.vscdb",
-    macos: "/Users/<user>/Library/Application Support/Cursor/User/globalStorage/state.vscdb",
-    windows: "%APPDATA%\\Cursor\\User\\globalStorage\\state.vscdb",
-  },
-};
-
 // Kimi Coding OAuth Configuration (Device Code Flow)
 // clientId uses env override — dynamic, not stored in registry
 export const KIMI_CODING_CONFIG = {
@@ -83,7 +72,7 @@ export const KIMI_CODING_CONFIG = {
 export const KILOCODE_CONFIG = { ...PROVIDER_OAUTH["kilocode"] };
 
 // Grok CLI / Grok Build OAuth Configuration (Device Code Flow)
-// Endpoint: cli-chat-proxy.grok.com — same client_id as xai, different flow + scopes
+// Endpoint: cli-chat-proxy.grok.com — device-code flow with Grok Build scopes
 export const GROK_CLI_CONFIG = { ...PROVIDER_OAUTH["grok-cli"] };
 
 // OAuth timeout (5 minutes)
@@ -97,7 +86,6 @@ export const PROVIDERS = {
   ANTIGRAVITY: "antigravity",
   OPENAI: "openai",
   GITHUB: "github",
-  CURSOR: "cursor",
   KIMI_CODING: "kimi-coding",
   KILOCODE: "kilocode",
   GROK_CLI: "grok-cli",

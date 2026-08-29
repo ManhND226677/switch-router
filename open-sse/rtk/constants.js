@@ -31,7 +31,7 @@ export const LS_NOISE_DIRS = [
 // tree filter_tree_output cap (no rust cap, we add one to be safe)
 export const TREE_MAX_LINES = 200;
 
-// Cursor Glob "Result of search in '...' (total N files):" list
+// Glob search "Result of search in '...' (total N files):" list
 export const SEARCH_LIST_PER_DIR_MAX = 10;
 export const SEARCH_LIST_TOTAL_DIR_MAX = 20;
 
@@ -40,7 +40,7 @@ export const SMART_TRUNCATE_HEAD = 120;        // lines kept from top
 export const SMART_TRUNCATE_TAIL = 60;         // lines kept from bottom
 export const SMART_TRUNCATE_MIN_LINES = 250;   // only kick in above this
 
-// readNumbered (files with "  N|content" lines, e.g. Cursor read_file)
+// readNumbered (files with "  N|content" lines, e.g. read_file output)
 export const READ_NUMBERED_MIN_HIT_RATIO = 0.7;
 
 // Filter name strings (Rust parity + JS extras)

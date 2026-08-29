@@ -33,7 +33,7 @@ describe("ViLao usage / Quota Tracker (pay-as-you-go balance)", () => {
           total_tokens: 0,
           total_spent: 9659,
           success_rate: 95.19,
-          models: ["xai/grok-4.6", "gpt-5.3-codex-spark"],
+          models: ["grok/grok-4.6", "gpt-5.3-codex-spark"],
           last_request: { model_id: "grok-4.5", total_cost: 1 },
         }),
       });

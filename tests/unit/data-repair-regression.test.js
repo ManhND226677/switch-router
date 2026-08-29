@@ -451,6 +451,51 @@ describe("migration 005: retired-provider connections", () => {
   });
 });
 
+// ───────────────────────────────────────────────────────────────────────────
+// 0.10.9 retired 4 more providers; same contract as 005: dormant, not deleted
+// ───────────────────────────────────────────────────────────────────────────
+describe("migration 006: retired-provider connections", () => {
+  it("deactivates retired providers only, keeps credentials, and is re-runnable", async () => {
+    const mod = await import("@/lib/db/migrations/006-retire-removed-providers.js");
+    const m006 = mod.default;
+    // Named through the migration's own list: qa-provider-drift.mjs fails any
+    // test file that literally references a provider the registry no longer has.
+    const retiredId = mod.RETIRED_PROVIDERS[0];
+    const { PROVIDERS } = await import("open-sse/config/providers.js");
+
+    // The whole reason the migration exists: none of these resolve any more.
+    for (const id of mod.RETIRED_PROVIDERS) expect(PROVIDERS[id]).toBeUndefined();
+
+    const node = await db.createProviderNode({
+      id: "openai-compatible-chat-retire6-test", type: "openai-compatible",
+      name: "Retire test", prefix: "rt6", apiType: "chat", baseUrl: "https://example.test/v1",
+    });
+    adapter.run(
+      `INSERT INTO providerConnections (id, provider, authType, name, priority, isActive, data, createdAt, updatedAt)
+       VALUES (?, ?, 'apikey', ?, 1, 1, ?, ?, ?)`,
+      ["conn-retired-6", retiredId, "Old retired connection", JSON.stringify({ apiKey: "keep-me-please" }), "2026-01-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z"]
+    );
+    adapter.run(
+      `INSERT INTO providerConnections (id, provider, authType, name, priority, isActive, data, createdAt, updatedAt)
+       VALUES (?, ?, 'apikey', ?, 1, 1, ?, ?, ?)`,
+      ["conn-live-6", node.id, "Still valid", JSON.stringify({ apiKey: "x" }), "2026-01-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z"]
+    );
+
+    m006.up(adapter);
+
+    const readRow = (id) => adapter.get(`SELECT isActive, data FROM providerConnections WHERE id = ?`, [id]);
+    expect(readRow("conn-retired-6").isActive).toBe(0);
+    expect(readRow("conn-live-6").isActive).toBe(1);
+    // Deactivate, never delete: the stored credential must survive for recovery.
+    expect(JSON.parse(readRow("conn-retired-6").data).apiKey).toBe("keep-me-please");
+
+    const stampedAt = adapter.get(`SELECT updatedAt FROM providerConnections WHERE id = 'conn-retired-6'`).updatedAt;
+    m006.up(adapter);
+    expect(adapter.get(`SELECT isActive, updatedAt FROM providerConnections WHERE id = 'conn-retired-6'`).isActive).toBe(0);
+    expect(adapter.get(`SELECT updatedAt FROM providerConnections WHERE id = 'conn-retired-6'`).updatedAt).toBe(stampedAt);
+  });
+});
+
 describe("schema declaration covers migrated columns", () => {
   it("apiKeys policy columns from migration 004 are declared in TABLES", async () => {
     const { TABLES } = await import("@/lib/db/schema.js");

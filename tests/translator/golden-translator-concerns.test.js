@@ -1,7 +1,6 @@
 // P0 GOLDEN (refactor2): lock OUTPUT translateResponse/Request cho các concern
 // SẮP refactor ở P1-P4 (usage field-map, finishReasonMap, reasoningDelta).
 // Bổ sung coverage còn thiếu so với golden-response-stream.test.js:
-//   - commandcode usage/finish
 //   - passthrough openai→openai (request + response)
 //   - ollama finish_reason sau tool (lock behavior HIỆN TẠI, kể cả bug đã biết)
 // Sau refactor chạy lại phải khớp y hệt. Lệch = regression.
@@ -35,20 +34,6 @@ function runStream(targetFormat, sourceFormat, events) {
   }
   return stripVolatile(all);
 }
-
-describe("GOLDEN response stream: CommandCode → OpenAI", () => {
-  it("text + reasoning + tool + finish-step usage", () => {
-    const events = [
-      { type: "text-delta", text: "Hello" },
-      { type: "reasoning-delta", text: "thinking" },
-      { type: "tool-input-start", id: "t1", toolName: "get_weather" },
-      { type: "tool-input-delta", id: "t1", delta: '{"city":"NYC"}' },
-      { type: "finish-step", finishReason: "tool-calls", usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 } },
-      { type: "finish" },
-    ];
-    expect(runStream(FORMATS.COMMANDCODE, FORMATS.OPENAI, events)).toMatchSnapshot();
-  });
-});
 
 describe("GOLDEN response stream: Ollama → OpenAI (finish after tool)", () => {
   it("tool_calls then done_reason=stop — lock current finish_reason", () => {

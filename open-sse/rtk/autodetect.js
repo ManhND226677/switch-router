@@ -54,7 +54,7 @@ export function autoDetectFilter(text) {
   // ls -la: has "total N" header or >=3 rows starting with perms string
   if (RE_LS_TOTAL.test(head) || countMatches(head, RE_LS_ROW) >= 3) return ls;
 
-  // Cursor Glob search list header
+  // Glob search list header
   if (SEARCH_LIST_HEADER_RE.test(head)) return searchList;
 
   // Line-numbered file dump ("  N|content") — fire only if many lines match

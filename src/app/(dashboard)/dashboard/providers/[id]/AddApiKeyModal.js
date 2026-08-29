@@ -13,11 +13,10 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
   const NONE_PROXY_POOL_VALUE = "__none__";
   const isVilao = provider === "vilao";
   const isCookie = authType === "cookie";
-  const isXaiApiKey = provider === "xai" && !isCookie;
   const credentialLabel = isCookie ? "Cookie Value" : "API Key";
   const credentialPlaceholder = isCookie
     ? (provider === "grok-web" ? "sso=xxxxx... or just the raw value" : "eyJhbGciOi...")
-    : (isXaiApiKey ? "xai-..." : "");
+    : "";
 
   const providerRegions = AI_PROVIDERS?.[provider]?.regions || null;
   const defaultRegion = AI_PROVIDERS?.[provider]?.defaultRegion || providerRegions?.[0]?.id || "";
@@ -226,11 +225,6 @@ export default function AddApiKeyModal({ isOpen, provider, providerName, isCompa
             placeholder="https://api.vilao.ai/v1"
             hint="Your ViLao gateway endpoint from Console → LLM → My API Keys. Leave blank for the default gateway."
           />
-        )}
-        {isXaiApiKey && (
-          <p className="text-xs text-text-muted">
-            Use a direct xAI API key from console.x.ai. This is separate from Grok Build OAuth.
-          </p>
         )}
         {isCookie && authHint && (
           <p className="text-xs text-text-muted">

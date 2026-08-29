@@ -1,5 +1,5 @@
 /**
- * Regression test for issue #2546: Grok CLI (xAI) token refresh not used,
+ * Regression test for issue #2546: Grok CLI token refresh not used,
  * session dies 40-45 min after login.
  *
  * Root cause: grok-cli mapTokens stored `expiresIn` but never `expiresAt`.
@@ -17,7 +17,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 const originalFetch = global.fetch;
 
-describe("Grok CLI (xAI) token expiry propagation (#2546)", () => {
+describe("Grok CLI token expiry propagation (#2546)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();

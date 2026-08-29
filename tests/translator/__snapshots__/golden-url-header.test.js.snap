@@ -422,44 +422,6 @@ exports[`GOLDEN buildHeaders (default executor providers) > workbuddy → header
 }
 `;
 
-exports[`GOLDEN buildHeaders (default executor providers) > xai → headers (apiKey / oauth) 1`] = `
-{
-  "apiKey": {
-    "Accept": "text/event-stream",
-    "Authorization": "Bearer <TOK>",
-    "Content-Type": "application/json",
-  },
-  "nonStream": {
-    "Authorization": "Bearer <TOK>",
-    "Content-Type": "application/json",
-  },
-  "oauth": {
-    "Accept": "text/event-stream",
-    "Authorization": "Bearer <TOK>",
-    "Content-Type": "application/json",
-  },
-}
-`;
-
-exports[`GOLDEN buildHeaders (default executor providers) > xiaomi-mimo → headers (apiKey / oauth) 1`] = `
-{
-  "apiKey": {
-    "Accept": "text/event-stream",
-    "Authorization": "Bearer <TOK>",
-    "Content-Type": "application/json",
-  },
-  "nonStream": {
-    "Authorization": "Bearer <TOK>",
-    "Content-Type": "application/json",
-  },
-  "oauth": {
-    "Accept": "text/event-stream",
-    "Authorization": "Bearer <TOK>",
-    "Content-Type": "application/json",
-  },
-}
-`;
-
 exports[`GOLDEN buildUrl (default executor providers) > anthropic → url (stream + non-stream) 1`] = `
 {
   "nonStream": "https://api.anthropic.com/v1/messages",
@@ -576,19 +538,5 @@ exports[`GOLDEN buildUrl (default executor providers) > workbuddy → url (strea
 {
   "nonStream": "https://www.workbuddy.ai/v2/chat/completions",
   "stream": "https://www.workbuddy.ai/v2/chat/completions",
-}
-`;
-
-exports[`GOLDEN buildUrl (default executor providers) > xai → url (stream + non-stream) 1`] = `
-{
-  "nonStream": "https://api.x.ai/v1/chat/completions",
-  "stream": "https://api.x.ai/v1/chat/completions",
-}
-`;
-
-exports[`GOLDEN buildUrl (default executor providers) > xiaomi-mimo → url (stream + non-stream) 1`] = `
-{
-  "nonStream": "https://api.xiaomimimo.com/v1/chat/completions",
-  "stream": "https://api.xiaomimimo.com/v1/chat/completions",
 }
 `;

@@ -127,8 +127,6 @@ export function stripUnsupportedModalities(body, sourceFormat, caps) {
   switch (sourceFormat) {
     case FORMATS.OPENAI:
     case FORMATS.OLLAMA:
-    case FORMATS.CURSOR:
-    case FORMATS.COMMANDCODE:
       stripOpenAI(body, caps);
       break;
     case FORMATS.CLAUDE:

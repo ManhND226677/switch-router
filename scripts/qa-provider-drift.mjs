@@ -60,6 +60,10 @@ const REMOVED_LIST = [
   "kiro",
   "kimchi",
   "gitlab",
+  "xai",
+  "cursor",
+  "commandcode",
+  "xiaomi-mimo",
   // NOTE: "gemini" (registry) was retired in 0.10.1 but stays OFF this list —
   // it is still a live TRANSLATOR FORMAT (FORMATS.GEMINI, served by antigravity)
   // so tests legitimately reference it as a format name.

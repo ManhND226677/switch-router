@@ -6,15 +6,11 @@ import "../../open-sse/translator/request/gemini-to-openai.js";
 import "../../open-sse/translator/request/openai-to-gemini.js";
 import "../../open-sse/translator/request/antigravity-to-openai.js";
 import "../../open-sse/translator/request/openai-responses.js";
-import "../../open-sse/translator/request/openai-to-cursor.js";
 import "../../open-sse/translator/request/openai-to-ollama.js";
-import "../../open-sse/translator/request/openai-to-commandcode.js";
 import "../../open-sse/translator/response/claude-to-openai.js";
 import "../../open-sse/translator/response/openai-to-claude.js";
 import "../../open-sse/translator/response/gemini-to-openai.js";
 import "../../open-sse/translator/response/openai-to-antigravity.js";
 import "../../open-sse/translator/response/openai-responses.js";
-import "../../open-sse/translator/response/cursor-to-openai.js";
 import "../../open-sse/translator/response/ollama-to-openai.js";
-import "../../open-sse/translator/response/commandcode-to-openai.js";
 
