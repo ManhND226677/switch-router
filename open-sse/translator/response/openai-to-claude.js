@@ -4,6 +4,7 @@ import { ROLE, CLAUDE_BLOCK, MODEL_FALLBACK } from "../schema/index.js";
 import { fromOpenAIFinish } from "../concerns/finishReason.js";
 import { extractReasoningText } from "../concerns/reasoning.js";
 import { fallbackToolCallId } from "../concerns/toolCall.js";
+import { dbg } from "../../utils/debugLog.js";
 
 // Anthropic tool_use.id must match: ^[a-zA-Z0-9_-]+$
 const TOOL_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
@@ -467,8 +468,8 @@ export function openaiToClaudeResponse(chunk, state) {
       if (buffered) {
         const sanitized = sanitizeToolArgs(toolInfo.name, buffered);
         if (isOfficeStream) {
-          console.log(
-            `[OFFICE-SSE] tool=${safeLogToken(toolInfo.name)} index=${toolInfo.blockIndex} ` +
+          dbg("OFFICE-SSE",
+            `tool=${safeLogToken(toolInfo.name)} index=${toolInfo.blockIndex} ` +
             `inputBytes=${utf8ByteLength(buffered)} outputBytes=${utf8ByteLength(sanitized)} ` +
             `shape=${summarizeJsonShape(sanitized)}`
           );
@@ -479,7 +480,7 @@ export function openaiToClaudeResponse(chunk, state) {
           delta: { type: "input_json_delta", partial_json: sanitized }
         });
       } else if (isOfficeStream) {
-        console.log(`[OFFICE-SSE] tool=${safeLogToken(toolInfo.name)} index=${toolInfo.blockIndex} inputBytes=0 shape=empty`);
+        dbg("OFFICE-SSE", `tool=${safeLogToken(toolInfo.name)} index=${toolInfo.blockIndex} inputBytes=0 shape=empty`);
       }
       results.push({
         type: "content_block_stop",
@@ -488,8 +489,8 @@ export function openaiToClaudeResponse(chunk, state) {
     }
 
     if (isOfficeStream) {
-      console.log(
-        `[OFFICE-SSE] complete model=${safeLogToken(state.model)} blocks=${state.nextBlockIndex || 0} ` +
+      dbg("OFFICE-SSE",
+        `complete model=${safeLogToken(state.model)} blocks=${state.nextBlockIndex || 0} ` +
         `tools=${state.toolCalls.size} finish=${safeLogToken(choice.finish_reason)}`
       );
     }

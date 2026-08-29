@@ -104,7 +104,7 @@ export async function GET() {
       settingsPath: getOpenClawSettingsPath(),
     });
   } catch (error) {
-    console.log("Error checking openclaw settings:", error);
+    console.error("Error checking openclaw settings:", error);
     return NextResponse.json({ error: "Failed to check openclaw settings" }, { status: 500 });
   }
 }
@@ -226,7 +226,7 @@ export async function POST(request) {
       settingsPath,
     });
   } catch (error) {
-    console.log("Error updating openclaw settings:", error);
+    console.error("Error updating openclaw settings:", error);
     return NextResponse.json({ error: "Failed to update openclaw settings" }, { status: 500 });
   }
 }
@@ -286,7 +286,7 @@ export async function DELETE() {
       message: "Switch-Router settings removed successfully",
     });
   } catch (error) {
-    console.log("Error resetting openclaw settings:", error);
+    console.error("Error resetting openclaw settings:", error);
     return NextResponse.json({ error: "Failed to reset openclaw settings" }, { status: 500 });
   }
 }

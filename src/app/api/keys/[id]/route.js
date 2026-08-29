@@ -12,7 +12,7 @@ export async function GET(request, { params }) {
     }
     return NextResponse.json({ key: sanitizeApiKey(key) });
   } catch (error) {
-    console.log("Error fetching key:", error);
+    console.error("Error fetching key:", error);
     return NextResponse.json({ error: "Failed to fetch key" }, { status: 500 });
   }
 }
@@ -42,7 +42,7 @@ export async function PUT(request, { params }) {
 
     return NextResponse.json({ key: sanitizeApiKey(updated) });
   } catch (error) {
-    console.log("Error updating key:", error);
+    console.error("Error updating key:", error);
     return NextResponse.json({ error: "Failed to update key" }, { status: 500 });
   }
 }
@@ -59,7 +59,7 @@ export async function DELETE(request, { params }) {
 
     return NextResponse.json({ message: "Key deleted successfully" });
   } catch (error) {
-    console.log("Error deleting key:", error);
+    console.error("Error deleting key:", error);
     return NextResponse.json({ error: "Failed to delete key" }, { status: 500 });
   }
 }

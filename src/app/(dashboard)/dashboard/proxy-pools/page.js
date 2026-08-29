@@ -59,7 +59,7 @@ export default function ProxyPoolsPage() {
       const data = await response.json();
       if (response.ok) setProxyPools((data.proxyPools || []).filter((pool) => pool.type === "http"));
     } catch (error) {
-      console.log("Error fetching local proxy pools:", error);
+      console.error("Error fetching local proxy pools:", error);
     } finally {
       setLoading(false);
     }
@@ -124,7 +124,7 @@ export default function ProxyPoolsPage() {
       closeFormModal();
       notify.success(isEdit ? "Proxy pool updated" : "Proxy pool created");
     } catch (error) {
-      console.log("Error saving proxy pool:", error);
+      console.error("Error saving proxy pool:", error);
       notify.error("Failed to save proxy pool");
     } finally {
       setSaving(false);
@@ -149,7 +149,7 @@ export default function ProxyPoolsPage() {
           setProxyPools((previous) => previous.filter((pool) => pool.id !== proxyPool.id));
           notify.success("Proxy pool deleted");
         } catch (error) {
-          console.log("Error deleting proxy pool:", error);
+          console.error("Error deleting proxy pool:", error);
           notify.error("Failed to delete proxy pool");
         }
       },
@@ -168,7 +168,7 @@ export default function ProxyPoolsPage() {
       await fetchProxyPools();
       notify[data.ok ? "success" : "error"](data.ok ? "Proxy test passed" : "Proxy test failed");
     } catch (error) {
-      console.log("Error testing proxy pool:", error);
+      console.error("Error testing proxy pool:", error);
       notify.error("Failed to test proxy");
     } finally {
       setTestingId(null);
@@ -186,7 +186,7 @@ export default function ProxyPoolsPage() {
       });
       if (!response.ok) throw new Error("request failed");
     } catch (error) {
-      console.log("Error toggling proxy pool:", error);
+      console.error("Error toggling proxy pool:", error);
       setProxyPools((previous) => previous.map((item) => item.id === pool.id ? { ...item, isActive: pool.isActive } : item));
       notify.error("Failed to update active state");
     }
@@ -389,7 +389,7 @@ export default function ProxyPoolsPage() {
       setShowBatchImportModal(false);
       notify.success(`Batch import completed: Created ${created}, Skipped ${skipped}, Failed ${failed}`);
     } catch (error) {
-      console.log("Error batch importing proxies:", error);
+      console.error("Error batch importing proxies:", error);
       notify.error("Batch import failed");
     } finally {
       setImporting(false);

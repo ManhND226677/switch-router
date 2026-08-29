@@ -35,7 +35,7 @@ export default function ToolDetailClient({ toolId }) {
           setApiKeys(data.keys || []);
         }
       } catch (error) {
-        console.log("Error loading tool data:", error);
+        console.error("Error loading tool data:", error);
       } finally {
         if (mounted) setLoading(false);
       }

@@ -99,7 +99,7 @@ export async function GET() {
       configPath: getCodexConfigPath(),
     });
   } catch (error) {
-    console.log("Error checking codex settings:", error);
+    console.error("Error checking codex settings:", error);
     return NextResponse.json({ error: "Failed to check codex settings" }, { status: 500 });
   }
 }
@@ -169,7 +169,7 @@ export async function POST(request) {
       configPath,
     });
   } catch (error) {
-    console.log("Error updating codex settings:", error);
+    console.error("Error updating codex settings:", error);
     return NextResponse.json({ error: "Failed to update codex settings" }, { status: 500 });
   }
 }
@@ -233,7 +233,7 @@ export async function DELETE() {
       message: "Switch-Router settings removed successfully",
     });
   } catch (error) {
-    console.log("Error resetting codex settings:", error);
+    console.error("Error resetting codex settings:", error);
     return NextResponse.json({ error: "Failed to reset codex settings" }, { status: 500 });
   }
 }

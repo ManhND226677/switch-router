@@ -43,7 +43,7 @@ export default function CombosPage() {
       }
       setComboStrategies(settingsData.comboStrategies || {});
     } catch (error) {
-      console.log("Error fetching data:", error);
+      console.error("Error fetching data:", error);
     } finally {
       setLoading(false);
     }
@@ -70,7 +70,7 @@ export default function CombosPage() {
         notifyError(err.error || "Tạo combo thất bại");
       }
     } catch (error) {
-      console.log("Error creating combo:", error);
+      console.error("Error creating combo:", error);
     }
   };
 
@@ -89,7 +89,7 @@ export default function CombosPage() {
         notifyError(err.error || "Cập nhật combo thất bại");
       }
     } catch (error) {
-      console.log("Error updating combo:", error);
+      console.error("Error updating combo:", error);
     }
   };
 
@@ -105,7 +105,7 @@ export default function CombosPage() {
             setCombos(combos.filter(c => c.id !== id));
           }
         } catch (error) {
-          console.log("Error deleting combo:", error);
+          console.error("Error deleting combo:", error);
         }
       }
     });
@@ -132,7 +132,7 @@ export default function CombosPage() {
 
       setComboStrategies(updated);
     } catch (error) {
-      console.log("Error updating combo strategy:", error);
+      console.error("Error updating combo strategy:", error);
     }
   };
 

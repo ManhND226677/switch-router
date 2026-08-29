@@ -85,7 +85,7 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
         setValidationResult(null);
       }
     } catch (error) {
-      console.log(`Error creating ${config.errorLabel} node:`, error);
+      console.error(`Error creating ${config.errorLabel} node:`, error);
     } finally {
       setSubmitting(false);
     }

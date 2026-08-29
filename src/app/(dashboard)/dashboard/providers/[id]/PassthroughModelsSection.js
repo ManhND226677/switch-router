@@ -33,7 +33,7 @@ export default function PassthroughModelsSection({ providerAlias, modelAliases, 
       await onAddCustomModel(modelId);
       setNewModel("");
     } catch (error) {
-      console.log("Error adding model:", error);
+      console.error("Error adding model:", error);
     } finally {
       setAdding(false);
     }

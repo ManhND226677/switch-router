@@ -103,7 +103,7 @@ export async function GET(request) {
       },
     });
   } catch (error) {
-    console.log("Error exporting usage CSV:", error);
+    console.error("Error exporting usage CSV:", error);
     return NextResponse.json({ error: "Failed to export usage" }, { status: 500 });
   }
 }

@@ -74,7 +74,7 @@ export default function VirtualKeysPage() {
       const data = await response.json();
       if (response.ok) setKeys(data.keys || []);
     } catch (error) {
-      console.log("Error fetching keys:", error);
+      console.error("Error fetching keys:", error);
     } finally {
       setLoading(false);
     }
@@ -170,7 +170,7 @@ export default function VirtualKeysPage() {
       setShowFormModal(false);
       await fetchKeys();
     } catch (error) {
-      console.log("Error saving key:", error);
+      console.error("Error saving key:", error);
       notifyError("Failed to save key");
     } finally {
       setSaving(false);

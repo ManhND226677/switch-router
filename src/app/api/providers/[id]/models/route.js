@@ -124,11 +124,11 @@ const buildOAuthResolver = ({ refreshFn, fetchFn, parseFn, errorLabel }) => asyn
     } else {
       const errorText = await response.text();
       warning = `${errorLabel}: ${response.status} ${errorText}`;
-      console.log(`${errorLabel} (falling back to static):`, errorText);
+      console.error(`${errorLabel} (falling back to static):`, errorText);
     }
   } catch (error) {
     warning = `${errorLabel}: ${error.message}`;
-    console.log(`${errorLabel} (falling back to static):`, error.message);
+    console.error(`${errorLabel} (falling back to static):`, error.message);
   }
   return { models: [], warning };
 };
@@ -425,7 +425,7 @@ export async function GET(request, { params }) {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.log(`Error fetching models from ${connection.provider}:`, errorText);
+        console.error(`Error fetching models from ${connection.provider}:`, errorText);
         return NextResponse.json(
           { error: `Failed to fetch models: ${response.status}` },
           { status: response.status }
@@ -466,7 +466,7 @@ export async function GET(request, { params }) {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.log(`Error fetching models from ${connection.provider}:`, errorText);
+        console.error(`Error fetching models from ${connection.provider}:`, errorText);
         return NextResponse.json(
           { error: `Failed to fetch models: ${response.status}` },
           { status: response.status }
@@ -544,7 +544,7 @@ export async function GET(request, { params }) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.log(`Error fetching models from ${connection.provider}:`, errorText);
+      console.error(`Error fetching models from ${connection.provider}:`, errorText);
       return NextResponse.json(
         { error: `Failed to fetch models: ${response.status}` },
         { status: response.status }
@@ -560,7 +560,7 @@ export async function GET(request, { params }) {
       models
     });
   } catch (error) {
-    console.log("Error fetching provider models:", error);
+    console.error("Error fetching provider models:", error);
     return NextResponse.json({ error: "Failed to fetch models" }, { status: 500 });
   }
 }

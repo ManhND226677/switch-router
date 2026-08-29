@@ -64,7 +64,7 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
       await onAddCustomModel(modelId);
       setNewModel("");
     } catch (error) {
-      console.log("Error adding model:", error);
+      console.error("Error adding model:", error);
     } finally {
       setAdding(false);
     }
@@ -100,7 +100,7 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
         notifyInfo("No new models were added.");
       }
     } catch (error) {
-      console.log("Error importing models:", error);
+      console.error("Error importing models:", error);
     } finally {
       setImporting(false);
     }

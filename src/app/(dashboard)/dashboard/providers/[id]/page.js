@@ -208,7 +208,7 @@ export default function ProviderDetailPage() {
       const data = await res.json();
       if (res.ok) setDisabledModelIds(data.ids || []);
     } catch (error) {
-      console.log("Error fetching disabled models:", error);
+      console.error("Error fetching disabled models:", error);
     }
   }, [providerStorageAlias]);
 
@@ -221,7 +221,7 @@ export default function ProviderDetailPage() {
       });
       if (res.ok) await fetchDisabledModels();
     } catch (error) {
-      console.log("Error disabling model:", error);
+      console.error("Error disabling model:", error);
     }
   };
 
@@ -230,7 +230,7 @@ export default function ProviderDetailPage() {
       const res = await fetch(`/api/models/disabled?providerAlias=${encodeURIComponent(providerStorageAlias)}&id=${encodeURIComponent(modelId)}`, { method: "DELETE" });
       if (res.ok) await fetchDisabledModels();
     } catch (error) {
-      console.log("Error enabling model:", error);
+      console.error("Error enabling model:", error);
     }
   };
 
@@ -249,7 +249,7 @@ export default function ProviderDetailPage() {
           });
           if (res.ok) await fetchDisabledModels();
         } catch (error) {
-          console.log("Error disabling all models:", error);
+          console.error("Error disabling all models:", error);
         }
       }
     });
@@ -260,7 +260,7 @@ export default function ProviderDetailPage() {
       const res = await fetch(`/api/models/disabled?providerAlias=${encodeURIComponent(providerStorageAlias)}`, { method: "DELETE" });
       if (res.ok) await fetchDisabledModels();
     } catch (error) {
-      console.log("Error enabling all models:", error);
+      console.error("Error enabling all models:", error);
     }
   };
 
@@ -273,7 +273,7 @@ export default function ProviderDetailPage() {
         setModelAliases(data.aliases || {});
       }
     } catch (error) {
-      console.log("Error fetching aliases:", error);
+      console.error("Error fetching aliases:", error);
     }
   }, []);
 
@@ -285,7 +285,7 @@ export default function ProviderDetailPage() {
         setCustomModels(data.models || []);
       }
     } catch (error) {
-      console.log("Error fetching custom models:", error);
+      console.error("Error fetching custom models:", error);
     }
   }, []);
 
@@ -346,7 +346,7 @@ export default function ProviderDetailPage() {
         setProviderNode(node);
       }
     } catch (error) {
-      console.log("Error fetching connections:", error);
+      console.error("Error fetching connections:", error);
     } finally {
       setLoading(false);
     }
@@ -366,7 +366,7 @@ export default function ProviderDetailPage() {
         setShowEditNodeModal(false);
       }
     } catch (error) {
-      console.log("Error updating provider node:", error);
+      console.error("Error updating provider node:", error);
     }
   };
 
@@ -396,7 +396,7 @@ export default function ProviderDetailPage() {
         body: JSON.stringify({ providerStrategies: updated }),
       });
     } catch (error) {
-      console.log("Error saving provider strategy:", error);
+      console.error("Error saving provider strategy:", error);
     }
   };
 
@@ -430,7 +430,7 @@ export default function ProviderDetailPage() {
         body: JSON.stringify({ providerThinking: updated }),
       });
     } catch (error) {
-      console.log("Error saving thinking config:", error);
+      console.error("Error saving thinking config:", error);
     }
   };
 
@@ -451,7 +451,7 @@ export default function ProviderDetailPage() {
         body: JSON.stringify({ [autoPingSettingsKey]: next }),
       });
     } catch (error) {
-      console.log("Error saving auto-ping config:", error);
+      console.error("Error saving auto-ping config:", error);
     }
   };
 
@@ -489,7 +489,7 @@ export default function ProviderDetailPage() {
         notifyError(data.error || "Failed to set alias");
       }
     } catch (error) {
-      console.log("Error setting alias:", error);
+      console.error("Error setting alias:", error);
     }
   };
 
@@ -502,7 +502,7 @@ export default function ProviderDetailPage() {
         await fetchAliases();
       }
     } catch (error) {
-      console.log("Error deleting alias:", error);
+      console.error("Error deleting alias:", error);
     }
   };
 
@@ -521,7 +521,7 @@ export default function ProviderDetailPage() {
         notifyError(data.error || "Failed to add custom model");
       }
     } catch (error) {
-      console.log("Error adding custom model:", error);
+      console.error("Error adding custom model:", error);
     }
   };
 
@@ -534,7 +534,7 @@ export default function ProviderDetailPage() {
         if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("customModelChanged"));
       }
     } catch (error) {
-      console.log("Error deleting custom model:", error);
+      console.error("Error deleting custom model:", error);
     }
   };
 
@@ -621,7 +621,7 @@ export default function ProviderDetailPage() {
       setVilaoImportSummary(summary);
       notifySuccess(summary.message);
     } catch (error) {
-      console.log("Error importing ViLao models:", error);
+      console.error("Error importing ViLao models:", error);
       const msg = (translate("Error fetching models") || "Error fetching models") + ": " + error.message;
       setVilaoImportSummary({ ok: false, message: msg });
       notifyError(msg);
@@ -665,7 +665,7 @@ export default function ProviderDetailPage() {
       }
       notifySuccess(translate("Successfully added") + ` ${importedCount} ` + translate("models"));
     } catch (error) {
-      console.log("Error importing free models:", error);
+      console.error("Error importing free models:", error);
       notifyError(translate("Error fetching models") + ": " + error.message);
     } finally {
       setImportingFreeModels(false);
@@ -794,7 +794,7 @@ export default function ProviderDetailPage() {
             setConnections(prev => prev.filter(c => c.id !== id));
           }
         } catch (error) {
-          console.log("Error deleting connection:", error);
+          console.error("Error deleting connection:", error);
         }
       }
     });
@@ -815,7 +815,7 @@ export default function ProviderDetailPage() {
             const res = await fetch(`/api/providers/${id}`, { method: "DELETE" });
             if (!res.ok) failed += 1;
           } catch (error) {
-            console.log("Error deleting connection:", error);
+            console.error("Error deleting connection:", error);
             failed += 1;
           }
         }
@@ -855,7 +855,7 @@ export default function ProviderDetailPage() {
 
       setAddConnectionError(data?.error || "Failed to save connection");
     } catch (error) {
-      console.log("Error saving connection:", error);
+      console.error("Error saving connection:", error);
       setAddConnectionError("Failed to save connection");
     }
   };
@@ -872,7 +872,7 @@ export default function ProviderDetailPage() {
         setShowEditModal(false);
       }
     } catch (error) {
-      console.log("Error updating connection:", error);
+      console.error("Error updating connection:", error);
     }
   };
 
@@ -887,7 +887,7 @@ export default function ProviderDetailPage() {
         setConnections(prev => prev.map(c => c.id === id ? { ...c, isActive } : c));
       }
     } catch (error) {
-      console.log("Error updating connection status:", error);
+      console.error("Error updating connection status:", error);
     }
   };
 
@@ -911,7 +911,7 @@ export default function ProviderDetailPage() {
         }),
       ]);
     } catch (error) {
-      console.log("Error swapping priority:", error);
+      console.error("Error swapping priority:", error);
       await fetchConnections();
     }
   };
@@ -982,7 +982,7 @@ export default function ProviderDetailPage() {
           });
           if (!res.ok) failed += 1;
         } catch (e) {
-          console.log("Error applying proxy for", connectionId, e);
+          console.error("Error applying proxy for", connectionId, e);
           failed += 1;
         }
       }
@@ -1058,7 +1058,7 @@ export default function ProviderDetailPage() {
                       ));
                     }
                   } catch (error) {
-                    console.log("Error updating proxy:", error);
+                    console.error("Error updating proxy:", error);
                   }
                 }}
                 onEdit={() => {
@@ -1509,7 +1509,7 @@ export default function ProviderDetailPage() {
                           router.push("/dashboard/providers");
                         }
                       } catch (error) {
-                        console.log("Error deleting provider node:", error);
+                        console.error("Error deleting provider node:", error);
                       }
                     }
                   });

@@ -243,7 +243,7 @@ async function refreshOAuthToken(connection) {
 
     return null;
   } catch (err) {
-    console.log(`Error refreshing ${provider} token:`, err.message);
+    console.error(`Error refreshing ${provider} token:`, err.message);
     return null;
   }
 }

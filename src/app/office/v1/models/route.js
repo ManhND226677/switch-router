@@ -54,7 +54,7 @@ export async function GET(request) {
       has_more: false,
     }, request);
   } catch (error) {
-    console.log("Error fetching Office gateway models:", error);
+    console.error("Error fetching Office gateway models:", error);
     return officeErrorResponse(500, error.message || "Failed to fetch models", request, "server_error");
   }
 }

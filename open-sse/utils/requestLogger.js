@@ -49,7 +49,7 @@ function reportWriterError(filePath, error) {
   const key = `${filePath}:${error?.message || String(error)}`;
   if (state.reportedErrors.has(key)) return;
   state.reportedErrors.add(key);
-  console.log(`[LOG] Failed to write ${filePath}:`, error?.message || String(error));
+  console.error(`[LOG] Failed to write ${filePath}:`, error?.message || String(error));
 }
 
 class AsyncAppendQueue {
@@ -237,7 +237,7 @@ async function createLogSession(sourceFormat, targetFormat, model) {
     await fsPromises.mkdir(sessionPath, { recursive: true });
     return sessionPath;
   } catch (error) {
-    console.log("[LOG] Failed to create log session:", error?.message || String(error));
+    console.error("[LOG] Failed to create log session:", error?.message || String(error));
     return null;
   }
 }
@@ -397,7 +397,7 @@ export function logError(provider, { error, url, model, requestBody }) {
       const queue = getAppendQueue(logPath);
       queue.enqueue(JSON.stringify(logEntry) + "\n");
     } catch (err) {
-      console.log("[LOG] Failed to write error log:", err?.message || String(err));
+      console.error("[LOG] Failed to write error log:", err?.message || String(err));
     }
   }).catch(() => {});
 }

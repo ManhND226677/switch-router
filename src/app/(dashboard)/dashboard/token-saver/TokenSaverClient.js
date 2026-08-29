@@ -34,7 +34,7 @@ export default function TokenSaverClient({ embedded = false } = {}) {
         body: JSON.stringify(patch),
       });
     } catch (error) {
-      console.log("Error updating setting:", error);
+      console.error("Error updating setting:", error);
     }
   }, []);
 
@@ -47,7 +47,7 @@ export default function TokenSaverClient({ embedded = false } = {}) {
       });
       if (res.ok) setRtkEnabledState(value);
     } catch (error) {
-      console.log("Error updating rtkEnabled:", error);
+      console.error("Error updating rtkEnabled:", error);
     }
   };
 

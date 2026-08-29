@@ -57,7 +57,7 @@ async function runHeavyStartup() {
   if (hasQuotaAutoPingEnabled(settings)) {
     import("@/shared/services/quotaAutoPing")
       .then(({ startQuotaAutoPing }) => startQuotaAutoPing())
-      .catch((error) => console.log("[AutoPing] scheduler start failed:", error.message));
+      .catch((error) => console.error("[AutoPing] scheduler start failed:", error.message));
   }
 }
 

@@ -488,7 +488,7 @@ export async function GET(request) {
       headers: { "Access-Control-Allow-Origin": "*" },
     });
   } catch (error) {
-    console.log("Error fetching models:", error);
+    console.error("Error fetching models:", error);
     return Response.json(
       { error: { message: error.message, type: "server_error" } },
       { status: 500 }

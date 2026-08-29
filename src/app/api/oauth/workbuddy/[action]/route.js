@@ -103,7 +103,7 @@ export async function GET(request, { params }) {
       expires_in: Math.round(FLOW_TTL_MS / 1000),
     });
   } catch (error) {
-    console.log("OAuth workbuddy GET error:", error);
+    console.error("OAuth workbuddy GET error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
@@ -171,7 +171,7 @@ export async function POST(request, { params }) {
       connection: { id: connection.id, provider: connection.provider },
     });
   } catch (error) {
-    console.log("OAuth workbuddy POST error:", error);
+    console.error("OAuth workbuddy POST error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

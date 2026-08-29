@@ -12,7 +12,7 @@ export async function GET(request) {
     if (providerAlias) return NextResponse.json({ ids: all[providerAlias] || [] });
     return NextResponse.json({ disabled: all });
   } catch (error) {
-    console.log("Error fetching disabled models:", error);
+    console.error("Error fetching disabled models:", error);
     return NextResponse.json({ error: "Failed to fetch disabled models" }, { status: 500 });
   }
 }
@@ -27,7 +27,7 @@ export async function POST(request) {
     await disableModels(providerAlias, ids);
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.log("Error disabling models:", error);
+    console.error("Error disabling models:", error);
     return NextResponse.json({ error: "Failed to disable models" }, { status: 500 });
   }
 }
@@ -44,7 +44,7 @@ export async function DELETE(request) {
     await enableModels(providerAlias, id ? [id] : []);
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.log("Error enabling models:", error);
+    console.error("Error enabling models:", error);
     return NextResponse.json({ error: "Failed to enable models" }, { status: 500 });
   }
 }
