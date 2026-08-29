@@ -8,6 +8,7 @@ import {
   isValidApiKey,
 } from "../services/auth.js";
 import { isModelLockActive } from "open-sse/services/accountFallback.js";
+import { recordModelRateLimit, clearModelThrottle } from "open-sse/services/modelThrottle.js";
 import { getProviderConnections } from "@/lib/localDb";
 import { cacheClaudeHeaders } from "open-sse/utils/claudeHeaderCache.js";
 import { getSettings } from "@/lib/localDb";
@@ -416,6 +417,7 @@ async function handleSingleModelRequest(body, modelStr, clientRawRequest = null,
       onRequestSuccess: async () => {
         if (sessionKey) pinSession(sessionKey, credentials.connectionId);
         await clearAccountError(credentials.connectionId, credentials, model);
+        clearModelThrottle(provider, model);
       }
     });
 
@@ -437,6 +439,19 @@ async function handleSingleModelRequest(body, modelStr, clientRawRequest = null,
         model,
         result.resetsAtMs,
       );
+
+      // Model-level backpressure: repeated 429s on provider/model mark it HOT
+      // so combo rotation stops feeding it (connection locks alone are too
+      // short-lived). resetsAtMs from the provider sets the throttle floor.
+      if (result.status === 429 || result.resetsAtMs) {
+        const throttle = recordModelRateLimit(provider, model, {
+          retryAfterMs: result.resetsAtMs && result.resetsAtMs > Date.now() ? result.resetsAtMs - Date.now() : null,
+          reason: typeof result.error === "string" ? result.error.slice(0, 120) : "",
+        });
+        if (throttle.throttled) {
+          log.warn("THROTTLE", `⛔ ${provider}/${model} HOT — backing off ${Math.ceil(throttle.remainingMs / 1000)}s (level ${throttle.hotLevel})`);
+        }
+      }
 
       if (shouldFallback) {
         log.warn("FALLBACK", `⇄ ACC:${credentials.connectionName} UNAVAILABLE (${result.status}) → NEXT ACCOUNT`);

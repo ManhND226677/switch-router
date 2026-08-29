@@ -3,6 +3,7 @@
  */
 
 import { checkFallbackError, formatRetryAfter } from "./accountFallback.js";
+import { partitionThrottledModels } from "./modelThrottle.js";
 import { unavailableResponse } from "../utils/error.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { extractTextContent } from "../translator/formats/gemini.js";
@@ -246,9 +247,28 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
   let earliestRetryAfter = null;
   let lastStatus = null;
 
-  for (let i = 0; i < rotatedModels.length; i++) {
-    const modelStr = rotatedModels[i];
-    log.info("COMBO", `Trying model ${i + 1}/${rotatedModels.length}: ${modelStr}`);
+  // Backpressure: models that were repeatedly rate-limited recently are HOT and
+  // pulled out of rotation until their cooldown lapses — serving them here
+  // would only burn another 429. When no ready model remains, report the
+  // earliest reset instead of forcing attempts.
+  const { ready: readyModels, throttled: throttledModels } = partitionThrottledModels(rotatedModels);
+  if (throttledModels.length > 0) {
+    log.info("COMBO", `backpressure: skipping HOT ${throttledModels.map((t) => t.model).join(", ")}`);
+  }
+
+  const throttledUnavailableResponse = () => {
+    const earliest = throttledModels.reduce((min, t) => (min === 0 || t.untilMs < min ? t.untilMs : min), 0);
+    const retryIso = earliest ? new Date(earliest).toISOString() : null;
+    const msg = `All combo models rate-limited${lastError ? ` (last error: ${lastError})` : ""}`;
+    log.warn("COMBO", `${msg} | ${retryIso ? formatRetryAfter(retryIso) : "no reset known"}`);
+    return unavailableResponse(429, msg, retryIso, retryIso ? formatRetryAfter(retryIso) : "");
+  };
+
+  if (readyModels.length === 0) return throttledUnavailableResponse();
+
+  for (let i = 0; i < readyModels.length; i++) {
+    const modelStr = readyModels[i];
+    log.info("COMBO", `Trying model ${i + 1}/${readyModels.length}: ${modelStr}`);
 
     try {
       const result = await handleSingleModel(body, modelStr);
@@ -310,6 +330,10 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
   }
 
   // All models failed
+  // Remaining candidates are all HOT: report the earliest throttle reset
+  // instead of feeding the rate-limited models another request.
+  if (throttledModels.length > 0) return throttledUnavailableResponse();
+
   // Use 503 (Service Unavailable) rather than 406 (Not Acceptable) — 406 implies
   // the request itself is invalid, but here the providers are simply unavailable
   // or have no active credentials. 503 is more accurate and retryable by clients.
