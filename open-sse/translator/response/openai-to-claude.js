@@ -286,13 +286,12 @@ function stopTextBlock(state, results) {
 
 // Convert OpenAI stream chunk to Claude format
 export function openaiToClaudeResponse(chunk, state) {
-  if (!chunk || !chunk.choices?.[0] || state.responseFinished) return null;
+  if (!chunk) return null;
 
-  const results = [];
-  const choice = chunk.choices[0];
-  const delta = choice.delta;
-
-  // Track usage from OpenAI chunk if available
+  // Track usage before the choices gate: with stream_options.include_usage the
+  // real counts arrive in a final chunk with choices:[] (often after the
+  // finish_reason chunk), which the gate below would otherwise drop — leaving
+  // state.usage null and every downstream consumer on estimated usage.
   if (chunk.usage && typeof chunk.usage === "object") {
     const promptTokens = typeof chunk.usage.prompt_tokens === "number" ? chunk.usage.prompt_tokens : 0;
     const outputTokens = typeof chunk.usage.completion_tokens === "number" ? chunk.usage.completion_tokens : 0;
@@ -325,6 +324,12 @@ export function openaiToClaudeResponse(chunk, state) {
     // Note: completion_tokens_details.reasoning_tokens is already included in output_tokens
     // No need to add separately as Claude expects total output_tokens
   }
+
+  if (!chunk.choices?.[0] || state.responseFinished) return null;
+
+  const results = [];
+  const choice = chunk.choices[0];
+  const delta = choice.delta;
 
   // First chunk - ALWAYS send message_start first
   if (!state.messageStartSent) {
