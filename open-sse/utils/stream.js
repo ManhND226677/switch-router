@@ -488,7 +488,7 @@ export function createSSEStream(options = {}) {
         finalizeUsage();
         await closeLogger();
       } catch (error) {
-        console.log("Error in flush:", error);
+        console.error("Error in flush:", error);
         await closeLogger();
       }
     }

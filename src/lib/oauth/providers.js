@@ -491,7 +491,7 @@ const PROVIDERS = {
               break;
             }
           } catch (e) {
-            console.log("onboardUser error:", e?.message || e);
+            console.error("onboardUser error:", e?.message || e);
             break;
           }
           await new Promise((resolve) => setTimeout(resolve, 2000));

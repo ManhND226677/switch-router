@@ -18,7 +18,7 @@ export default function CLIToolsPageClient({ machineId }) {
         const res = await fetch(ALL_STATUSES_URL);
         if (res.ok && mounted) setToolStatuses(await res.json());
       } catch (error) {
-        console.log("Error fetching tool statuses:", error);
+        console.error("Error fetching tool statuses:", error);
       } finally {
         if (mounted) setLoading(false);
       }

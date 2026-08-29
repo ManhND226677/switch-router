@@ -89,7 +89,7 @@ export default function AizenToolCard({
       const data = await res.json();
       if (res.ok) setModelAliases(data.aliases || {});
     } catch (error) {
-      console.log("Error fetching model aliases:", error);
+      console.error("Error fetching model aliases:", error);
     }
   };
 
@@ -106,7 +106,7 @@ export default function AizenToolCard({
         hydrateFormFromStatus(nextStatus);
       }
     } catch (error) {
-      console.log("Error checking aizen status:", error);
+      console.error("Error checking aizen status:", error);
     } finally {
       setChecking(false);
     }
@@ -164,7 +164,7 @@ export default function AizenToolCard({
         setMessage({ type: "error", text: data.error || "Failed to save settings" });
       }
     } catch (error) {
-      console.log("Error applying aizen settings:", error);
+      console.error("Error applying aizen settings:", error);
       setMessage({ type: "error", text: "Network error saving settings" });
     } finally {
       setApplying(false);
@@ -197,7 +197,7 @@ export default function AizenToolCard({
         setMessage({ type: "error", text: data.error || "Reset failed" });
       }
     } catch (error) {
-      console.log("Error resetting aizen settings:", error);
+      console.error("Error resetting aizen settings:", error);
       setMessage({ type: "error", text: "Network error on reset" });
     } finally {
       setRestoring(false);
@@ -246,7 +246,7 @@ export default function AizenToolCard({
         checkStatus();
       }
     } catch (error) {
-      console.log("Error removing model:", error);
+      console.error("Error removing model:", error);
     }
   };
 
@@ -260,7 +260,7 @@ export default function AizenToolCard({
         body: JSON.stringify({ autoCompact: next }),
       });
     } catch (error) {
-      console.log("Error toggling auto-compact:", error);
+      console.error("Error toggling auto-compact:", error);
     }
   };
 
@@ -274,7 +274,7 @@ export default function AizenToolCard({
         body: JSON.stringify({ mcpCodebaseMemory: next }),
       });
     } catch (error) {
-      console.log("Error toggling MCP:", error);
+      console.error("Error toggling MCP:", error);
     }
   };
 

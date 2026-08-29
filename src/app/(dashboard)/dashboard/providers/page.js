@@ -177,7 +177,7 @@ export default function ProvidersPage() {
         }
         if (nodesRes.ok) setProviderNodes(nodesData.nodes || []);
       } catch (error) {
-        console.log("Error fetching data:", error);
+        console.error("Error fetching data:", error);
       } finally {
         setLoading(false);
       }

@@ -76,7 +76,7 @@ export async function GET(request) {
       },
     });
   } catch (error) {
-    console.log("Error checking aizen settings:", error);
+    console.error("Error checking aizen settings:", error);
     return NextResponse.json(
       { error: "Failed to check aizen settings" },
       { status: 500 },
@@ -177,7 +177,7 @@ export async function POST(request) {
       settings: diskConfigToDashboard(merged, mcpResult ? { mcpServers: mcpResult.enabled ? { "codebase-memory": {} } : {} } : await readJsonFile(getAizenMcpPath())),
     });
   } catch (error) {
-    console.log("Error updating aizen settings:", error);
+    console.error("Error updating aizen settings:", error);
     return NextResponse.json(
       { error: error.message || "Failed to update aizen settings" },
       { status: 500 },
@@ -226,7 +226,7 @@ export async function PATCH(request) {
 
     return NextResponse.json({ success: true, message: "Setting updated" });
   } catch (error) {
-    console.log("Error patching aizen settings:", error);
+    console.error("Error patching aizen settings:", error);
     return NextResponse.json({ error: "Failed to update setting" }, { status: 500 });
   }
 }
@@ -312,7 +312,7 @@ export async function DELETE(request) {
       apiKeyHint: existing?.api_key ? maskApiKey(existing.api_key) : "",
     });
   } catch (error) {
-    console.log("Error resetting aizen settings:", error);
+    console.error("Error resetting aizen settings:", error);
     return NextResponse.json({ error: "Failed to reset aizen settings" }, { status: 500 });
   }
 }

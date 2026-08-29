@@ -65,7 +65,7 @@ export async function POST(request) {
       },
     });
   } catch (error) {
-    console.log("Cursor import token error:", error);
+    console.error("Cursor import token error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

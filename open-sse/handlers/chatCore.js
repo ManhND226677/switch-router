@@ -4,6 +4,7 @@ import { stripThinkingSuffix } from "../translator/concerns/thinkingUnified.js";
 import { FORMATS } from "../translator/formats.js";
 import { normalizeClaudePassthrough } from "../translator/formats/claude.js";
 import { createStreamController } from "../utils/streamHandler.js";
+import { dbg } from "../utils/debugLog.js";
 import { acquireUpstreamSlot, releaseUpstreamSlot, getUpstreamInFlight, getUpstreamConcurrencyLimit } from "../utils/upstreamConcurrency.js";
 import { refreshWithRetry } from "../services/tokenRefresh.js";
 import { createRequestLogger } from "../utils/requestLogger.js";
@@ -73,7 +74,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   if (!preserveClientPayload && providerThinking?.mode && providerThinking.mode !== "auto") {
     const mode = providerThinking.mode;
     if (mode === "on" && !body.thinking) {
-      console.log("Injecting provider-level thinking config override: on");
+      dbg("chatCore", "Injecting provider-level thinking config override: on");
       body = { ...body, thinking: { type: "enabled", budget_tokens: 10000 } };
     } else if (mode === "off" && !body.thinking) {
       body = { ...body, thinking: { type: "disabled" } };

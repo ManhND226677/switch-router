@@ -222,7 +222,7 @@ export async function GET() {
     // Strategy 3: ask user to paste manually
     return NextResponse.json({ found: false, windowsManual: true, dbPath });
   } catch (error) {
-    console.log("Cursor auto-import error:", error);
+    console.error("Cursor auto-import error:", error);
     return NextResponse.json(
       { found: false, error: error.message },
       { status: 500 },
