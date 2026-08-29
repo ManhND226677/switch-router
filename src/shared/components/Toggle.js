@@ -14,10 +14,12 @@ export default function Toggle({
   "aria-label": ariaLabel,
   ...props
 }) {
+  // translate = track − thumb − 2px so the thumb keeps a 2px gap on both
+  // sides when on (translate-x-0.5 = 2px gap when off).
   const sizes = {
-    sm: { track: "w-8 h-4", thumb: "size-3", translate: "translate-x-4" },
-    md: { track: "w-11 h-6", thumb: "size-5", translate: "translate-x-5" },
-    lg: { track: "w-14 h-7", thumb: "size-6", translate: "translate-x-7" },
+    sm: { track: "w-8 h-4", thumb: "size-3", translate: "translate-x-[18px]" },
+    md: { track: "w-11 h-6", thumb: "size-5", translate: "translate-x-[22px]" },
+    lg: { track: "w-14 h-7", thumb: "size-6", translate: "translate-x-[30px]" },
   };
 
   const handleClick = () => {
@@ -42,6 +44,7 @@ export default function Toggle({
         onClick={handleClick}
         className={cn(
           "relative inline-flex shrink-0 cursor-pointer rounded-full",
+          "before:absolute before:-inset-2 before:content-['']",
           "transition-colors duration-200 ease-in-out",
           "focus:outline-none focus:ring-2 focus:ring-brand-500/30",
           checked ? "bg-brand-500" : "bg-surface-3",

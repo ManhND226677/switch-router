@@ -376,7 +376,7 @@ export default function UsageClient({ refreshKey = 0 }) {
     <div className="flex min-w-0 flex-col gap-6 px-1 sm:px-0">
       {/* Header row: Dashboard title + period pills + Refresh + Logs toggle */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight text-text-main">Dashboard</h1>
+        <h2 className="text-2xl font-bold tracking-tight text-text-main">Dashboard</h2>
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"

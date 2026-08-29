@@ -26,16 +26,21 @@ export default function Button({
   disabled = false,
   loading = false,
   fullWidth = false,
+  type = "button",
   className,
   ...props
 }) {
   return (
     <button
+      type={type}
       className={cn(
         "inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 ease-out cursor-pointer",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-bg",
         "active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100",
         variants[variant],
         sizes[size],
+        // Invisible hit-area extension keeps the 28px sm size touch-friendly.
+        size === "sm" && "relative before:absolute before:-inset-2 before:content-['']",
         fullWidth && "w-full",
         className
       )}

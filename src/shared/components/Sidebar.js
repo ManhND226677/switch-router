@@ -25,6 +25,8 @@ function NavLink({ item, active, onClose, isMini }) {
     <Link
       href={item.href}
       onClick={onClose}
+      aria-current={active ? "page" : undefined}
+      aria-label={isMini ? item.label : undefined}
       className={cn(
         "flex items-center gap-3 py-1 rounded-lg transition-all group",
         isMini ? "justify-center px-0 mx-2" : "px-3",

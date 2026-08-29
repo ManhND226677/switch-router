@@ -56,6 +56,7 @@ export default function Pagination({
           <div className="flex items-center gap-2">
             <span className="text-sm text-text-muted">Rows:</span>
             <select
+              aria-label="Rows per page"
               value={pageSize}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
               className={cn(
@@ -63,7 +64,6 @@ export default function Pagination({
                 "text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary/20",
                 "cursor-pointer"
               )}
-              style={{ colorScheme: 'auto' }}
             >
               {[10, 20, 50].map((size) => (
                 <option key={size} value={size}>
@@ -75,10 +75,11 @@ export default function Pagination({
         )}
 
         {totalPages > 1 && (
-          <div className="flex items-center gap-1">
+          <nav aria-label="Pagination" className="flex items-center gap-1">
             <Button
               variant="outline"
               size="sm"
+              aria-label="Previous page"
               onClick={() => onPageChange(currentPage - 1)}
               disabled={currentPage === 1}
               className="w-9 px-0"
@@ -107,6 +108,7 @@ export default function Pagination({
                 key={page}
                 variant={currentPage === page ? "primary" : "ghost"}
                 size="sm"
+                aria-current={currentPage === page ? "page" : undefined}
                 onClick={() => onPageChange(page)}
                 className={cn(
                   "w-9 px-0",
@@ -136,13 +138,14 @@ export default function Pagination({
             <Button
               variant="outline"
               size="sm"
+              aria-label="Next page"
               onClick={() => onPageChange(currentPage + 1)}
               disabled={currentPage === totalPages}
               className="w-9 px-0"
             >
               <span className="material-symbols-outlined text-lg">chevron_right</span>
             </Button>
-          </div>
+          </nav>
         )}
       </div>
     </div>
