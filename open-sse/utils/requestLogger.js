@@ -223,6 +223,34 @@ function formatTimestamp(date = new Date()) {
   return `${y}${m}${d}_${h}${min}${s}_${ms}`;
 }
 
+// Each enabled request creates a log session folder; without pruning logs/
+// grows unbounded. Delete entries older than the retention window, at most
+// once per hour.
+const LOG_RETENTION_DAYS = Math.max(1, Number(process.env.LOG_RETENTION_DAYS || 7));
+const PRUNE_INTERVAL_MS = 60 * 60 * 1000;
+let lastPruneAt = 0;
+
+function pruneOldLogs() {
+  if (!fsPromises || !LOGS_DIR) return;
+  const now = Date.now();
+  if (now - lastPruneAt < PRUNE_INTERVAL_MS) return;
+  lastPruneAt = now;
+  const cutoff = now - LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  fsPromises.readdir(LOGS_DIR, { withFileTypes: true })
+    .then(async (entries) => {
+      for (const entry of entries) {
+        const fullPath = path.join(LOGS_DIR, entry.name);
+        try {
+          const stat = await fsPromises.stat(fullPath);
+          if (stat.mtimeMs < cutoff) {
+            await fsPromises.rm(fullPath, { recursive: true, force: true });
+          }
+        } catch { /* vanished mid-prune */ }
+      }
+    })
+    .catch(() => {});
+}
+
 // Create log session folder: {sourceFormat}_{targetFormat}_{model}_{timestamp}
 async function createLogSession(sourceFormat, targetFormat, model) {
   await ensureNodeModules();
@@ -230,6 +258,7 @@ async function createLogSession(sourceFormat, targetFormat, model) {
 
   try {
     await fsPromises.mkdir(LOGS_DIR, { recursive: true });
+    pruneOldLogs();
     const timestamp = formatTimestamp();
     const safeModel = (model || "unknown").replace(/[/:]/g, "-");
     const folderName = `${sourceFormat}_${targetFormat}_${safeModel}_${timestamp}`;

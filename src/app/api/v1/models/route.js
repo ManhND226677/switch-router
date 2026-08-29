@@ -182,11 +182,34 @@ function comboMatchesKinds(combo, kindFilter) {
   return kindFilter.includes(kind);
 }
 
+// CLI tools poll /v1/models aggressively; every build fans out to 5 DB reads
+// plus optional upstream catalog fetches. Dedupe concurrent builds and reuse
+// the result for a short window — bounded staleness, no explicit invalidation.
+const MODELS_CACHE_TTL_MS = Math.max(0, Number(process.env.MODELS_LIST_CACHE_TTL_MS ?? 1000));
+// Global so Next.js dev hot-reload of this route module doesn't orphan the cache.
+const modelsListCache = globalThis.__modelsListCache ??= new Map();
+
+export function buildModelsList(kindFilter, options = {}) {
+  if (MODELS_CACHE_TTL_MS === 0) return buildModelsListUncached(kindFilter, options);
+
+  const key = `${[...kindFilter].sort().join(",")}|${options.skipDynamicFetch === true ? 1 : 0}`;
+  const now = Date.now();
+  const hit = modelsListCache.get(key);
+  if (hit && hit.expires > now) return hit.promise;
+
+  const pending = buildModelsListUncached(kindFilter, options);
+  modelsListCache.set(key, { expires: now + MODELS_CACHE_TTL_MS, promise: pending });
+  pending.catch(() => {
+    if (modelsListCache.get(key)?.promise === pending) modelsListCache.delete(key);
+  });
+  return pending;
+}
+
 /**
  * Build OpenAI-format models list filtered by service kinds.
  * @param {string[]} kindFilter - List of service kinds to include (e.g. ["llm"], ["webSearch","webFetch"]).
  */
-export async function buildModelsList(kindFilter, options = {}) {
+async function buildModelsListUncached(kindFilter, options = {}) {
   // When this header is present, the /v1/models request came from another
   // Switch-Router instance's fetchCompatibleModelIds — skip dynamic fetch to break
   // cross-instance recursive loops.
