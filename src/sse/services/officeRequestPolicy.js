@@ -35,6 +35,9 @@ export function getOfficeRequestPolicy(settings = {}, endpoint = "") {
     cavemanEnabled: !isOfficeRequest && !!settings?.cavemanEnabled,
     ponytailEnabled: !isOfficeRequest && !!settings?.ponytailEnabled,
     pxpipeEnabled: !isOfficeRequest && !!settings?.pxpipeEnabled,
+    contextGuardEnabled: !isOfficeRequest && !!settings?.contextGuardEnabled,
+    contextAutoTrimEnabled: !isOfficeRequest && !!settings?.contextAutoTrimEnabled,
+    contextTrimMarginPct: settings?.contextTrimMarginPct,
   };
 }
 

@@ -42,6 +42,9 @@ describe("Office request prompt policy", () => {
       cavemanEnabled: true,
       ponytailEnabled: true,
       pxpipeEnabled: true,
+      contextGuardEnabled: true,
+      contextAutoTrimEnabled: true,
+      contextTrimMarginPct: 8,
     };
 
     expect(getOfficeRequestPolicy(settings, OFFICE_MESSAGES_ENDPOINT)).toEqual({
@@ -51,6 +54,9 @@ describe("Office request prompt policy", () => {
       cavemanEnabled: false,
       ponytailEnabled: false,
       pxpipeEnabled: false,
+      contextGuardEnabled: false,
+      contextAutoTrimEnabled: false,
+      contextTrimMarginPct: 8,
     });
     expect(getOfficeRequestPolicy(settings, "/v1/chat/completions")).toEqual({
       isOfficeRequest: false,
@@ -59,6 +65,9 @@ describe("Office request prompt policy", () => {
       cavemanEnabled: true,
       ponytailEnabled: true,
       pxpipeEnabled: true,
+      contextGuardEnabled: true,
+      contextAutoTrimEnabled: true,
+      contextTrimMarginPct: 8,
     });
   });
 
