@@ -138,11 +138,13 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
   const { title, description, icon, breadcrumbs } = pageInfo;
 
   return (
-    <header className="shrink-0 flex items-center justify-between gap-3 px-4 lg:px-8 pt-3 pb-2 border-b border-border-subtle bg-surface/60 backdrop-blur-xl lg:bg-transparent lg:backdrop-blur-none z-20">
+    <header className="shrink-0 flex items-center justify-between gap-3 px-4 lg:px-8 py-3 border-b border-border-subtle bg-surface/60 backdrop-blur-xl lg:bg-transparent lg:backdrop-blur-none z-20">
       {/* Mobile menu button */}
       <div className="flex items-center gap-3 lg:hidden shrink-0">
         {showMenuButton && (
           <button
+            type="button"
+            aria-label="Open menu"
             onClick={onMenuClick}
             className="text-text-main hover:text-primary transition-colors"
           >
@@ -170,7 +172,7 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
                     href={crumb.href}
                     className="text-text-muted hover:text-primary transition-colors"
                   >
-                    {crumb.label}
+                    {translate(crumb.label)}
                   </Link>
                 ) : (
                   <div className="flex items-center gap-2">
@@ -241,7 +243,8 @@ function HeaderSearch() {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder={placeholder}
-        className="w-full h-8 pl-7 pr-7 rounded-lg border border-border bg-surface/60 text-sm focus:outline-none focus:border-primary/50 transition-colors"
+        aria-label="Search"
+        className="w-full h-8 pl-7 pr-7 rounded-lg border border-border bg-surface/60 text-base sm:text-sm focus:outline-none focus:border-primary/50 transition-colors"
       />
       {query && (
         <button

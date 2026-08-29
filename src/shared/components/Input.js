@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { cn } from "@/shared/utils/cn";
 
 export default function Input({
@@ -17,12 +18,17 @@ export default function Input({
   inputClassName,
   ...props
 }) {
+  const uid = useId();
+  const inputId = `${uid}-input`;
+  const errorId = `${uid}-error`;
+  const hintId = `${uid}-hint`;
+
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
       {label && (
-        <label className="text-sm font-medium text-text-main">
+        <label htmlFor={inputId} className="text-sm font-medium text-text-main">
           {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
+          {required && <span aria-hidden="true" className="text-danger ml-1">*</span>}
         </label>
       )}
       <div className="relative">
@@ -32,11 +38,15 @@ export default function Input({
           </div>
         )}
         <input
+          id={inputId}
           type={type}
           placeholder={placeholder}
           value={value}
           onChange={onChange}
           disabled={disabled}
+          required={required}
+          aria-invalid={error ? "true" : undefined}
+          aria-describedby={error ? errorId : hint ? hintId : undefined}
           className={cn(
             "w-full py-2.5 px-3 text-sm text-text-main bg-surface-2 rounded-[10px]",
             "border border-transparent placeholder-text-muted/70",
@@ -45,20 +55,20 @@ export default function Input({
             // iOS zoom fix
             "text-base sm:text-sm",
             icon && "pl-10",
-            error && "ring-1 ring-red-500 focus:ring-2 focus:ring-red-500/40 border-red-500/40",
+            error && "ring-1 ring-danger focus:ring-2 focus:ring-danger/40 border-danger/40",
             inputClassName
           )}
           {...props}
         />
       </div>
       {error && (
-        <p className="text-xs text-red-500 flex items-center gap-1">
+        <p id={errorId} role="alert" className="text-xs text-danger flex items-center gap-1">
           <span className="material-symbols-outlined text-sm">error</span>
           {error}
         </p>
       )}
       {hint && !error && (
-        <p className="text-xs text-text-muted">{hint}</p>
+        <p id={hintId} className="text-xs text-text-muted">{hint}</p>
       )}
     </div>
   );

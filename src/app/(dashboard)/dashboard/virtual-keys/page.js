@@ -232,7 +232,7 @@ export default function VirtualKeysPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-text-main">Virtual Keys</h1>
+          <h2 className="text-xl font-bold tracking-tight text-text-main">Virtual Keys</h2>
           <p className="text-sm text-text-muted">Quản lý khóa API con: phân model, chặn ngân sách, giới hạn tốc độ</p>
         </div>
         <Button onClick={openCreate}>

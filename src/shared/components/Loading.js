@@ -11,14 +11,16 @@ function Spinner({ size = "md", className }) {
   };
 
   return (
-    <span
-      className={cn(
-        "material-symbols-outlined animate-spin text-brand-500",
-        sizes[size],
-        className
-      )}
-    >
-      progress_activity
+    <span role="status" aria-label="Loading" className={cn("inline-flex", className)}>
+      <span
+        aria-hidden="true"
+        className={cn(
+          "material-symbols-outlined animate-spin text-brand-500",
+          sizes[size]
+        )}
+      >
+        progress_activity
+      </span>
     </span>
   );
 }

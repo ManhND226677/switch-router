@@ -418,7 +418,7 @@ export default function ProxyPoolsPage() {
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-1 sm:gap-6 sm:px-0">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-xl font-semibold sm:text-2xl">Proxy Pools</h1>
+          <h2 className="text-xl font-semibold sm:text-2xl">Proxy Pools</h2>
           <p className="mt-1 text-sm text-text-muted">HTTP proxy pools for outbound provider requests from this local instance.</p>
         </div>
         <div className="grid grid-cols-1 gap-2 sm:flex sm:items-center">
