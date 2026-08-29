@@ -18,11 +18,14 @@ import ModelRow from "./ModelRow";
 import PassthroughModelsSection from "./PassthroughModelsSection";
 import CompatibleModelsSection from "./CompatibleModelsSection";
 import ConnectionRow from "./ConnectionRow";
-import AddApiKeyModal from "./AddApiKeyModal";
-import EditCompatibleNodeModal from "./EditCompatibleNodeModal";
-import AddCustomModelModal from "./AddCustomModelModal";
-import BulkImportCodexModal from "./BulkImportCodexModal";
 import { useNotificationStore } from "@/store/notificationStore";
+import dynamic from "next/dynamic";
+
+// Click-only modals: keep them out of the route's initial chunk.
+const AddApiKeyModal = dynamic(() => import("./AddApiKeyModal"), { ssr: false });
+const EditCompatibleNodeModal = dynamic(() => import("./EditCompatibleNodeModal"), { ssr: false });
+const AddCustomModelModal = dynamic(() => import("./AddCustomModelModal"), { ssr: false });
+const BulkImportCodexModal = dynamic(() => import("./BulkImportCodexModal"), { ssr: false });
 
 const ONE_BY_ONE_DELAY_MS = 1000;
 

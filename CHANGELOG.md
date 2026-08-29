@@ -2,6 +2,25 @@
 
 This file tracks changes for the local personal build only.
 
+## 0.10.6 - 2026-08-29
+
+### Removed
+
+- **Gỡ provider B.AI** khỏi registry (hết FREE) — file `registry/bai.js` xóa, `index.js` regenerate qua `scripts/generate-registry-index.mjs`.
+- **Xóa code rác:** module mồ côi `open-sse/transformer/responsesTransformer.js` (0 reference), 3 thư mục route rỗng, `build2.log`, log cũ trong `logs/`, dòng typo `product` trong `.gitignore`; `.script/check-imports.mjs` dời về `scripts/`.
+- **Archive script one-off** vào `scripts/archive/` (migrate-registry, verify-additive-registry, injectDisplayToRegistry, check-combo-account, test-combo-autoswitch, compare-vitest-runs, translate-readme); script debug vilao/cli/release gom vào `scripts/debug/`.
+
+### Performance
+
+- **sql.js adapter:** reuse prepared statement theo SQL string (trước đây prepare/free mỗi lần gọi — ngang bằng 3 adapter native).
+- **`/v1/models` + `/office/v1/models`:** `buildModelsList` bọc cache 1s (env `MODELS_LIST_CACHE_TTL_MS`, 0 = tắt) + in-flight dedupe — mỗi build trước đây fan-out 5 DB read + fetch upstream catalog.
+- **`logs/` tự dọn:** request log session quá `LOG_RETENTION_DAYS` (7) bị prune mỗi giờ khi bật `ENABLE_REQUEST_LOGS`.
+- **Frontend:** 4 modal click-only trên trang provider detail chuyển sang `next/dynamic` — initial chunk route `providers/[id]` giảm 72K → 60K (raw); `material-symbols` về devDependencies, bỏ khỏi `optimizePackageImports`; thêm `NEXT_DIST_DIR` để build phân tích không xung đột lock với server đang chạy.
+
+### Changed
+
+- **Logging chuẩn hóa:** ~170 chỗ `console.log("Error ...")` trong catch → `console.error`; log chatter `[OFFICE-SSE]` + thinking-override → `dbg()` (chỉ hiện khi dev); root có script `npm test`delegate sang suite fast.
+
 ## 0.10.5 - 2026-08-29
 
 ### Added

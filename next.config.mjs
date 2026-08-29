@@ -4,6 +4,9 @@ const proxyClientMaxBodySize = process.env.SWITCH_ROUTER_PROXY_CLIENT_MAX_BODY_S
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // NEXT_DIST_DIR lets analysis builds write to e.g. .next-analyze while the
+  // production standalone server holds locks on .next.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   output: "standalone",
   serverExternalPackages: ["better-sqlite3", "sql.js", "node:sqlite", "bun:sqlite"],
   outputFileTracingExcludes: {
@@ -19,7 +22,7 @@ const nextConfig = {
     // Cache fetch responses across HMR refreshes for faster dev reloads.
     serverComponentsHmrCache: true,
     // Tree-shake heavy barrel imports to cut compile + bundle size
-    optimizePackageImports: ["@dnd-kit/core", "@dnd-kit/sortable", "material-symbols"],
+    optimizePackageImports: ["@dnd-kit/core", "@dnd-kit/sortable"],
   },
   webpack: (config, { isServer }) => {
     // Ignore fs/path modules in browser bundle

@@ -219,35 +219,35 @@ async function buildModelsListUncached(kindFilter, options = {}) {
     connections = await getProviderConnections();
     connections = connections.filter(c => c.isActive !== false);
   } catch (e) {
-    console.log("Could not fetch providers, returning all models");
+    console.error("Could not fetch providers, returning all models");
   }
 
   let combos = [];
   try {
     combos = await getCombos();
   } catch (e) {
-    console.log("Could not fetch combos");
+    console.error("Could not fetch combos");
   }
 
   let customModels = [];
   try {
     customModels = await getCustomModels();
   } catch (e) {
-    console.log("Could not fetch custom models");
+    console.error("Could not fetch custom models");
   }
 
   let modelAliases = {};
   try {
     modelAliases = await getModelAliases();
   } catch (e) {
-    console.log("Could not fetch model aliases");
+    console.error("Could not fetch model aliases");
   }
 
   let disabledByAlias = {};
   try {
     disabledByAlias = await getDisabledModels();
   } catch (e) {
-    console.log("Could not fetch disabled models");
+    console.error("Could not fetch disabled models");
   }
   const isDisabled = (alias, modelId) => Array.isArray(disabledByAlias[alias]) && disabledByAlias[alias].includes(modelId);
 
