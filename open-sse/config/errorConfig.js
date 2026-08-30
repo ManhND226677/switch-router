@@ -99,6 +99,13 @@ export const ERROR_RULES = [
   // guard would silently cost the user its account failover.
   ...CONTEXT_OVERFLOW_TEXTS.map(text => ({ text, cooldownMs: 0, payloadFault: true })),
 
+  // WorkBuddy AI's client gate (400 code 11128): it rejects the body for carrying a
+  // disallowed CLI identity, so every sibling account behind the same model gets the
+  // same verdict — rotating only burns upstream calls and mislabels healthy accounts.
+  // The neighbouring 403 code 11140 "request illegal" is deliberately NOT listed:
+  // that one is per-account credential rejection, where rotation is the point.
+  { text: "illegal api invocation from an unapproved channel", cooldownMs: 0, payloadFault: true },
+
   // --- Status-based rules (fallback when text doesn't match) ---
   { status: 401, cooldownMs: COOLDOWN.long },
   { status: 402, cooldownMs: COOLDOWN.long },

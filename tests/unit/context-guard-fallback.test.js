@@ -51,6 +51,15 @@ describe("checkFallbackError: payloadFault classification", () => {
     expect(result.cooldownMs).toBeGreaterThan(0);
   });
 
+  it("classifies the WorkBuddy channel gate (400 code 11128) as a payload fault", () => {
+    const body = '{"code":11128,"msg":"Illegal API invocation from an unapproved channel","requestId":"6fbf9e05"}';
+    expect(checkFallbackError(400, body)).toEqual({
+      shouldFallback: true,
+      cooldownMs: 0,
+      payloadFault: true,
+    });
+  });
+
   it("leaves every unrelated error on the transient default", () => {
     expect(checkFallbackError(500, "boom")).toEqual({
       shouldFallback: true,
@@ -93,5 +102,27 @@ describe("markAccountUnavailable: payload faults never lock or rotate", () => {
 
     expect(decision.shouldFallback).toBe(true);
     expect(decision.cooldownMs).toBe(MAX_RATE_LIMIT_COOLDOWN_MS);
+  });
+
+  it("never confuses WorkBuddy's channel gate with a dead account", async () => {
+    mocks.getProviderConnections.mockResolvedValue([{ id: "conn-4", backoffLevel: 0 }]);
+    mocks.updateProviderConnection.mockClear();
+    const { markAccountUnavailable } = await import("@/sse/services/auth.js");
+
+    const gate = await markAccountUnavailable(
+      "conn-4", 400, '{"code":11128,"msg":"Illegal API invocation from an unapproved channel"}',
+      "workbuddy", "hy4-preview",
+    );
+    expect(gate).toEqual({ shouldFallback: false, cooldownMs: 0, payloadFault: true });
+    expect(mocks.updateProviderConnection).not.toHaveBeenCalled();
+
+    // 403 code 11140 is a per-account credential rejection: cooling it down and
+    // rotating to a sibling account is exactly what recovers the request.
+    const dead = await markAccountUnavailable(
+      "conn-4", 403, '{"code":11140,"msg":"request illegal"}', "workbuddy", "hy4-preview",
+    );
+    expect(dead.shouldFallback).toBe(true);
+    expect(dead.cooldownMs).toBeGreaterThan(0);
+    expect(mocks.updateProviderConnection).toHaveBeenCalledTimes(1);
   });
 });
