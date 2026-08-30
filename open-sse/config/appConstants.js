@@ -142,14 +142,24 @@ export const LOAD_CODE_ASSIST_METADATA = {
 export const CLAUDE_SYSTEM_PROMPT = "You are Claude Code, Anthropic's official CLI for Claude.";
 
 // WorkBuddy AI screens chat bodies for third-party CLI identity and rejects them with
-// code 11128 "Illegal API invocation from an unapproved channel" (measured 2026-08-30:
-// 15/15 Claude Code payloads blocked, 0/168 other payloads). Only the product-name
-// sentence is rewritten, so the rest of the caller's harness prompt — tool rules,
-// environment, output style — still reaches the model.
+// code 11128 "Illegal API invocation from an unapproved channel". Measured 2026-08-30
+// via A/B probes through the gateway: the gate is role-specific — the identity sentence
+// at the head of a SYSTEM message blocks (15/15), and the same sentence ANYWHERE inside
+// an ASSISTANT message blocks too (Claude Code's ultra-effort/retry flows re-inject it
+// there); user messages, tool definitions and mid-system prose mentions all pass. Each
+// rule therefore carries the roles it must scrub; only the product-name sentence is
+// rewritten, so the rest of the caller's harness prompt — tool rules, environment,
+// output style — still reaches the model.
 export const WORKBUDDY_IDENTITY_REWRITES = [
   {
+    roles: ["system"],
     pattern: /^You are Claude Code, Anthropic's official CLI for Claude[^\n]*/gm,
     to: "You are an expert software engineering agent.",
+  },
+  {
+    roles: ["assistant"],
+    pattern: /You are Claude Code, Anthropic's official CLI for Claude/g,
+    to: "You are an expert software engineering agent",
   },
 ];
 

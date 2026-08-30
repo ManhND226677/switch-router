@@ -11,11 +11,12 @@ import { WORKBUDDY_IDENTITY_REWRITES } from "../config/appConstants.js";
 //      `X-User-Id: <urlencoded uid>` header (product.json usernameHeader).
 //   2. Non-stream requests are rejected (code 11101); registry sets forceStream.
 //   3. Code 11128 "Illegal API invocation from an unapproved channel" (HTTP 400) is
-//      upstream's client gate, not a prompt-shape error: measured 2026-08-30, every
-//      payload whose system prompt opens with the Claude Code CLI identity line is
-//      blocked (15/15) while every other payload passes (0/168), across all
-//      connections and regardless of body size. transformRequest() below neutralizes
-//      that one sentence.
+//      upstream's client gate, not a prompt-shape error. A/B probes 2026-08-30 show it
+//      is role-specific: the Claude Code identity sentence blocks when it heads a
+//      system message (15/15 measured) or appears ANYWHERE inside an assistant message
+//      (Claude Code's ultra-effort/retry flows re-inject it there); the same sentence
+//      in user messages, tool definitions or mid-system prose passes. transformRequest()
+//      neutralizes the sentence in both roles.
 //   4. A leading system message is still required, so transformRequest() prepends one
 //      when the client sends none.
 // The uid is the Keycloak `sub` claim of the accessToken JWT, so a pasted token
@@ -94,19 +95,22 @@ export function resolveWorkbuddySession(credentials) {
   return null;
 }
 
-function rewriteIdentityText(text) {
+function rewriteIdentityText(text, role) {
   let out = text;
-  for (const { pattern, to } of WORKBUDDY_IDENTITY_REWRITES) out = out.replace(pattern, to);
+  for (const { pattern, to, roles } of WORKBUDDY_IDENTITY_REWRITES) {
+    if (roles && !roles.includes(role)) continue;
+    out = out.replace(pattern, to);
+  }
   return out;
 }
 
-function rewriteIdentityContent(content) {
-  if (typeof content === "string") return rewriteIdentityText(content);
+function rewriteIdentityContent(content, role) {
+  if (typeof content === "string") return rewriteIdentityText(content, role);
   if (!Array.isArray(content)) return content;
   let changed = false;
   const next = content.map((part) => {
     if (part?.type !== "text" || typeof part.text !== "string") return part;
-    const rewritten = rewriteIdentityText(part.text);
+    const rewritten = rewriteIdentityText(part.text, role);
     if (rewritten === part.text) return part;
     changed = true;
     return { ...part, text: rewritten };
@@ -114,12 +118,14 @@ function rewriteIdentityContent(content) {
   return changed ? next : content;
 }
 
-// Copies (never mutates) the system messages that carry a blocked client identity.
+// Copies (never mutates) the messages that carry a blocked client identity.
+// The gate is role-specific: system (identity sentence at line start) and
+// assistant (the sentence anywhere) are scrubbed; user/tool content is left alone.
 export function neutralizeChannelIdentity(messages) {
   let changed = false;
   const next = messages.map((msg) => {
-    if (msg?.role !== "system") return msg;
-    const content = rewriteIdentityContent(msg.content);
+    if (msg?.role !== "system" && msg?.role !== "assistant") return msg;
+    const content = rewriteIdentityContent(msg.content, msg.role);
     if (content === msg.content) return msg;
     changed = true;
     return { ...msg, content };

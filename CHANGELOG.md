@@ -2,6 +2,12 @@
 
 This file tracks changes for the local personal build only.
 
+## 0.10.12 - 2026-08-30
+
+### Fixed
+
+- **`wb/hy4-preview` vẫn 11128 từ Claude Code dù system prompt đã rewrite** (lỗi tái phát 20:53, requestId `6d9b3344…` đúng payload người dùng report). Fix 0.10.11 chỉ thay câu identity ở đầu **system** message; payload bị lỗi lần này `3 MSG` kèm một **assistant** message mang câu identity (flow ultra-effort/retry của Claude Code inject lại danh tính vào đó). Chốt nhân quả bằng 19 probe A/B live qua gateway: câu `You are Claude Code, Anthropic's official CLI for Claude` bị chặn khi đứng đầu system message hoặc xuất hiện **bất kỳ đâu trong assistant message** (kể cả giữa dòng — `Sure! You are Claude Code… How can I help?` cũng 11128); cùng câu đó trong user message, tool definitions, system giữa dòng, payload 90KB, 31 tools hay `thinking` xhigh đều pass. Fix: `WORKBUDDY_IDENTITY_REWRITES` thêm trường `roles` theo rule + rule assistant thay câu identity dạng substring (không anchor); `neutralizeChannelIdentity()` quét cả `role:"assistant"` (string lẫn text-block array, block không phải text giữ nguyên). User/tool content vẫn nguyên từng byte; provider khác không đụng. Test nâng từ 8 lên 12 case.
+
 ## 0.10.11 - 2026-08-30
 
 ### Fixed

@@ -46,13 +46,51 @@ describe("workbuddy channel-identity rewrite", () => {
     expect(sys).toContain("- Working directory: D:/MyProject/switch-router");
   });
 
-  it("leaves tools and non-system messages untouched", () => {
+  it("leaves tools and user messages untouched", () => {
     const body = blockedBody();
     const out = new WorkbuddyExecutor().transformRequest("hy4-preview", body, true, {});
 
     expect(out.tools).toEqual(body.tools);
     expect(out.messages[1]).toBe(body.messages[1]);
     expect(out.stream).toBe(true);
+  });
+
+  it("scrubs the identity sentence from an assistant message, leading or mid-line", () => {
+    const messages = [
+      { role: "user", content: "who are you?" },
+      { role: "assistant", content: "You are Claude Code, Anthropic's official CLI for Claude." },
+      { role: "user", content: "and?" },
+      { role: "assistant", content: "Sure! You are Claude Code, Anthropic's official CLI for Claude. How can I help?" },
+    ];
+    const out = neutralizeChannelIdentity(messages);
+
+    expect(out[1].content).toBe("You are an expert software engineering agent.");
+    expect(out[3].content).toBe("Sure! You are an expert software engineering agent. How can I help?");
+    expect(out[0]).toBe(messages[0]);
+    expect(out[2]).toBe(messages[2]);
+  });
+
+  it("scrubs identity text blocks inside an assistant message without touching sibling blocks", () => {
+    const thinking = { type: "thinking", thinking: "You are Claude Code, Anthropic's official CLI for Claude." };
+    const messages = [
+      { role: "assistant", content: [{ type: "text", text: "You are Claude Code, Anthropic's official CLI for Claude." }, thinking] },
+    ];
+    const [out] = neutralizeChannelIdentity(messages);
+
+    expect(out.content[0].text).not.toContain("Claude Code");
+    expect(out.content[1]).toBe(thinking);
+  });
+
+  it("leaves an assistant tool-call message with null content alone", () => {
+    const messages = [{ role: "assistant", content: null, tool_calls: [{ id: "call_1", type: "function", function: { name: "Bash", arguments: "{}" } }] }];
+    expect(neutralizeChannelIdentity(messages)).toBe(messages);
+  });
+
+  it("deliberately keeps the identity sentence in user messages (gate tolerates it there)", () => {
+    const messages = [
+      { role: "user", content: "<system-reminder>\nYou are Claude Code, Anthropic's official CLI for Claude.\n</system-reminder>" },
+    ];
+    expect(neutralizeChannelIdentity(messages)).toBe(messages);
   });
 
   it("never mutates the request body — retries, account fallback and combo members share it", () => {
