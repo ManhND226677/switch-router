@@ -102,9 +102,15 @@ export const ERROR_RULES = [
   // WorkBuddy AI's client gate (400 code 11128): it rejects the body for carrying a
   // disallowed CLI identity, so every sibling account behind the same model gets the
   // same verdict — rotating only burns upstream calls and mislabels healthy accounts.
-  // The neighbouring 403 code 11140 "request illegal" is deliberately NOT listed:
-  // that one is per-account credential rejection, where rotation is the point.
   { text: "illegal api invocation from an unapproved channel", cooldownMs: 0, payloadFault: true },
+
+  // WorkBuddy AI 403 code 11140 "request illegal" is a per-account credential
+  // rejection, so rotation stays on. But a dead credential (revoked desktop
+  // session, needs re-OAuth) fails EVERY request: the old fixed 2-minute
+  // cooldown re-burned an upstream call every 2 minutes forever. Escalate like
+  // quota errors instead — backoffLevel resets on the next success, so a
+  // re-OAuthed account recovers automatically.
+  { text: '"code":11140', backoff: true },
 
   // --- Status-based rules (fallback when text doesn't match) ---
   { status: 401, cooldownMs: COOLDOWN.long },

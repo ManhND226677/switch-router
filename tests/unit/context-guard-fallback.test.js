@@ -126,3 +126,49 @@ describe("markAccountUnavailable: payload faults never lock or rotate", () => {
     expect(mocks.updateProviderConnection).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("workbuddy 11140 credential rejection escalates instead of looping", () => {
+  const BODY_11140 = '{"code":11140,"msg":"request illegal","requestId":"ebc523e5"}';
+
+  it("first failure starts the backoff ladder (level 1, still rotates)", () => {
+    expect(checkFallbackError(403, BODY_11140, 0)).toEqual({
+      shouldFallback: true,
+      cooldownMs: 2000,
+      payloadFault: false,
+      newBackoffLevel: 1,
+    });
+  });
+
+  it("repeated failures escalate the cooldown, capped at BACKOFF max", () => {
+    const fourth = checkFallbackError(403, BODY_11140, 3);
+    expect(fourth.newBackoffLevel).toBe(4);
+    expect(fourth.cooldownMs).toBe(16000);
+    expect(fourth.cooldownMs).toBeGreaterThan(checkFallbackError(403, BODY_11140, 0).cooldownMs);
+    const capped = checkFallbackError(403, BODY_11140, 15);
+    expect(capped.newBackoffLevel).toBe(15);
+    expect(capped.cooldownMs).toBe(5 * 60 * 1000);
+  });
+
+  it("persists the escalated backoffLevel on the connection", async () => {
+    mocks.getProviderConnections.mockResolvedValue([{ id: "conn-5", backoffLevel: 2 }]);
+    mocks.updateProviderConnection.mockClear();
+    const { markAccountUnavailable } = await import("@/sse/services/auth.js");
+
+    const decision = await markAccountUnavailable("conn-5", 403, BODY_11140, "workbuddy", "hy4-preview");
+
+    expect(decision.shouldFallback).toBe(true);
+    expect(decision.cooldownMs).toBe(8000);
+    expect(mocks.updateProviderConnection).toHaveBeenCalledWith(
+      "conn-5",
+      expect.objectContaining({ backoffLevel: 3, testStatus: "unavailable", errorCode: 403 }),
+    );
+  });
+
+  it("a generic 403 without code 11140 keeps the fixed status cooldown", () => {
+    expect(checkFallbackError(403, "Forbidden")).toEqual({
+      shouldFallback: true,
+      cooldownMs: 2 * 60 * 1000,
+      payloadFault: false,
+    });
+  });
+});

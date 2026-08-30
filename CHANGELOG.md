@@ -2,6 +2,17 @@
 
 This file tracks changes for the local personal build only.
 
+## 0.10.13 - 2026-08-30
+
+### Fixed
+
+- **Account chết credential (WorkBuddy 403 `code 11140`) không còn ám vòng rotation mỗi 2 phút.** Trước đây rule 403 cố định `COOLDOWN.long` 2 phút: credential hỏng (session desktop app bị revoke, cần re-OAuth) fail MỌI request nhưng cứ 2 phút lại được chọn lại, đốt 1 call upstream + hiện lỗi 403 mãi. Giờ `11140` có rule text riêng với `backoff: true` trong `ERROR_RULES` (`open-sse/config/errorConfig.js`): cooldown leo thang exponential theo `backoffLevel` (2s → 4s → … → cap 5 phút), vẫn rotate sang account khác, và `clearAccountError` reset level về 0 khi request thành công nên account re-OAuth xong tự phục hồi. Test `tests/unit/context-guard-fallback.test.js` +4 case.
+
+### Changed (config runtime, không phải code)
+
+- Vô hiệu hóa connection `[redacted]` (11140 mọi payload từ 0.10.11) — bật lại sau khi bấm re-OAuth trên dashboard.
+- Key `MyCowork` khóa `allowedModels` về `wb/hy4-preview` + 3 combo `claude-*`: client fallback gọi `bai/*`, `openrouter/*`, deepseek bare… bị chặn ngay ở gateway thay vì đốt 15–47s connect timeout rồi 404 guardrail.
+
 ## 0.10.12 - 2026-08-30
 
 ### Fixed
