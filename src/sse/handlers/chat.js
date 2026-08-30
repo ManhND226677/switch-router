@@ -431,7 +431,7 @@ async function handleSingleModelRequest(body, modelStr, clientRawRequest = null,
       }
 
       // Mark account unavailable (auto-calculates cooldown with exponential backoff, or precise resetsAtMs)
-      const { shouldFallback } = await markAccountUnavailable(
+      const { shouldFallback, cooldownMs, payloadFault } = await markAccountUnavailable(
         credentials.connectionId,
         result.status,
         result.error,
@@ -453,8 +453,12 @@ async function handleSingleModelRequest(body, modelStr, clientRawRequest = null,
         }
       }
 
-      if (shouldFallback) {
+      if (payloadFault) {
+        log.warn("FALLBACK", `✖ ACC:${credentials.connectionName} PAYLOAD REJECTED (${result.status}) — upstream gate, no lock, no rotation`);
+      } else if (shouldFallback && cooldownMs > 0) {
         log.warn("FALLBACK", `⇄ ACC:${credentials.connectionName} UNAVAILABLE (${result.status}) → NEXT ACCOUNT`);
+      } else if (shouldFallback) {
+        log.warn("FALLBACK", `⇄ ACC:${credentials.connectionName} REJECTED (${result.status}) → NEXT ACCOUNT (no lock)`);
       }
 
       return { shouldFallback };
