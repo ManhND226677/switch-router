@@ -47,8 +47,6 @@ export function extractCodexAccountInfo(idToken) {
 }
 
 export {
-  BASE64_BLOCK_SIZE,
   decodeXaiIdTokenEmail,
-  decodeJwtPayload,
   extractEmailFromAccessToken,
 };

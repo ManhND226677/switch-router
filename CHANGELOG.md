@@ -2,6 +2,23 @@
 
 This file tracks changes for the local personal build only.
 
+## 0.10.10 - 2026-08-30
+
+### Security
+
+- **Request logs che header nhạy cảm.** `maskSensitiveHeaders()` trong `open-sse/utils/requestLogger.js` trước đây là no-op (giữ nguyên mọi header theo chú thích "local behavior") — tức bật `ENABLE_REQUEST_LOGS=true` là plaintext `Authorization`/`x-api-key`/`Cookie` của client lẫn upstream nằm trong `logs/` (retention 7 ngày, full body kèm theo). Giờ redact `[REDACTED]` cho `authorization`, `proxy-authorization`, `x-api-key`, `api-key`, `cookie`, `set-cookie`; áp luôn cho header response provider (`logProviderResponse` trước đây không mask). Body và header còn lại giữ nguyên cho debug.
+
+### Changed
+
+- **Bớt rò payload ra stdout:** `streamHelpers.js` không in 100 ký tự đầu của SSE line lỗi (có thể chứa nội dung message user) — chỉ log độ dài; `oauth/codex/import-token` log `error.message` thay vì nguyên object error; log poll onboard `[ProjectId]` (lặp mỗi 2s) chuyển sang `dbg()` dev-only; `v1/models` đổi `console.log` → `console.warn`.
+
+### Removed
+
+- **Dead code dọn sau đợt gỡ 0.10.9** (quét 2 lớp: reference + dead export, xác nhận 0 tham chiếu trước khi xóa): import thừa `OAUTH_ENDPOINTS` (`tokenRefresh.js`), `proxyAwareFetch` (`tokenRefresh/providers.js`), `Badge`/`Input`/`AI_PROVIDERS` (trang provider detail), `generateState` (`oauth/providers.js`); export 0 tham chiếu `OPENAI_CONFIG` + `AWS_REGION_PATTERN`/`assertValidAwsRegion` (leftover provider AWS-based đã gỡ), `getProviderNames`, `GIT_DIFF_CONTEXT_KEEP`, `convertResponsesApiFormat` (file giữ lại `normalizeResponsesInput` đang dùng), `hasClaudeSignaturePrefix`, `writeStreamError`, `chatChunkSse`, trio `printSection`/`printKeyValue`/`printList` (`oauth/utils/ui.js` — giữ `spinner` đang dùng), re-export `BASE64_BLOCK_SIZE`/`decodeJwtPayload` (`providerHelpers.js` — vẫn dùng nội bộ).
+- **4 icon mồ côi** `public/providers/{xai,cursor,commandcode,xiaomi-mimo}.png` (0 tham chiếu sau khi gỡ provider).
+- **4 artifact JSON test-run cũ track nhầm trong git** (`tests/vitest-results.json`, `tests/__baseline__/{baseline,current}-results.json`, `tests/__baseline__/current.json`) — chỉ ghi lại kết quả vitest từ bản trước 0.10.9; CI (`qa.yml`) và `qa-gate`/`qa-profile` dùng `tests/.vitest-reports/` (không track).
+- **Test `bugs-gemini-cursor-commandcode.test.js` đổi tên `bugs-gemini.test.js`** (nội dung đã sạch cursor/commandcode từ 0.10.9, chỉ còn tên file sai) + cập nhật `tests/translator/AGENTS.md`; `verify-alias.mjs` bỏ 5 token probe của provider đã gỡ (`commandcode`, `xai`, `cursor`, `mimo`, `xiaomi-mimo`) và regen `alias-baseline.json` (58 tokens).
+
 ## 0.10.9 - 2026-08-30
 
 ### Added

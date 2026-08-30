@@ -8,6 +8,7 @@
  */
 
 import { CLOUD_CODE_API, LOAD_CODE_ASSIST_HEADERS, LOAD_CODE_ASSIST_METADATA } from "../config/appConstants.js";
+import { dbg } from "../utils/debugLog.js";
 
 // ─── Cache ────────────────────────────────────────────────────────────────────
 // connectionId -> { projectId: string, fetchedAt: number }
@@ -238,8 +239,8 @@ async function onboardUser(accessToken, tierID, externalSignal) {
                 throw new Error("onboardUser done but no project_id in response");
             }
 
-            // Server not done yet – wait and retry
-            console.log(`[ProjectId] Onboard attempt ${attempt}/${MAX_ATTEMPTS}: not done yet, waiting...`);
+            // Server not done yet – wait and retry (per-poll noise: dev-only)
+            dbg("ProjectId", `Onboard attempt ${attempt}/${MAX_ATTEMPTS}: not done yet, waiting...`);
             await new Promise(resolve => setTimeout(resolve, 2000));
 
         } catch (error) {

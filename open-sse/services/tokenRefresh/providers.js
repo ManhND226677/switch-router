@@ -1,6 +1,5 @@
 import { PROVIDERS, PROVIDER_OAUTH } from "../../config/providers.js";
 import { OAUTH_ENDPOINTS, GITHUB_COPILOT } from "../../config/appConstants.js";
-import { proxyAwareFetch } from "../../utils/proxyFetch.js";
 import { dedupRefresh } from "./dedup.js";
 
 

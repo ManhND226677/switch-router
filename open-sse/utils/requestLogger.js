@@ -271,10 +271,24 @@ async function createLogSession(sourceFormat, targetFormat, model) {
   }
 }
 
-// Keep the existing local behavior: full headers are retained for debugging.
+// Header names whose values are redacted before a session is persisted —
+// without this, ENABLE_REQUEST_LOGS writes reusable credentials to logs/ in plaintext.
+const SENSITIVE_HEADERS = new Set([
+  "authorization",
+  "proxy-authorization",
+  "x-api-key",
+  "api-key",
+  "cookie",
+  "set-cookie",
+]);
+
 function maskSensitiveHeaders(headers) {
   if (!headers) return {};
-  return { ...headers };
+  const masked = {};
+  for (const [name, value] of Object.entries(headers)) {
+    masked[name] = SENSITIVE_HEADERS.has(name.toLowerCase()) ? "[REDACTED]" : value;
+  }
+  return masked;
 }
 
 function createNoOpLogger() {
@@ -355,9 +369,9 @@ export async function createRequestLogger(sourceFormat, targetFormat, model, opt
     logProviderResponse(status, statusText, headers, body) {
       track(writeJsonFile(sessionPath, "5_res_provider.json", {
         timestamp: new Date().toISOString(), status, statusText,
-        headers: headers
+        headers: maskSensitiveHeaders(headers
           ? (typeof headers.entries === "function" ? Object.fromEntries(headers.entries()) : headers)
-          : {},
+          : {}),
         body,
       }));
     },

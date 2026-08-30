@@ -101,7 +101,7 @@ Grouped per CLI/provider test file. Each row is an `it.fails` case.
 | functionResponse + functionCall in same content → tool calls dropped | `request/antigravity-to-openai.js:177-189` |
 | functionCall without id → random unstable id | `request/antigravity-to-openai.js:167` |
 
-**Gemini (`bugs-gemini-cursor-commandcode.test.js`)**
+**Gemini (`bugs-gemini.test.js`)**
 | Bug | Source |
 |---|---|
 | Only the last system message kept | `request/openai-to-gemini.js:92-96` |

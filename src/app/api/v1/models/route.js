@@ -379,7 +379,7 @@ async function buildModelsListUncached(kindFilter, options = {}) {
             );
           }
         } catch (err) {
-          console.log(`Live model fetch failed for ${providerId}: ${err?.message || err}`);
+          console.warn(`Live model fetch failed for ${providerId}: ${err?.message || err}`);
         }
       }
 

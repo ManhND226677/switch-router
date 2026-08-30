@@ -38,18 +38,6 @@ export function errorResponse(statusCode, message) {
 }
 
 /**
- * Write error to SSE stream (for streaming)
- * @param {WritableStreamDefaultWriter} writer - Stream writer
- * @param {number} statusCode - HTTP status code
- * @param {string} message - Error message
- */
-export async function writeStreamError(writer, statusCode, message) {
-  const errorBody = buildErrorBody(statusCode, message);
-  const encoder = new TextEncoder();
-  await writer.write(encoder.encode(`data: ${JSON.stringify(errorBody)}\n\n`));
-}
-
-/**
  * Parse upstream provider error response
  * @param {Response} response - Fetch response from provider
  * @param {object} [executor] - Optional executor with parseError() override for provider-specific parsing

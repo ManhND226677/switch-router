@@ -1,5 +1,5 @@
 import { PROVIDERS } from "../config/providers.js";
-import { OAUTH_ENDPOINTS, REFRESH_LEAD_MS } from "../config/appConstants.js";
+import { REFRESH_LEAD_MS } from "../config/appConstants.js";
 import {
   refreshGrokCliToken,
   refreshAccessToken,

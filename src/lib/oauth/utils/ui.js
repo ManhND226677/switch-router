@@ -29,20 +29,3 @@ export function spinner(text) {
   return ora(text);
 }
 
-export function printSection(title) {
-  console.log(chalk.blue(`\n${title}\n`));
-}
-
-export function printKeyValue(key, value, isSuccess = false) {
-  const color = isSuccess ? chalk.green : chalk.gray;
-  console.log(color(`  ${key}: ${value}`));
-}
-
-export function printList(items, isSuccess = false) {
-  const symbol = isSuccess ? "✓" : "✗";
-  const color = isSuccess ? chalk.green : chalk.gray;
-  items.forEach((item) => {
-    console.log(color(`  ${symbol} ${item}`));
-  });
-}
-

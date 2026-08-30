@@ -13,11 +13,6 @@ function stripCachePrefix(rawSignature) {
   return idx >= 0 ? sig.slice(idx + 1).trim() : sig;
 }
 
-export function hasClaudeSignaturePrefix(rawSignature) {
-  const sig = stripCachePrefix(rawSignature);
-  return sig.length > 0 && (sig[0] === "E" || sig[0] === "R");
-}
-
 // Strict-ish: validates base64 layers + Claude marker byte.
 export function isValidClaudeSignature(rawSignature) {
   const sig = stripCachePrefix(rawSignature);
