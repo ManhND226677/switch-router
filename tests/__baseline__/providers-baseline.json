@@ -365,5 +365,9 @@
   "workbuddy": {
     "baseUrl": "https://www.workbuddy.ai/v2/chat/completions",
     "format": "openai"
+  },
+  "bai": {
+    "baseUrl": "https://api.b.ai/v1/chat/completions",
+    "format": "openai"
   }
 }
