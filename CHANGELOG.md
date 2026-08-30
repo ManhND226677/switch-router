@@ -10,7 +10,7 @@ This file tracks changes for the local personal build only.
 
 ### Changed (config runtime, không phải code)
 
-- Vô hiệu hóa connection `[redacted]` (11140 mọi payload từ 0.10.11) — bật lại sau khi bấm re-OAuth trên dashboard.
+- Vô hiệu hóa connection WorkBuddy desktop-app (11140 mọi payload từ 0.10.11) — bật lại sau khi bấm re-OAuth trên dashboard.
 - Key `MyCowork` khóa `allowedModels` về `wb/hy4-preview` + 3 combo `claude-*`: client fallback gọi `bai/*`, `openrouter/*`, deepseek bare… bị chặn ngay ở gateway thay vì đốt 15–47s connect timeout rồi 404 guardrail.
 
 ## 0.10.12 - 2026-08-30
@@ -29,7 +29,7 @@ This file tracks changes for the local personal build only.
 
 ### Known issues (không đổi trong bản này)
 
-- Connection `[redacted]` (token desktop app, `[redacted]`) bị upstream chặn bằng `403 {"code":11140,"msg":"request illegal"}` với **mọi** loại payload, kể cả nhóm identity mà 168 request từng pass → cần bấm lại OAuth trên dashboard; không liên quan rewrite. Hai connection gmail vẫn probe OK.
+- Connection WorkBuddy desktop-app (token desktop app) bị upstream chặn bằng `403 {"code":11140,"msg":"request illegal"}` với **mọi** loại payload, kể cả nhóm identity mà 168 request từng pass → cần bấm lại OAuth trên dashboard; không liên quan rewrite. Hai connection gmail vẫn probe OK.
 - Router vẫn coi `400` là account chết (`src/sse/handlers/chat.js:457`) → rotate đủ cả 3 connection cho cùng một lỗi payload rồi log `all 3 accounts unavailable`, làm metric latency/failure rate sai bản chất. Không sửa vì đường này dùng chung mọi provider.
 
 ## 0.10.10 - 2026-08-30
