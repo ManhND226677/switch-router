@@ -67,6 +67,7 @@
   "idToAlias": {
     "anthropic": "anthropic",
     "antigravity": "ag",
+    "bai": "bai",
     "claude": "cc",
     "codex": "cx",
     "deepseek": "deepseek",
@@ -94,6 +95,7 @@
   "modelKeys": [
     "ag",
     "anthropic",
+    "bai",
     "cc",
     "cx",
     "deepseek",

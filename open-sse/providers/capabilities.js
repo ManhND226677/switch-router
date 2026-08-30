@@ -127,6 +127,21 @@ export const PROVIDER_CAPABILITIES = {
     "kimi-k2.6": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 256000, maxOutput: 32000 },
     "minimax-m3": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 512000, maxOutput: 128000 },
   },
+  // B.AI — OpenAI-compatible aggregator. Free subset (works on a 0-balance
+  // key) measured by real requests 2026-08-30; premium ids are deliberately
+  // not listed (they answer 403 "Deposit required"). Every free model emits
+  // OpenAI-style `reasoning_content` and needs NO vendor thinking fields, so
+  // thinkingFormat stays "openai" for all of them. Context/output limits use
+  // the smallest credible family value — the context guard trusts an upstream
+  // report over these declared numbers anyway.
+  "bai": {
+    "hy3": { reasoning: true, thinkingFormat: "openai", contextWindow: 192000, maxOutput: 64000 },
+    "glm-5.3-flash": { reasoning: true, thinkingFormat: "openai", contextWindow: 200000, maxOutput: 64000 },
+    "deepseek-v4-flash": { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 384000 },
+    "deepseek-v4-flash-vision-exp": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 384000 },
+    "qwen3.8-flash": { reasoning: true, thinkingFormat: "openai", contextWindow: 1000000, maxOutput: 65536 },
+    "mimo-v2.5": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 262144, maxOutput: 131072 },
+  },
 };
 
 /**

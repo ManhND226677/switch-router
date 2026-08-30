@@ -24,6 +24,7 @@ import p21 from "./stepfun.js";
 import p22 from "./vilao.js";
 import p23 from "./xiaomi-tokenplan.js";
 import p24 from "./workbuddy.js";
+import p25 from "./bai.js";
 
 export default [
   p0,
@@ -50,5 +51,6 @@ export default [
   p21,
   p22,
   p23,
-  p24
+  p24,
+  p25
 ];
