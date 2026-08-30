@@ -44,22 +44,8 @@ export function getOAuthClientMetadata() {
   return { ideType: 9, platform: getOAuthPlatformEnum(), pluginType: 2 };
 }
 
-// OpenAI OAuth Configuration (Authorization Code Flow with PKCE)
-export const OPENAI_CONFIG = { ...PROVIDER_OAUTH["openai"] };
-
 // GitHub Copilot OAuth Configuration (Device Code Flow)
 export const GITHUB_CONFIG = { ...PROVIDER_OAUTH["github"] };
-
-// AWS region allowlist pattern — prevents SSRF via region injection into upstream URLs (GHSA-6mwv-4mrm-5p3m)
-export const AWS_REGION_PATTERN = /^[a-z]{2}-[a-z]+-\d{1,2}$/;
-
-// Reject any region that is not a valid AWS region before interpolating it into a URL
-export function assertValidAwsRegion(region) {
-  if (typeof region !== "string" || !AWS_REGION_PATTERN.test(region)) {
-    throw new Error("Invalid region");
-  }
-  return region;
-}
 
 // Kimi Coding OAuth Configuration (Device Code Flow)
 // clientId uses env override — dynamic, not stored in registry

@@ -6,7 +6,7 @@
 // Ensure outbound fetch respects HTTP(S)_PROXY/ALL_PROXY in Node runtime
 import "../../../open-sse/index.js";
 
-import { generatePKCE, generateState } from "./utils/pkce";
+import { generatePKCE } from "./utils/pkce";
 import {
   CLAUDE_CONFIG,
   CODEX_CONFIG,
@@ -707,13 +707,6 @@ export function getProvider(name) {
     throw new Error(`Unknown provider: ${name}`);
   }
   return provider;
-}
-
-/**
- * Get all provider names
- */
-export function getProviderNames() {
-  return Object.keys(PROVIDERS);
 }
 
 /**

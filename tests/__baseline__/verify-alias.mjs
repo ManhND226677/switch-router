@@ -12,10 +12,10 @@ const snapPath = join(here, "alias-baseline.json");
 const ALIAS_TOKENS = [
   "cc","cx","gc","qw","ag","gh","kr","cu","kc","kmc","cl","oc","ocg","qd","qoder",
   "el","openai","anthropic","gemini","openrouter","glm","kimi",
-  "minimax","hf","huggingface","ds","deepseek","cmc","commandcode","groq","xai",
+  "minimax","hf","huggingface","ds","deepseek","cmc","groq",
   "mistral",
-  "dg","deepgram","aai","assemblyai","nb","nanobanana","cursor",
-  "gw","grok-web","gcli","gb","grok-build","grok-cli","mimo","xiaomi-mimo",
+  "dg","deepgram","aai","assemblyai","nb","nanobanana",
+  "gw","grok-web","gcli","gb","grok-build","grok-cli",
   "xmtp","xiaomi-tokenplan",
   "fal","fal-ai","stability","stability-ai","bfl","black-forest-labs","recraft",
   "topaz","runway","runwayml","jina","jina-ai","polly","aws-polly",
