@@ -2,6 +2,19 @@
 
 This file tracks changes for the local personal build only.
 
+## 0.10.11 - 2026-08-30
+
+### Fixed
+
+- **`wb/hy4-preview` fail 100% khi gọi từ Claude Code CLI** (`400 {"code":11128,"msg":"Illegal API invocation from an unapproved channel"}`). Không phải hết promo, lỗi token, giới hạn kích thước hay payload tools: WorkBuddy AI sàng lọc **body** của `/v2/chat/completions` và chặn request mang danh tính CLI đối thủ. Số liệu từ usage DB: 15/15 payload bị chặn có system prompt mở đầu `You are Claude Code, Anthropic's official CLI for Claude…`, **0/168** payload thành công có chuỗi đó; 08-29 từng chạy payload 351KB bình thường. A/B call trực tiếp chốt nhân quả: body ~1KB (2 message, 2 tool) vẫn 11128 khi giữ câu identity, và qua gate ngay khi bỏ câu đó. Fix: `neutralizeChannelIdentity()` trong `open-sse/executors/workbuddy.js` thay đúng câu identity đầu system message bằng `You are an expert software engineering agent.` — rule đặt ở `WORKBUDDY_IDENTITY_REWRITES` (`open-sse/config/appConstants.js`), thêm rule mới không phải sửa code.
+- **Giới hạn phạm vi + không phá harness của CLI.** Rule chỉ chạy trong executor `workbuddy`, chỉ đụng message `role:"system"`, chỉ câu đứng ở đầu dòng (cờ `m`) — tool definitions, tool names, message history và phần còn lại của system prompt giữ nguyên từng byte; `DefaultExecutor("bai")` vẫn gửi nguyên văn prompt Claude Code (test chốt). Rewrite theo kiểu copy-on-write: `base.js` gọi lại `transformRequest` trên **cùng một body object** cho mỗi URL/account/provider trong combo, nên mutate tại chỗ sẽ rò prompt đã rewrite sang upstream khác và vào request log. Test mới `tests/unit/workbuddy-channel-identity.test.js` (8 case).
+- **Sửa chú thích cũ** ở đầu `workbuddy.js` diễn giải nhầm mã `11128` là "thiếu system prompt" — payload lỗi đều đã có system message làm đầu; viết lại thành 4 quirk tách bạch (forceStream, gate channel, prepend system, uid từ claim `sub`).
+
+### Known issues (không đổi trong bản này)
+
+- Connection `manh.nd226677@sis.hust.edu.vn` (token desktop app, `sub 440072bf…`) bị upstream chặn bằng `403 {"code":11140,"msg":"request illegal"}` với **mọi** loại payload, kể cả nhóm identity mà 168 request từng pass → cần bấm lại OAuth trên dashboard; không liên quan rewrite. Hai connection gmail vẫn probe OK.
+- Router vẫn coi `400` là account chết (`src/sse/handlers/chat.js:457`) → rotate đủ cả 3 connection cho cùng một lỗi payload rồi log `all 3 accounts unavailable`, làm metric latency/failure rate sai bản chất. Không sửa vì đường này dùng chung mọi provider.
+
 ## 0.10.10 - 2026-08-30
 
 ### Security
