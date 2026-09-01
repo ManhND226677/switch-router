@@ -55,7 +55,10 @@ function Initialize-RouterRuntime {
     $script:ServerProcess = $null
 
     $script:Port = Get-RouterSetting -Name 'PORT' -Default '28701'
-    $script:Hostname = Get-RouterSetting -Name 'HOSTNAME' -Default '127.0.0.1'
+    # Local-first: custom-server.js always binds 127.0.0.1 regardless of HOSTNAME,
+    # so the tray's displayed/opened URL must match the real bind — ignore any
+    # non-loopback HOSTNAME left over from an older config.
+    $script:Hostname = '127.0.0.1'
     $script:BaseUrl = "http://$($script:Hostname):$($script:Port)"
     $script:DashboardUrl = "$($script:BaseUrl)/dashboard"
     $script:HealthUrl = "$($script:BaseUrl)/api/health"

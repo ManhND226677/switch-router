@@ -19,9 +19,13 @@ if (!process.env.SWITCH_ROUTER_INTERNAL_SECRET) {
 }
 
 // The standalone build receives its runtime settings from the environment.
-// Keep source checkouts local by default while allowing explicit runtime values.
+// Switch-Router is local-first: the gateway binds to loopback only and HOSTNAME
+// is no longer honored for binding. Any value (including 0.0.0.0 or a LAN IP) is
+// overridden to 127.0.0.1 so the dashboard, management APIs and the realtime
+// relay are unreachable from other hosts. A local reverse proxy still works — it
+// connects from 127.0.0.1, the only peer the local-only guard trusts.
 if (!process.env.PORT) process.env.PORT = "28701";
-if (!process.env.HOSTNAME) process.env.HOSTNAME = "127.0.0.1";
+process.env.HOSTNAME = "127.0.0.1";
 
 const origCreate = http.createServer.bind(http);
 
@@ -34,6 +38,13 @@ function sendUpgradeError(socket, status, message) {
   if (!socket || socket.destroyed || !socket.writable) return;
   socket.write(`HTTP/1.1 ${status} Error\r\nConnection: close\r\nContent-Type: text/plain\r\nContent-Length: ${Buffer.byteLength(message)}\r\n\r\n${message}`);
   socket.destroy();
+}
+
+// Loopback test for a raw socket address or a URL hostname (bracketed IPv6 ok).
+function isLoopbackAddress(addr) {
+  if (!addr) return false;
+  const a = String(addr).trim().toLowerCase().replace(/^\[|\]$/g, "");
+  return a === "::1" || a === "::ffff:127.0.0.1" || a === "127.0.0.1" || a.startsWith("127.");
 }
 
 function getRealtimeSelector(request) {
@@ -69,6 +80,24 @@ async function resolveRealtimeToken(request, selector, signal) {
 }
 
 function handleRealtimeUpgrade(request, socket, head) {
+  // Defense in depth for the local-first model: custom-server binds loopback-only,
+  // but this upgrade path runs OUTSIDE the Next middleware (dashboardGuard never
+  // sees it), so re-check the TCP peer and a browser Origin here. Without this, a
+  // rebind or a drive-by from a non-loopback page could make the gateway relay
+  // audio using the stored StepFun account, bypassing the gateway's API-key and
+  // virtual-key policy entirely.
+  if (!isLoopbackAddress(socket.remoteAddress)) {
+    return sendUpgradeError(socket, 403, "Realtime relay is loopback-only");
+  }
+  const origin = request.headers.origin;
+  if (origin) {
+    let originHost;
+    try { originHost = new URL(origin).hostname.toLowerCase(); }
+    catch { return sendUpgradeError(socket, 400, "Invalid Origin header"); }
+    if (originHost !== "localhost" && !isLoopbackAddress(originHost)) {
+      return sendUpgradeError(socket, 403, "Realtime relay Origin is not loopback");
+    }
+  }
   const selector = getRealtimeSelector(request);
   if (selector.provider !== "stepfun") return sendUpgradeError(socket, 404, "StepFun realtime route not found");
   if (!selector.model || selector.model.includes("..")) return sendUpgradeError(socket, 400, "Invalid realtime model");

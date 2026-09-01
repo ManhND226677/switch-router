@@ -156,6 +156,8 @@ Usage DB:
 
 - Dashboard, API keys, provider credentials, combos and usage data stay on the local machine.
 - Tunnel, public relay, cloud-sync and remote deployment controls are removed from the runtime.
+- The server binds to `127.0.0.1` unconditionally (`custom-server.js` overrides `HOSTNAME`); external hosting is not supported. A local reverse proxy still works because it connects from loopback.
+- The `/v1/realtime` WebSocket relay is handled in `custom-server.js` outside the Next middleware, so it enforces loopback itself: it rejects a non-loopback TCP peer and a non-loopback browser `Origin` before resolving provider credentials.
 - HTTP proxy pools remain only as outbound egress proxies for calls from Switch-Router to upstream providers.
 
 ## Request Lifecycle (`/v1/chat/completions`)
@@ -497,7 +499,7 @@ Environment variables actively used by code:
 - Logging: `ENABLE_REQUEST_LOGS`
 - Local OIDC callback base URL: `BASE_URL`, `NEXT_PUBLIC_BASE_URL`
 - Outbound proxy: `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` and lowercase variants
-- Platform/runtime helpers (not app-specific config): `APPDATA`, `NODE_ENV`, `PORT`, `HOSTNAME`
+- Platform/runtime helpers (not app-specific config): `APPDATA`, `NODE_ENV`, `PORT`. `HOSTNAME` is read by the standalone server but overridden to `127.0.0.1` by `custom-server.js` (local-first; external binding removed).
 
 ## Known Architectural Notes
 

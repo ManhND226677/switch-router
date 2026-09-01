@@ -62,7 +62,7 @@ Then open the dashboard:
 http://127.0.0.1:28701/dashboard
 ```
 
-The server binds to `127.0.0.1` by default. Set `HOSTNAME`/`PORT` explicitly only when a different local runtime is required. Always start through `npm start` (not bare `next start`): `custom-server.js` derives the client IP from the TCP socket and strips spoofable `X-Forwarded-For` headers, which the local-only guard relies on.
+The server **always binds to `127.0.0.1`** — Switch-Router is local-first and external hosting was removed, so `HOSTNAME` is no longer honored for binding (any value is overridden to loopback). `PORT` remains configurable. A local reverse proxy still works because it connects from `127.0.0.1`, the only peer the local-only guard trusts. Always start through `npm start` (not bare `next start`): `custom-server.js` derives the client IP from the TCP socket and strips spoofable `X-Forwarded-For` headers, which the local-only guard relies on.
 
 ### First-run checklist
 
@@ -160,6 +160,8 @@ Full request flow and data model: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 ## Security model
 
 - Dashboard and management APIs are **loopback-only**, enforced via the TCP-derived peer IP stamped by `custom-server.js`; forwarding headers from non-loopback sources are stripped.
+- The server binds to `127.0.0.1` unconditionally — external hosting is not supported, and `HOSTNAME` is ignored for binding.
+- The `/v1/realtime` WebSocket relay runs in `custom-server.js` (outside the Next middleware), so it enforces loopback on its own: it rejects a non-loopback TCP peer and a non-loopback browser `Origin` before resolving any provider credential.
 - `/v1/*` is the single public gateway surface and uses its own API-key/CLI-token auth.
 - Local-only routes additionally require the machine's CLI token (`x-9r-cli-token`), value-verified against the host.
 
