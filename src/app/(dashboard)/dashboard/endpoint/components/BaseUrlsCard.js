@@ -20,12 +20,12 @@ export default function BaseUrlsCard({ origin, officeEnabled = true }) {
               <div key={group.id} className="flex flex-col gap-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant={officeEnabled ? "info" : "default"} dot size="sm">
-                    {officeEnabled ? "Đã bật" : "Đã tắt"}
+                    {officeEnabled ? "Enabled" : "Disabled"}
                   </Badge>
                   <span className="text-xs text-text-muted">
                     {officeEnabled
-                      ? "Namespace biệt lập cho Office agents — luôn yêu cầu API key riêng."
-                      : "Bật Office Gateway trong Settings → Optional Features để dùng namespace này."}
+                      ? "Isolated namespace for Office agents — always requires its own API key."
+                      : "Enable the Office Gateway in Settings → Optional Features to use this namespace."
                   </span>
                 </div>
                 {officeEnabled && (

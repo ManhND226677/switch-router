@@ -70,7 +70,7 @@ export default function CombosPage() {
         setShowCreateModal(false);
       } else {
         const err = await res.json();
-        notifyError(err.error || "Tạo combo thất bại");
+        notifyError(err.error || "Failed to create combo");
       }
     } catch (error) {
       console.error("Error creating combo:", error);
@@ -89,7 +89,7 @@ export default function CombosPage() {
         setEditingCombo(null);
       } else {
         const err = await res.json();
-        notifyError(err.error || "Cập nhật combo thất bại");
+        notifyError(err.error || "Failed to update combo");
       }
     } catch (error) {
       console.error("Error updating combo:", error);
@@ -98,7 +98,7 @@ export default function CombosPage() {
 
   const handleDelete = async (id) => {
     setConfirmState({
-      title: "Xóa combo",
+      title: "Delete combo",
       message: "Delete this combo?",
       onConfirm: async () => {
         setConfirmState(null);
@@ -154,17 +154,17 @@ export default function CombosPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="text-sm text-text-muted mt-1">
-            Gom nhiều model dưới một tên, rồi chọn chiến lược cho từng combo:
+            Group multiple models under one name, then pick a strategy per combo:
           </p>
           <ul className="text-sm text-text-muted mt-2 flex flex-col gap-1">
-            <li><span className="font-medium text-text-main">Fallback</span> — thử lần lượt theo thứ tự, lỗi thì chuyển model kế tiếp</li>
-            <li><span className="font-medium text-text-main">Round Robin</span> — xoay vòng giữa các model để trải đều tải</li>
-            <li><span className="font-medium text-text-main">Fusion</span> — hỏi song song tất cả model, rồi judge tổng hợp một câu trả lời. Chất lượng tốt nhất nhưng tốn nhất: mỗi request tính tiền cả panel + judge (N+1 lời gọi)</li>
-            <li><span className="font-medium text-text-main">Tự chuyển theo năng lực</span> — request có ảnh/PDF/audio được ưu tiên gửi model hỗ trợ trước</li>
+            <li><span className="font-medium text-text-main">Fallback</span> — tries models in order, moving to the next one on error</li>
+            <li><span className="font-medium text-text-main">Round Robin</span> — rotates across models to spread load</li>
+            <li><span className="font-medium text-text-main">Fusion</span> — asks all models in parallel, then a judge merges one answer. Best quality but most expensive: every request bills the whole panel plus the judge (N+1 calls)</li>
+            <li><span className="font-medium text-text-main">Capability routing</span> — requests with images/PDF/audio are routed to a capable model first</li>
           </ul>
         </div>
         <Button icon="add" onClick={() => setShowCreateModal(true)} className="w-full sm:w-auto whitespace-nowrap">
-          Tạo combo
+          Create combo
         </Button>
       </div>
 
@@ -172,9 +172,9 @@ export default function CombosPage() {
       {loadError ? (
         <Card>
           <div role="alert" className="text-center py-12 text-sm text-danger">
-            <p className="font-medium mb-3">Không tải được danh sách combo.</p>
+            <p className="font-medium mb-3">Could not load the combos list.</p>
             <Button variant="outline" icon="refresh" onClick={() => { setLoading(true); fetchData(); }}>
-              Thử lại
+              Retry
             </Button>
           </div>
         </Card>
@@ -184,10 +184,10 @@ export default function CombosPage() {
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 text-primary mb-4">
               <span className="material-symbols-outlined text-4xl">layers</span>
             </div>
-            <p className="text-text-main font-medium mb-1">Chưa có combo nào</p>
-            <p className="text-sm text-text-muted mb-4">Gom nhiều model thành một combo có dự phòng khi lỗi</p>
+            <p className="text-text-main font-medium mb-1">No combos yet</p>
+            <p className="text-sm text-text-muted mb-4">Group models into a combo with fallback on errors</p>
             <Button icon="add" onClick={() => setShowCreateModal(true)} className="w-full sm:w-auto">
-              Tạo combo
+              Create combo
             </Button>
           </div>
         </Card>
@@ -234,7 +234,7 @@ export default function CombosPage() {
         isOpen={!!confirmState}
         onClose={() => setConfirmState(null)}
         onConfirm={confirmState?.onConfirm}
-        title={confirmState?.title || "Xác nhận"}
+        title={confirmState?.title || "Confirm"}
         message={confirmState?.message}
         variant="danger"
       />
@@ -265,7 +265,7 @@ function ComboCard({ combo, modelCaps = {}, activeProviders = [], copied, onCopy
             <code className="block truncate font-mono text-sm font-medium">{combo.name}</code>
             <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
               {combo.models.length === 0 ? (
-                <span className="text-xs text-text-muted italic">Chưa có model</span>
+                <span className="text-xs text-text-muted italic">No model</span>
               ) : (
                 combo.models.slice(0, 3).map((model, index) => (
                   <code key={index} className="inline-flex items-center gap-1 rounded bg-black/5 px-1.5 py-0.5 font-mono text-xs text-text-muted dark:bg-white/5">
@@ -285,7 +285,7 @@ function ComboCard({ combo, modelCaps = {}, activeProviders = [], copied, onCopy
                 <button
                   onClick={() => setShowJudgeSelect(true)}
                   className="inline-flex max-w-full items-center gap-1 rounded border border-dashed border-primary/40 px-1.5 py-0.5 font-mono text-xs text-primary hover:border-primary hover:bg-primary/5 transition-colors"
-                  title="Chọn model tổng hợp câu trả lời của panel"
+                  title="Choose the model that merges the panel answers"
                 >
                   <span className="material-symbols-outlined text-sm">gavel</span>
                   <span className="truncate">{judge || `Auto — ${combo.models[0] || "first model"}`}</span>
@@ -294,7 +294,7 @@ function ComboCard({ combo, modelCaps = {}, activeProviders = [], copied, onCopy
                   <button
                     onClick={() => onSetStrategy({ judgeModel: "" })}
                     className="p-0.5 rounded text-text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors"
-                    title="Đặt lại judge về Tự động"
+                    title="Reset judge to Auto"
                   >
                     <span className="material-symbols-outlined text-sm">close</span>
                   </button>
@@ -320,28 +320,28 @@ function ComboCard({ combo, modelCaps = {}, activeProviders = [], copied, onCopy
             <button
               onClick={(e) => { e.stopPropagation(); onCopy(combo.name, `combo-${combo.id}`); }}
               className="flex flex-col items-center rounded px-2 py-1 text-text-muted transition-colors hover:bg-black/5 hover:text-primary dark:hover:bg-white/5"
-              title="Sao chép tên combo"
+              title="Copy combo name"
             >
               <span className="material-symbols-outlined text-lg">
                 {copied === `combo-${combo.id}` ? "check" : "content_copy"}
               </span>
-              <span className="text-xs leading-tight">Sao chép</span>
+              <span className="text-xs leading-tight">Copy</span>
             </button>
             <button
               onClick={onEdit}
               className="flex flex-col items-center rounded px-2 py-1 text-text-muted transition-colors hover:bg-black/5 hover:text-primary dark:hover:bg-white/5"
-              title="Sửa"
+              title="Edit"
             >
               <span className="material-symbols-outlined text-lg">edit</span>
-              <span className="text-xs leading-tight">Sửa</span>
+              <span className="text-xs leading-tight">Edit</span>
             </button>
             <button
               onClick={onDelete}
               className="flex flex-col items-center rounded px-2 py-1 text-red-500 transition-colors hover:bg-red-500/10"
-              title="Xóa"
+              title="Delete"
             >
               <span className="material-symbols-outlined text-lg">delete</span>
-              <span className="text-xs leading-tight">Xóa</span>
+              <span className="text-xs leading-tight">Delete</span>
             </button>
           </div>
         </div>
@@ -353,7 +353,7 @@ function ComboCard({ combo, modelCaps = {}, activeProviders = [], copied, onCopy
         onClose={() => setShowJudgeSelect(false)}
         onSelect={(m) => { onSetStrategy({ judgeModel: m?.value || "" }); setShowJudgeSelect(false); }}
         activeProviders={activeProviders}
-        title="Chọn model Judge"
+        title="Choose Judge Model"
         addedModelValues={judge ? [judge] : []}
         closeOnSelect={true}
       />

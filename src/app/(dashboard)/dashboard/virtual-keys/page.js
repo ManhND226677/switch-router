@@ -18,7 +18,7 @@ function maskKey(key) {
 function fmtDateTime(value) {
   if (!value) return "—";
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString("vi-VN");
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString();
 }
 
 function isExpired(keyRow) {
@@ -236,21 +236,21 @@ export default function VirtualKeysPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-text-main">Virtual Keys</h2>
-          <p className="text-sm text-text-muted">Quản lý khóa API con: phân model, chặn ngân sách, giới hạn tốc độ</p>
+          <p className="text-sm text-text-muted">Manage child API keys: scope models, cap budgets, rate limits</p>
         </div>
         <Button onClick={openCreate}>
           <span className="material-symbols-outlined text-base">add</span>
-          Tạo khóa
+          Create Key
         </Button>
       </div>
 
       {/* KPI strip — kiểu workbench: ô kẻ vách, số tabular lớn */}
       <div className="grid grid-cols-2 md:grid-cols-4 border border-border-subtle divide-x divide-y md:divide-y-0 divide-border-subtle rounded-lg overflow-hidden bg-surface">
         {[
-          { label: "Tổng khóa", value: String(kpi.total) },
-          { label: "Đang hoạt động", value: String(kpi.active) },
-          { label: "Có giới hạn", value: String(kpi.limited) },
-          { label: "Chi tiêu tháng này", value: `$${kpi.spend.toFixed(4)}` },
+          { label: "Total Keys", value: String(kpi.total) },
+          { label: "Active", value: String(kpi.active) },
+          { label: "Limited", value: String(kpi.limited) },
+          { label: "Spent This Month", value: `${kpi.spend.toFixed(4)}` },
         ].map((item) => (
           <div key={item.label} className="px-5 py-4">
             <p className="text-xs uppercase tracking-wider text-text-muted">{item.label}</p>
@@ -268,32 +268,32 @@ export default function VirtualKeysPage() {
           </div>
         ) : loadError ? (
           <div role="alert" className="p-10 text-center text-sm text-danger">
-            Không tải được danh sách khóa.{" "}
+            Could not load the key list.{" "}
             <button
               type="button"
               onClick={() => { setLoading(true); fetchKeys(); }}
               className="font-semibold underline underline-offset-2 cursor-pointer"
             >
-              Thử lại
+              Retry
             </button>
           </div>
         ) : keys.length === 0 ? (
           <div className="p-10 text-center text-sm text-text-muted">
-            Chưa có khóa nào. Tạo khóa đầu tiên để cấp cho các client khác.
+            No keys yet. Create your first key to issue to other clients.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border-subtle text-left text-xs uppercase tracking-wider text-text-muted">
-                  <th className="px-5 py-3 font-semibold">Tên</th>
-                  <th className="px-5 py-3 font-semibold">Khóa</th>
+                <tr className="border-b border-border-subtle text-left text-[11px] uppercase tracking-wider text-text-muted">
+                  <th className="px-5 py-3 font-semibold">Name</th>
+                  <th className="px-5 py-3 font-semibold">Key</th>
                   <th className="px-5 py-3 font-semibold">Models</th>
-                  <th className="px-5 py-3 font-semibold">Ngân sách</th>
+                  <th className="px-5 py-3 font-semibold">Budget</th>
                   <th className="px-5 py-3 font-semibold">RPM</th>
-                  <th className="px-5 py-3 font-semibold">Hạn dùng</th>
-                  <th className="px-5 py-3 font-semibold">Trạng thái</th>
-                  <th className="px-5 py-3 font-semibold text-right">Thao tác</th>
+                  <th className="px-5 py-3 font-semibold">Expires</th>
+                  <th className="px-5 py-3 font-semibold">Status</th>
+                  <th className="px-5 py-3 font-semibold text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -317,7 +317,7 @@ export default function VirtualKeysPage() {
                             type="button"
                             onClick={() => toggleReveal(k.id)}
                             className="text-text-muted hover:text-primary transition-colors"
-                            title={revealedIds.has(k.id) ? "Ẩn khóa" : "Hiện khóa"}
+                            title={revealedIds.has(k.id) ? "Hide key" : "Show key"}
                           >
                             <span className="material-symbols-outlined text-sm">{revealedIds.has(k.id) ? "visibility_off" : "visibility"}</span>
                           </button>
@@ -325,7 +325,7 @@ export default function VirtualKeysPage() {
                             type="button"
                             onClick={() => copyText(k.key)}
                             className="text-text-muted hover:text-primary transition-colors"
-                            title="Sao chép"
+                            title="Copy"
                           >
                             <span className="material-symbols-outlined text-sm">content_copy</span>
                           </button>
@@ -333,9 +333,9 @@ export default function VirtualKeysPage() {
                       </td>
                       <td className="px-5 py-3">
                         {!Array.isArray(k.allowedModels) || k.allowedModels.length === 0 ? (
-                          <Badge variant="default">Tất cả</Badge>
+                          <Badge variant="default">All</Badge>
                         ) : (
-                          <Badge variant="info">{k.allowedModels.length} model</Badge>
+                          <Badge variant="info">{k.allowedModels.length} models</Badge>
                         )}
                       </td>
                       <td className="px-5 py-3 min-w-[140px]">
@@ -358,10 +358,10 @@ export default function VirtualKeysPage() {
                       <td className="px-5 py-3"><Badge variant={st.variant}>{st.label}</Badge></td>
                       <td className="px-5 py-3">
                         <div className="flex items-center justify-end gap-2">
-                          <Toggle checked={k.isActive} onChange={() => toggleActive(k)} title="Bật/tắt khóa" />
-                          <Button variant="outline" size="sm" onClick={() => openEdit(k)}>Sửa</Button>
+                          <Toggle checked={k.isActive} onChange={() => toggleActive(k)} title="Enable/disable key" />
+                          <Button variant="outline" size="sm" onClick={() => openEdit(k)}>Edit</Button>
                           <Button variant="outline" size="sm" onClick={() => setConfirmDelete(k)}>
-                            <span className="text-danger">Xóa</span>
+                            <span className="text-danger">Delete</span>
                           </Button>
                         </div>
                       </td>
@@ -378,12 +378,12 @@ export default function VirtualKeysPage() {
       <Modal
         isOpen={showFormModal}
         onClose={() => setShowFormModal(false)}
-        title={editingKey ? "Sửa khóa" : "Tạo khóa mới"}
+        title={editingKey ? "Edit Key" : "New Key"}
       >
         <div className="space-y-4">
           <Input
-            label="Tên khóa"
-            placeholder="VD: laptop-codex"
+            label="Key Name"
+            placeholder="e.g. laptop-codex"
             value={formData.name}
             onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))}
             disabled={!!editingKey}
@@ -391,16 +391,16 @@ export default function VirtualKeysPage() {
 
           <div>
             <label className="text-sm font-medium text-text-main block mb-2">
-              Models cho phép <span className="text-text-muted font-normal">(bỏ trống = tất cả)</span>
+              Allowed Models <span className="text-text-muted font-normal">(empty = all)</span>
             </label>
             <Input
-              placeholder="Tìm model…"
+              placeholder="Search models…"
               value={modelSearch}
               onChange={(e) => setModelSearch(e.target.value)}
             />
             <div className="mt-2 max-h-48 overflow-y-auto custom-scrollbar border border-border-subtle rounded-lg p-2 space-y-1 bg-surface">
               {filteredModelOptions.length === 0 ? (
-                <p className="text-xs text-text-muted p-2">Không tìm thấy model nào</p>
+                <p className="text-xs text-text-muted p-2">No models found</p>
               ) : (
                 filteredModelOptions.map((m) => {
                   const checked = formData.allowedModels.includes(m);
@@ -427,24 +427,24 @@ export default function VirtualKeysPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Input
-              label="Ngân sách tháng ($)"
+              label="Monthly Budget ($)"
               type="number"
               step="0.0001"
               min="0"
-              placeholder="Bỏ trống = không giới hạn"
+              placeholder="Leave empty = unlimited"
               value={formData.monthlyBudgetUsd}
               onChange={(e) => setFormData((f) => ({ ...f, monthlyBudgetUsd: e.target.value }))}
             />
             <Input
-              label="Giới hạn RPM"
+              label="Rate Limit (RPM)"
               type="number"
               min="1"
-              placeholder="Bỏ trống = không giới hạn"
+              placeholder="Leave empty = unlimited"
               value={formData.rateLimitRpm}
               onChange={(e) => setFormData((f) => ({ ...f, rateLimitRpm: e.target.value }))}
             />
             <Input
-              label="Hạn dùng"
+              label="Expires"
               type="datetime-local"
               value={formData.expiresAt}
               onChange={(e) => setFormData((f) => ({ ...f, expiresAt: e.target.value }))}
@@ -452,20 +452,20 @@ export default function VirtualKeysPage() {
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setShowFormModal(false)}>Hủy</Button>
-            <Button onClick={submitForm} disabled={saving}>{saving ? "Đang lưu…" : "Lưu"}</Button>
+            <Button variant="outline" onClick={() => setShowFormModal(false)}>Cancel</Button>
+            <Button onClick={submitForm} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
           </div>
         </div>
       </Modal>
 
       {/* Show full key once */}
-      <Modal isOpen={!!createdFullKey} onClose={() => setCreatedFullKey(null)} title="Khóa đã tạo">
+      <Modal isOpen={!!createdFullKey} onClose={() => setCreatedFullKey(null)} title="Key Created">
         <p className="text-sm text-text-muted mb-3">
-          Sao chép khóa ngay — nó sẽ chỉ hiển thị đầy đủ ở hộp thoại này.
+          Copy the key now — it will only be shown in full in this dialog.
         </p>
         <div className="flex items-center gap-2 bg-surface-2 border border-border-subtle rounded-lg p-3">
           <code className="font-mono text-xs break-all flex-1 text-text-main">{createdFullKey?.key}</code>
-          <Button variant="outline" size="sm" onClick={() => copyText(createdFullKey?.key || "")}>Sao chép</Button>
+          <Button variant="outline" size="sm" onClick={() => copyText(createdFullKey?.key || "")}>Copy</Button>
         </div>
       </Modal>
 
@@ -473,8 +473,8 @@ export default function VirtualKeysPage() {
         isOpen={!!confirmDelete}
         onClose={() => setConfirmDelete(null)}
         onConfirm={() => deleteKey(confirmDelete)}
-        title="Xóa khóa"
-        message={`Xóa khóa "${confirmDelete?.name}"? Client đang dùng khóa này sẽ mất quyền truy cập ngay lập tức.`}
+        title="Delete Key"
+        message={`Delete key "${confirmDelete?.name}"? Clients using this key lose access immediately.`}
       />
 
       {/* Connect clients — base URLs, snippets, M365 (moved from the old endpoint page) */}
