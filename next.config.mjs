@@ -2,6 +2,19 @@ const proxyClientMaxBodySize = process.env.SWITCH_ROUTER_PROXY_CLIENT_MAX_BODY_S
   || process.env.NINEROUTER_PROXY_CLIENT_MAX_BODY_SIZE
   || "128mb";
 
+// `next dev` blocks its dev-only resources (fonts, HMR, chunks) for origins
+// outside this list. The dev hostname is 127.0.0.1 (see package.json), which
+// is NOT in Next's default `localhost` allowlist, so without this the
+// dashboard serves a non-hydrating SSR shell at its own documented URL.
+const devOrigins = [
+  "127.0.0.1",
+  "localhost",
+  ...(process.env.SWITCH_ROUTER_DEV_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // NEXT_DIST_DIR lets analysis builds write to e.g. .next-analyze while the
@@ -15,6 +28,8 @@ const nextConfig = {
   images: {
     unoptimized: true
   },
+  // `next dev` blocks dev-only resources for origins outside this list.
+  allowedDevOrigins: devOrigins,
   env: {},
   experimental: {
     // #1529/#1572: LLM clients can send long context or base64 image payloads through /v1 rewrites.
