@@ -16,14 +16,12 @@ async function hasValidCliToken(request) {
   if (!token) return false;
   return token === await getCliToken();
 }
+export { hasValidCliToken };
 
 // Public API paths — no auth required (LLM API has its own key auth inside handler).
 const PUBLIC_API_PATHS = [
   "/api/health",
-  "/api/init",
   "/api/locale",
-  "/api/auth/status",
-  "/api/settings/require-login",
 ];
 
 // Public top-level prefixes (LLM API endpoints with their own API key auth).
@@ -44,7 +42,6 @@ const ALWAYS_PROTECTED = [
 const LOCAL_ONLY_PATHS = [
   "/api/cli-tools/cowork-settings",
   "/api/mcp/",
-  "/api/auth/reset-password",
 ];
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
@@ -192,13 +189,6 @@ export async function proxy(request) {
   if (pathname.startsWith("/dashboard")) {
     if (canAccessLocalDashboard(request)) return NextResponse.next();
     return NextResponse.json({ error: "Switch-Router dashboard is local-only" }, { status: 403 });
-  }
-
-  // Dashboard authentication is disabled. Keep legacy bookmarks useful without
-  // rendering a password form; remote callers remain blocked by local-only.
-  if (pathname === "/login") {
-    if (canAccessLocalDashboard(request)) return NextResponse.redirect(new URL("/dashboard", request.url));
-    return NextResponse.json({ error: "Switch-Router is local-only" }, { status: 403 });
   }
 
   // Redirect / to /dashboard if logged in, or /dashboard if it's the root

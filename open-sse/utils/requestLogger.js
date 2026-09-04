@@ -271,22 +271,27 @@ async function createLogSession(sourceFormat, targetFormat, model) {
   }
 }
 
-// Header names whose values are redacted before a session is persisted —
-// without this, ENABLE_REQUEST_LOGS writes reusable credentials to logs/ in plaintext.
-const SENSITIVE_HEADERS = new Set([
+// Header-name fragments redacted before a session is persisted — substring
+// match (like requestDetailsRepo.sanitizeHeaders) so variants such as
+// x-9r-cli-token, x-switch-router-internal-secret or proxy-authorization are
+// covered too; without this, ENABLE_REQUEST_LOGS writes reusable credentials
+// to logs/ in plaintext.
+const SENSITIVE_HEADER_FRAGMENTS = [
   "authorization",
-  "proxy-authorization",
-  "x-api-key",
   "api-key",
+  "token",
+  "secret",
   "cookie",
-  "set-cookie",
-]);
+];
 
 function maskSensitiveHeaders(headers) {
   if (!headers) return {};
   const masked = {};
   for (const [name, value] of Object.entries(headers)) {
-    masked[name] = SENSITIVE_HEADERS.has(name.toLowerCase()) ? "[REDACTED]" : value;
+    const lower = name.toLowerCase();
+    masked[name] = SENSITIVE_HEADER_FRAGMENTS.some((frag) => lower.includes(frag))
+      ? "[REDACTED]"
+      : value;
   }
   return masked;
 }
@@ -423,6 +428,8 @@ export async function createRequestLogger(sourceFormat, targetFormat, model, opt
 // Legacy functions for backward compatibility
 export function logRequest() {}
 export function logResponse() {}
+
+export const __test__ = { maskSensitiveHeaders };
 
 export function logError(provider, { error, url, model, requestBody }) {
   if (!isNode || !LOGGING_ENABLED) return;
