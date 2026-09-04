@@ -219,6 +219,41 @@ describe("dashboard guard local-only access", () => {
 
     expect(response).toBe(mocks.nextResponse);
   });
+
+  it("rejects Origin-less cross-site drive-by GETs (Sec-Fetch-Site: cross-site)", async () => {
+    // A public web page triggering <img>/form-GET against the victim's loopback
+    // sends no Origin but does send Sec-Fetch-Site: cross-site — that request
+    // must not count as "local" even though the TCP peer is loopback.
+    const response = await proxy(request("/api/pxpipe/health", {
+      host: "localhost:28701",
+      "x-9r-real-ip": "127.0.0.1",
+      "sec-fetch-site": "cross-site",
+      "sec-fetch-mode": "no-cors",
+    }));
+
+    expect(response.status).toBe(403);
+    expect(response.body.error).toBe("Local only: CLI token required");
+  });
+
+  it("still allows Origin-less same-site navigation from the dashboard", async () => {
+    const response = await proxy(request("/api/settings", {
+      host: "localhost:28701",
+      "x-9r-real-ip": "127.0.0.1",
+      "sec-fetch-site": "same-origin",
+      "sec-fetch-mode": "navigate",
+    }));
+
+    expect(response).toBe(mocks.nextResponse);
+  });
+
+  it("allows non-browser clients with no Sec-Fetch headers at all", async () => {
+    const response = await proxy(request("/api/pxpipe/health", {
+      host: "localhost:28701",
+      "x-9r-real-ip": "127.0.0.1",
+    }));
+
+    expect(response).toBe(mocks.nextResponse);
+  });
 });
 
 describe("dashboard guard helpers", () => {

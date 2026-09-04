@@ -42,6 +42,7 @@ const ALWAYS_PROTECTED = [
 const LOCAL_ONLY_PATHS = [
   "/api/cli-tools/cowork-settings",
   "/api/mcp/",
+  "/api/pxpipe/",
 ];
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
@@ -96,6 +97,14 @@ export function isLocalRequest(request) {
     try {
       if (!isLoopbackHostname(new URL(origin).hostname)) return false;
     } catch { return false; }
+  }
+  // A browser cross-site request that does NOT send an Origin header (top-level
+  // <img>/<link>/form-GET navigation, i.e. a drive-by from a public web page
+  // hitting the victim's loopback) is rejected via Sec-Fetch-Site: browsers
+  // without the header at all (curl, non-browser clients) still pass.
+  const secFetchSite = request.headers.get("sec-fetch-site");
+  if (secFetchSite && secFetchSite !== "same-origin" && secFetchSite !== "same-site" && secFetchSite !== "none") {
+    return false;
   }
   return true;
 }
