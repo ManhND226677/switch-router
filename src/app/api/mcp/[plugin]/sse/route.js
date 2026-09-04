@@ -11,6 +11,12 @@ export async function GET(request, { params }) {
 
   const encoder = new TextEncoder();
   let sid;
+  let cleanedUp = false;
+  const cleanupOnce = () => {
+    if (cleanedUp || !sid) return;
+    cleanedUp = true;
+    unregisterSession(plugin, sid);
+  };
 
   const stream = new ReadableStream({
     start(controller) {
@@ -20,9 +26,15 @@ export async function GET(request, { params }) {
       send(`event: endpoint\ndata: /api/mcp/${plugin}/message?sessionId=${sid}\n\n`);
     },
     cancel() {
-      if (sid) unregisterSession(plugin, sid);
+      // Clean client disconnect (ReadableStream cancelled).
+      cleanupOnce();
     },
   });
+
+  // Hard client drop (no clean cancel): request aborts, the stream never runs
+  // cancel(), and the session would otherwise leak in the bridge together with
+  // the npx child process it keeps alive.
+  request.signal?.addEventListener("abort", cleanupOnce, { once: true });
 
   return new Response(stream, {
     headers: {
