@@ -59,6 +59,8 @@ export default function VirtualKeysPage() {
   // M365 allowlist count (the gateway-wide requireApiKey toggle is hidden from the UI;
   // the setting itself stays in /api/settings and stays enforced server-side)
   const [officeAllowlistCount, setOfficeAllowlistCount] = useState(0);
+  // Office gateway visibility (DB-backed setting, toggled in Settings → Optional Features)
+  const [officeGatewayEnabled, setOfficeGatewayEnabled] = useState(false);
 
   // Key đầy đủ chỉ hiện đúng 1 lần ngay sau khi tạo
   const [createdFullKey, setCreatedFullKey] = useState(null);
@@ -101,6 +103,7 @@ export default function VirtualKeysPage() {
       .then((data) => {
         if (cancelled || !data) return;
         setOfficeAllowlistCount(Number(data.officeModelAllowlistCount) || 0);
+        setOfficeGatewayEnabled(data.officeGatewayEnabled === true);
       })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -479,6 +482,7 @@ export default function VirtualKeysPage() {
         origin={typeof window === "undefined" ? "http://127.0.0.1:28701" : window.location.origin}
         keys={keys}
         officeAllowlistCount={officeAllowlistCount}
+        officeEnabled={officeGatewayEnabled}
       />
     </div>
   );

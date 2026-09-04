@@ -610,8 +610,61 @@ export default function ProfilePage() {
           </div>
         </Card>
 
+        {/* Optional features */}
+        <Card>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 rounded-lg bg-teal-500/10 text-teal-500 shrink-0">
+              <span className="material-symbols-outlined text-xl">extension</span>
+            </div>
+            <h3 className="text-base sm:text-lg font-semibold">Optional Features</h3>
+          </div>
+          <div className="flex flex-col gap-4">
+            <div className="flex items-start sm:items-center justify-between gap-4 pt-4 border-t border-border/50">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm sm:text-base">Office Gateway</p>
+                <p className="text-xs sm:text-sm text-text-muted">
+                  Serve the isolated Claude for M365 namespace at /office/v1
+                </p>
+              </div>
+              <Toggle
+                checked={settings.officeGatewayEnabled === true}
+                onChange={() => updateSettingFlag("officeGatewayEnabled", !(settings.officeGatewayEnabled === true))}
+                disabled={loading}
+              />
+            </div>
+
+            <div className="flex items-start sm:items-center justify-between gap-4 pt-4 border-t border-border/50">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm sm:text-base">Pxpipe</p>
+                <p className="text-xs sm:text-sm text-text-muted">
+                  Compress long prompts through the pxpipe transform when enabled
+                </p>
+              </div>
+              <Toggle
+                checked={settings.pxpipeEnabled === true}
+                onChange={() => updateSettingFlag("pxpipeEnabled", !(settings.pxpipeEnabled === true))}
+                disabled={loading}
+              />
+            </div>
+
+            <div className="flex items-start sm:items-center justify-between gap-4 pt-4 border-t border-border/50">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm sm:text-base">MCP Marketplace</p>
+                <p className="text-xs sm:text-sm text-text-muted">
+                  Show the &quot;+ Browse&quot; MCP registry picker in CLI Tools (Cowork)
+                </p>
+              </div>
+              <Toggle
+                checked={settings.mcpMarketplaceEnabled !== false}
+                onChange={() => updateSettingFlag("mcpMarketplaceEnabled", !(settings.mcpMarketplaceEnabled !== false))}
+                disabled={loading}
+              />
+            </div>
+          </div>
+        </Card>
+
         {/* Token Saver */}
-        <TokenSaverClient embedded />
+        <TokenSaverClient />
 
         {/* Network */}
         <Card>

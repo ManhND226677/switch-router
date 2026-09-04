@@ -105,11 +105,11 @@ Important compatibility routes (local-only from outside, reached via `/v1/*` rew
 
 Management domains:
 
-- Local-only/settings: `src/dashboardGuard.js`, `src/app/api/auth/status`, `src/app/api/settings/*`
+- Local-only/settings: `src/dashboardGuard.js`, `src/app/api/settings/*`
 - Providers/connections: `src/app/api/providers*`
 - Provider nodes: `src/app/api/provider-nodes*`
 - OAuth: `src/app/api/oauth/*`
-- Keys/aliases/combos/pricing: `src/app/api/keys*`, `src/app/api/models/alias`, `src/app/api/combos*`, `src/app/api/pricing`
+- Keys/aliases/combos: `src/app/api/keys*`, `src/app/api/models/alias`, `src/app/api/combos*`
 - Usage: `src/app/api/usage/*`
 - Local configuration and persistence: `src/lib/db/*`, `src/lib/dataDir.js`, `src/lib/usageDb.js`
 - CLI tooling helpers: `src/app/api/cli-tools/*`
@@ -147,7 +147,7 @@ Usage DB:
 
 ## 4) Auth + Security Surfaces
 
-- Local-only dashboard boundary: `src/dashboardGuard.js`; legacy cookie-auth endpoints remain under `src/app/api/auth/*` for compatibility but are not required on loopback
+- Local-only dashboard boundary: `src/dashboardGuard.js`; dashboard auth is disabled (local-only), `/login` and `/api/auth/*` were removed entirely (a `/login` bookmark now falls through to 404)
 - API key generation/verification: `src/shared/utils/apiKey.js`
 - Provider secrets persisted in `providerConnections` entries
 - Optional proxy support for upstream calls via env proxy variables (`open-sse/utils/proxyFetch.js`)
@@ -386,7 +386,7 @@ flowchart LR
 - `src/app/api/keys*`: local API key lifecycle
 - `src/app/api/models/alias`: alias management
 - `src/app/api/combos*`: fallback combo management
-- `src/app/api/pricing`: pricing overrides for cost calculation
+- pricing overrides for cost calculation live in `src/lib/db/repos/pricingRepo.js` (no HTTP surface)
 - `src/app/api/usage/*`: usage and logs APIs
 - `src/app/api/cli-tools/*`: local CLI config writers/checkers
 

@@ -16,7 +16,7 @@ async function ensureInitialized() {
 }
 
 export async function OPTIONS(request) {
-  return officeOptionsResponse(request);
+  return await officeOptionsResponse(request);
 }
 
 /**

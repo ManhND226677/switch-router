@@ -10,9 +10,8 @@ import { useEffect } from "react";
  *  - In the browser, `console.log` only writes to devtools; it is pure noise in
  *    a production build.
  *  - Server-side log capture (`src/lib/consoleLogBuffer`) patches `console.*` on
- *    the Node process and feeds the in-app "Console Log" dashboard. This effect
- *    runs ONLY in the browser (useEffect never executes during SSR), so the
- *    server ring buffer and the Console Log feature are completely unaffected.
+ *    the Node process. This effect runs ONLY in the browser (useEffect never
+ *    executes during SSR), so the server ring buffer is completely unaffected.
  *
  * Behaviour:
  *  - Development builds: console is untouched (full logging).

@@ -2,7 +2,7 @@
 
 // Base URLs card — the single "point your client here" surface. Every public
 // endpoint family lives here as one row: OpenAI-compatible, Anthropic Messages
-// and the Claude for M365 namespace (gated by OFFICE_GATEWAY_ENABLED).
+// and the Claude for M365 namespace (gated by the Office Gateway setting).
 import { Badge, Card } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import EndpointRow from "./EndpointRow";
@@ -25,7 +25,7 @@ export default function BaseUrlsCard({ origin, officeEnabled = true }) {
                   <span className="text-xs text-text-muted">
                     {officeEnabled
                       ? "Namespace biệt lập cho Office agents — luôn yêu cầu API key riêng."
-                      : "Đặt OFFICE_GATEWAY_ENABLED=true và khởi động lại để bật namespace này."}
+                      : "Bật Office Gateway trong Settings → Optional Features để dùng namespace này."}
                   </span>
                 </div>
                 {officeEnabled && (

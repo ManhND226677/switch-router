@@ -73,7 +73,7 @@ describe("endpoint page cards render", () => {
     const disabled = renderToStaticMarkup(
       React.createElement(BaseUrlsCard, { origin: ORIGIN, officeEnabled: false }),
     );
-    expect(disabled).toContain("OFFICE_GATEWAY_ENABLED=true");
+    expect(disabled).toContain("Optional Features");
     expect(disabled).not.toContain("/office/v1/messages");
     // The /v1 rows must survive regardless of the office flag.
     expect(disabled).toContain("/v1/messages");

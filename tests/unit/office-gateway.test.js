@@ -1,4 +1,18 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  getSettings: vi.fn(),
+  isValidApiKey: vi.fn(),
+}));
+
+vi.mock("@/lib/localDb", () => ({
+  getSettings: mocks.getSettings,
+}));
+
+vi.mock("@/sse/services/auth.js", () => ({
+  extractApiKey: (request) => request?.headers?.get?.("x-api-key") || null,
+  isValidApiKey: mocks.isValidApiKey,
+}));
 
 import {
   OFFICE_GATEWAY_ORIGIN,
@@ -11,7 +25,6 @@ import {
 import { OPTIONS as messagesOptions } from "../../src/app/office/v1/messages/route.js";
 import { OPTIONS as modelsOptions } from "../../src/app/office/v1/models/route.js";
 
-const originalEnabled = process.env.OFFICE_GATEWAY_ENABLED;
 const originalModelIds = process.env.OFFICE_MODEL_IDS;
 
 function request(origin = OFFICE_GATEWAY_ORIGIN, headers = {}) {
@@ -20,20 +33,24 @@ function request(origin = OFFICE_GATEWAY_ORIGIN, headers = {}) {
   });
 }
 
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.getSettings.mockResolvedValue({ officeGatewayEnabled: false });
+  mocks.isValidApiKey.mockResolvedValue(false);
+});
+
 afterEach(() => {
-  if (originalEnabled === undefined) delete process.env.OFFICE_GATEWAY_ENABLED;
-  else process.env.OFFICE_GATEWAY_ENABLED = originalEnabled;
   if (originalModelIds === undefined) delete process.env.OFFICE_MODEL_IDS;
   else process.env.OFFICE_MODEL_IDS = originalModelIds;
 });
 
 describe("Office gateway isolation", () => {
-  it("is disabled unless explicitly enabled", () => {
-    delete process.env.OFFICE_GATEWAY_ENABLED;
-    expect(isOfficeGatewayEnabled()).toBe(false);
+  it("is disabled unless the DB setting is enabled", async () => {
+    mocks.getSettings.mockResolvedValue({ officeGatewayEnabled: false });
+    expect(await isOfficeGatewayEnabled()).toBe(false);
 
-    process.env.OFFICE_GATEWAY_ENABLED = "true";
-    expect(isOfficeGatewayEnabled()).toBe(true);
+    mocks.getSettings.mockResolvedValue({ officeGatewayEnabled: true });
+    expect(await isOfficeGatewayEnabled()).toBe(true);
   });
 
   it("recognizes Claude model IDs without changing the shared catalog", () => {
@@ -126,7 +143,7 @@ describe("Office gateway isolation", () => {
   });
 
   it("keeps both Office preflight routes disabled by default", async () => {
-    delete process.env.OFFICE_GATEWAY_ENABLED;
+    mocks.getSettings.mockResolvedValue({ officeGatewayEnabled: false });
 
     const messagesResponse = await messagesOptions(request());
     const modelsResponse = await modelsOptions(request());
@@ -138,7 +155,7 @@ describe("Office gateway isolation", () => {
   });
 
   it("returns a successful preflight only after explicit enablement", async () => {
-    process.env.OFFICE_GATEWAY_ENABLED = "1";
+    mocks.getSettings.mockResolvedValue({ officeGatewayEnabled: true });
 
     const response = await messagesOptions(request());
 
@@ -147,7 +164,8 @@ describe("Office gateway isolation", () => {
   });
 
   it("requires a valid API key on both Office data routes", async () => {
-    process.env.OFFICE_GATEWAY_ENABLED = "true";
+    mocks.getSettings.mockResolvedValue({ officeGatewayEnabled: true });
+    mocks.isValidApiKey.mockResolvedValue(false);
 
     const messagesRoute = await import("../../src/app/office/v1/messages/route.js");
     const modelsRoute = await import("../../src/app/office/v1/models/route.js");

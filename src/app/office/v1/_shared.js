@@ -1,5 +1,6 @@
 import { extractApiKey, isValidApiKey } from "@/sse/services/auth.js";
 import { getOfficeModelIds } from "@/sse/services/officeRequestPolicy.js";
+import { getSettings } from "@/lib/localDb";
 
 export { getOfficeModelIds };
 
@@ -33,8 +34,11 @@ function isTruthyEnv(value) {
   return value === "1" || value?.toLowerCase?.() === "true";
 }
 
-export function isOfficeGatewayEnabled() {
-  return isTruthyEnv(process.env.OFFICE_GATEWAY_ENABLED);
+// DB-backed since the Optional-features toggle exists; one-time env inherit is
+// handled in settingsRepo.getSettings() so an existing deployment keeps working.
+export async function isOfficeGatewayEnabled() {
+  const settings = await getSettings();
+  return settings?.officeGatewayEnabled === true;
 }
 
 export function isOfficeModelId(modelId) {
@@ -126,8 +130,8 @@ export function officeErrorResponse(status, message, request, type = "invalid_re
   );
 }
 
-export function officeOptionsResponse(request) {
-  if (!isOfficeGatewayEnabled()) {
+export async function officeOptionsResponse(request) {
+  if (!(await isOfficeGatewayEnabled())) {
     return officeErrorResponse(404, "Office gateway is disabled", request, "not_found_error");
   }
 
@@ -135,7 +139,7 @@ export function officeOptionsResponse(request) {
 }
 
 export async function requireOfficeGatewayAccess(request) {
-  if (!isOfficeGatewayEnabled()) {
+  if (!(await isOfficeGatewayEnabled())) {
     return officeErrorResponse(404, "Office gateway is disabled", request, "not_found_error");
   }
 

@@ -97,7 +97,7 @@ GET  /office/v1/models
 POST /office/v1/messages
 ```
 
-Set `OFFICE_GATEWAY_ENABLED=true` and configure Claude for M365 with the HTTPS base URL of a reverse proxy, `gateway_api_format=anthropic`, and a dedicated Switch-Router API key. The Office namespace requires that key even when global API-key enforcement is disabled. `OFFICE_MODEL_IDS` can restrict the Office catalog to exact IDs.
+Enable **Office Gateway** in Settings → Optional Features (or set `OFFICE_GATEWAY_ENABLED=true` as a one-time seed on first run), then configure Claude for M365 with the HTTPS base URL of a reverse proxy, `gateway_api_format=anthropic`, and a dedicated Switch-Router API key. The Office namespace requires that key even when global API-key enforcement is disabled. `OFFICE_MODEL_IDS` can restrict the Office catalog to exact IDs.
 
 ### Model discovery
 

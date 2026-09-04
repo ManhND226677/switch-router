@@ -43,6 +43,21 @@ export default function CoworkToolCard({
   const [marketplaceOpen, setMarketplaceOpen] = useState(false);
   const [addMcpOpen, setAddMcpOpen] = useState(false);
   const [addMcpForm, setAddMcpForm] = useState({ name: "", url: "" });
+  // MCP marketplace visibility (DB-backed setting, toggled in Settings → Optional Features).
+  // Defaults to true so users who never touched the setting keep the "+ Browse" button.
+  const [mcpMarketplaceEnabled, setMcpMarketplaceEnabled] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/settings", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        setMcpMarketplaceEnabled(data.mcpMarketplaceEnabled !== false);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (apiKeys?.length > 0 && !selectedApiKey) {
@@ -383,9 +398,11 @@ export default function CoworkToolCard({
                     )}
                     {/* Actions row */}
                     <div className="flex items-center gap-2 mt-0.5">
+                      {mcpMarketplaceEnabled && (
                       <button onClick={() => setMarketplaceOpen(true)} className="px-2 py-1 rounded border text-xs bg-primary/10 border-primary/40 text-primary hover:bg-primary/20 cursor-pointer whitespace-nowrap">
                         + Browse
                       </button>
+                    )}
                       <button onClick={() => { setAddMcpForm({ name: "", url: "" }); setAddMcpOpen(true); }} className="px-2 py-1 rounded border text-xs bg-surface border-border text-text-muted hover:border-primary hover:text-primary cursor-pointer whitespace-nowrap">
                         + Custom
                       </button>
@@ -534,12 +551,14 @@ export default function CoworkToolCard({
         closeOnSelect={false}
       />
 
-      <McpMarketplaceModal
-        isOpen={marketplaceOpen}
-        onClose={() => setMarketplaceOpen(false)}
-        onAdd={addPlugin}
-        addedNames={plugins.map((p) => p.name)}
-      />
+      {mcpMarketplaceEnabled && (
+        <McpMarketplaceModal
+          isOpen={marketplaceOpen}
+          onClose={() => setMarketplaceOpen(false)}
+          onAdd={addPlugin}
+          addedNames={plugins.map((p) => p.name)}
+        />
+      )}
 
       {/* Add Custom MCP modal */}
       {addMcpOpen && (

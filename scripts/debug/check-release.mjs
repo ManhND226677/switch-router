@@ -10,7 +10,6 @@ const pages = [
   "/dashboard/cli-tools",
   "/dashboard/providers",
   "/dashboard/providers/new",
-  "/dashboard/endpoint",
 ];
 
 let bad = 0;

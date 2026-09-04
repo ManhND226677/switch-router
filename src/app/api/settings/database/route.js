@@ -1,22 +1,17 @@
 import { NextResponse } from "next/server";
 import { exportDb, getSettings, importDb } from "@/lib/localDb";
 import { applyOutboundProxyEnv } from "@/lib/network/outboundProxy";
-import { isLocalRequest } from "@/dashboardGuard";
+import { isLocalRequest, hasValidCliToken } from "@/dashboardGuard";
 
-const CLI_TOKEN_HEADER = "x-9r-cli-token";
-
-// CLI token requests are already trusted (local machine); skip password re-auth.
-function isCliRequest(request) {
-  return Boolean(request.headers.get(CLI_TOKEN_HEADER));
-}
-
-function canUseDatabaseRoute(request) {
-  return isLocalRequest(request) || isCliRequest(request);
+// Phải SO SÁNH GIÁ TRỊ token với máy (như dashboardGuard.hasValidCliToken),
+// không được chỉ kiểm tra header tồn tại — header client tự gửi được.
+async function canUseDatabaseRoute(request) {
+  return isLocalRequest(request) || (await hasValidCliToken(request));
 }
 
 export async function GET(request) {
   try {
-    if (!canUseDatabaseRoute(request)) {
+    if (!(await canUseDatabaseRoute(request))) {
       return NextResponse.json({ error: "Switch-Router database access is local-only" }, { status: 403 });
     }
     const payload = await exportDb();
@@ -30,7 +25,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const payload = await request.json();
-    if (!canUseDatabaseRoute(request)) {
+    if (!(await canUseDatabaseRoute(request))) {
       return NextResponse.json({ error: "Switch-Router database access is local-only" }, { status: 403 });
     }
     await importDb(payload);

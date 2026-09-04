@@ -6,12 +6,9 @@
 // URLs); consolidated here when /dashboard became an overview-only page.
 // The Require-API-key toggle was hidden (setting stays enforced server-side
 // via /api/settings; manage through the API if ever needed).
-import { useState } from "react";
 import BaseUrlsCard from "./BaseUrlsCard";
 
-export default function ClientSetupSection({ origin, keys, officeAllowlistCount }) {
-  const [officeEnabled] = useState(true);
-
+export default function ClientSetupSection({ origin, keys, officeAllowlistCount, officeEnabled = false }) {
   return (
     <div className="flex flex-col gap-6">
       {/* All endpoint families — OpenAI, Anthropic and the M365 namespace — in ONE card */}

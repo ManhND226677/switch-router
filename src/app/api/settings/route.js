@@ -12,8 +12,9 @@ const SETTINGS_RESPONSE_HEADERS = {
 };
 
 // Secrets must never be mass-assigned from request body (CWE-915).
-// The Office gateway fields are env-derived and read-only: strip them too so a
-// PATCH can never persist a stale copy into the settings row.
+// officeModelAllowlistCount is env-derived (OFFICE_MODEL_IDS) and read-only:
+// strip it so a PATCH can never persist a stale copy. officeGatewayEnabled is
+// DB-backed since the Optional-features toggle was added — it IS settable.
 const PROTECTED_SETTING_KEYS = [
   "password",
   "newPassword",
@@ -25,7 +26,6 @@ const PROTECTED_SETTING_KEYS = [
   "oidcClientSecret",
   "oidcScopes",
   "oidcLoginLabel",
-  "officeGatewayEnabled",
   "officeModelAllowlistCount",
 ];
 
@@ -54,27 +54,18 @@ export async function GET() {
     const safeSettings = sanitizeSettings(settings);
     
     const enableRequestLogs = process.env.ENABLE_REQUEST_LOGS === "true";
-    const enableTranslator = process.env.ENABLE_TRANSLATOR === "true";
-    // Debug surfaces (Console Log, Translator) are shown unless explicitly
-    // disabled via ENABLE_DEBUG=false. Defaults to visible to avoid hiding
-    // useful observability tooling for existing deployments.
-    const enableDebug = process.env.ENABLE_DEBUG !== "false";
-    // Read-only mirror of the Office gateway env contract so the dashboard can
-    // describe the /office/v1 surface. The flag itself stays env-driven: it is
-    // deliberately NOT settable over PATCH (changing it requires a restart).
-    const officeGatewayFlag = process.env.OFFICE_GATEWAY_ENABLED;
-    const officeGatewayEnabled = officeGatewayFlag === "1" || officeGatewayFlag?.toLowerCase?.() === "true";
+    // Office gateway is now a DB-backed setting (Optional features toggle in
+    // Settings). The model allowlist count stays env-derived from OFFICE_MODEL_IDS.
+    const officeGatewayEnabled = settings.officeGatewayEnabled === true;
     const officeModelAllowlistCount = String(process.env.OFFICE_MODEL_IDS || "")
       .split(",")
       .map((value) => value.trim())
       .filter(Boolean)
       .length;
 
-    return NextResponse.json({ 
-      ...safeSettings, 
+    return NextResponse.json({
+      ...safeSettings,
       enableRequestLogs,
-      enableTranslator,
-      enableDebug,
       officeGatewayEnabled,
       officeModelAllowlistCount,
       dashboardAuthDisabled: true,

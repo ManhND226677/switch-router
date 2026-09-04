@@ -14,8 +14,6 @@ const providerModelItems = [
   { href: "/dashboard/cli-tools", label: "CLI Tools", icon: "terminal" },
 ];
 
-// Pricing is reachable from Settings (profile page) but deliberately not in
-// the sidebar — custom per-model pricing is a rare, low-frequency task.
 const systemItems = [
   { href: "/dashboard/proxy-pools", label: "Proxy Pools", icon: "lan" },
 ];
@@ -69,7 +67,7 @@ export default function Sidebar({ onClose, isMini = false }) {
 
   const isActive = (href) => {
     if (href === "/dashboard") {
-      return pathname === "/dashboard" || pathname.startsWith("/dashboard/endpoint") || pathname.startsWith("/dashboard/usage");
+      return pathname === "/dashboard";
     }
     return pathname.startsWith(href);
   };

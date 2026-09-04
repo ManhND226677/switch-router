@@ -61,6 +61,11 @@ const DEFAULT_SETTINGS = {
   pxpipeAutoInstall: true,
   pxpipeMinChars: 25000,
   pxpipeTimeoutMs: 15000,
+  // Optional feature visibility toggles (DB-backed, editable from Settings UI —
+  // no restart needed). officeGatewayEnabled historically lived in env only;
+  // the DB value wins once set (see getSettings inherit below).
+  officeGatewayEnabled: false,
+  mcpMarketplaceEnabled: true,
   // Context guard: recognising a provider overflow costs one regex pass on a
   // message the error path already parsed, and buys the log line + record.
   // Dropping history is opt-in because it silently removes conversation.
@@ -156,7 +161,8 @@ function sanitizeSettingValues(raw) {
 
 // Merge raw settings with defaults; backward-compat for missing keys
 function mergeWithDefaults(raw) {
-  const merged = { ...DEFAULT_SETTINGS, ...sanitizeSettingValues(raw) };
+  const sanitized = sanitizeSettingValues(raw);
+  const merged = { ...DEFAULT_SETTINGS, ...sanitized };
   for (const [key, defVal] of Object.entries(DEFAULT_SETTINGS)) {
     if (merged[key] === undefined) {
       if (
@@ -169,6 +175,14 @@ function mergeWithDefaults(raw) {
         merged[key] = defVal;
       }
     }
+  }
+  // One-time env inherit for officeGatewayEnabled: only while the DB has never
+  // stored the flag (sanitized lacks the key). An existing OFFICE_GATEWAY_ENABLED=true
+  // deployment therefore keeps working until the user toggles it in Settings,
+  // after which the DB value wins forever.
+  if (sanitized.officeGatewayEnabled === undefined) {
+    const envFlag = process.env.OFFICE_GATEWAY_ENABLED;
+    merged.officeGatewayEnabled = envFlag === "1" || envFlag?.toLowerCase?.() === "true";
   }
   return merged;
 }

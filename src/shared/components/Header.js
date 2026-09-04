@@ -58,25 +58,11 @@ const getPageInfo = (pathname) => {
       icon: "dashboard",
       breadcrumbs: [],
     };
-  if (pathname.includes("/auth-files"))
-    return {
-      title: "Auth Files",
-      description: "Map provider credentials stored in the local database",
-      icon: "vpn_key",
-      breadcrumbs: [],
-    };
   if (pathname.includes("/quota"))
     return {
       title: "Quota Tracker",
       description: "Track and manage your API quota limits",
       icon: "data_usage",
-      breadcrumbs: [],
-    };
-  if (pathname.includes("/token-saver"))
-    return {
-      title: "Token Saver",
-      description: "Compress prompts and outputs to save tokens",
-      icon: "savings",
       breadcrumbs: [],
     };
   if (pathname.includes("/cli-tools"))
@@ -112,20 +98,6 @@ const getPageInfo = (pathname) => {
       title: "Settings",
       description: "Manage your preferences",
       icon: "settings",
-      breadcrumbs: [],
-    };
-  if (pathname.includes("/translator"))
-    return {
-      title: "Translator",
-      description: "Debug translation flow between formats",
-      icon: "translate",
-      breadcrumbs: [],
-    };
-  if (pathname.includes("/console-log"))
-    return {
-      title: "Console Log",
-      description: "Live server console output",
-      icon: "monitor",
       breadcrumbs: [],
     };
   return { title: "", description: "", breadcrumbs: [] };

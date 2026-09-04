@@ -29,7 +29,7 @@ function toAnthropicModel(model) {
 }
 
 export async function OPTIONS(request) {
-  return officeOptionsResponse(request);
+  return await officeOptionsResponse(request);
 }
 
 /**
@@ -54,8 +54,10 @@ export async function GET(request) {
       has_more: false,
     }, request);
   } catch (error) {
+    // Không gửi error.message gốc qua CORS cho origin pivot.claude.ai —
+    // message có thể chứa URL nội bộ/chi tiết triển khai.
     console.error("Error fetching Office gateway models:", error);
-    return officeErrorResponse(500, error.message || "Failed to fetch models", request, "server_error");
+    return officeErrorResponse(500, "Failed to fetch models", request, "server_error");
   }
 }
 

@@ -40,6 +40,35 @@ describe("DB SQLite layer — public API parity", () => {
     expect(re.customField).toBe("x");
   });
 
+  it("officeGatewayEnabled: one-time env inherit, then DB wins", async () => {
+    // Fresh module + cache so the DB (temp dir) has never stored the flag.
+    const originalEnv = process.env.OFFICE_GATEWAY_ENABLED;
+    try {
+      process.env.OFFICE_GATEWAY_ENABLED = "true";
+      delete global._settingsCache;
+      vi.resetModules();
+      const db2 = await import("../../src/lib/db/index.js");
+      await db2.initDb();
+      expect((await db2.getSettings()).officeGatewayEnabled).toBe(true);
+
+      // User toggles it off; after that the env var no longer matters.
+      await db2.updateSettings({ officeGatewayEnabled: false });
+      delete process.env.OFFICE_GATEWAY_ENABLED;
+      delete global._settingsCache;
+      vi.resetModules();
+      const db3 = await import("../../src/lib/db/index.js");
+      await db3.initDb();
+      expect((await db3.getSettings()).officeGatewayEnabled).toBe(false);
+    } finally {
+      delete global._settingsCache;
+      if (originalEnv === undefined) delete process.env.OFFICE_GATEWAY_ENABLED;
+      else process.env.OFFICE_GATEWAY_ENABLED = originalEnv;
+      vi.resetModules();
+      sqliteDb = await import("../../src/lib/db/index.js");
+      await sqliteDb.initDb();
+    }
+  });
+
   it("apiKeys: create/get/validate/delete", async () => {
     const k = await sqliteDb.createApiKey("test-key", "machine-abc");
     expect(k.id).toBeDefined();

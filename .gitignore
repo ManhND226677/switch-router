@@ -112,3 +112,6 @@ EVALUATION.md
 
 # Local codebase-memory graph cache (regenerable; not runtime)
 .codebase-memory/
+
+# ZCode session plans (local assistant workspace, not part of the repo)
+.zcode/

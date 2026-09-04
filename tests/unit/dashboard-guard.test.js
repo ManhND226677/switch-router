@@ -211,14 +211,13 @@ describe("dashboard guard local-only access", () => {
     expect(response.body.error).toBe("Switch-Router dashboard is local-only");
   });
 
-  it("redirects the local login page back to the dashboard", async () => {
+  it("falls through for legacy /login path (no redirect, no route)", async () => {
     const response = await proxy(request("/login", {
       host: "localhost:28701",
       origin: "http://localhost:28701",
     }));
 
-    expect(response.status).toBe(307);
-    expect(response.url.toString()).toContain("/dashboard");
+    expect(response).toBe(mocks.nextResponse);
   });
 });
 
