@@ -2,6 +2,29 @@
 
 This file tracks changes for the local personal build only.
 
+## 0.11.0 - 2026-09-05
+
+### Changed
+
+- **Gỡ nhóm tính năng không dùng (groups A+B) + thêm thẻ "Optional Features" trong Settings.** Landing, translator, console log, pricing API, auth/login và redirect aliases bị xóa bỏ; office gateway / pxpipe / MCP marketplace giữ lại nhưng toggle được, lưu DB-backed (`officeGatewayEnabled`/`pxpipeEnabled`/`mcpMarketplaceEnabled`), office seed một lần từ env. Registry/test fixture của provider đã gỡ được dọn theo (`scripts/qa-provider-drift.mjs` canh chậm tái xuất hiện).
+
+### Security
+
+- **SSRF guard cho `/api/providers/suggested-models`.** Route fetch URL do client truyền mà không kiểm tra — giờ gọi `assertPublicUrl()` trước `fetch`, URL nội bộ/private trả 400.
+- **Virtual-key policy fail-closed.** Trước đây lỗi hạ tầng đọc policy bị nuốt và chat đi tiếp (âm thầm bỏ qua allowlist/budget/RPM/hết hạn); giờ trả 403 + log `AUTH`, không còn đường vòng quanh ràng buộc khóa ảo.
+- **Thu hẹp CORS.** Bỏ `Access-Control-Allow-Origin: *` khỏi StepFun proxy (JSON/upstream passthrough) và `errorResponse()`; OPTIONS public của `/v1/*` giữ nguyên cho CLI/browser client.
+- **Request logger redact body.** Bật `ENABLE_REQUEST_LOGS` trước đây ghi apiKey/token vào `logs/` ở body request lẫn `6_error.json`; giờ `redactSensitiveBody()` mask đệ quy `apiKey/api_key/token/accessToken/refreshToken/idToken/copilotToken` trước khi ghi (header đã redact từ 0.10.10).
+- **MCP SSE unregister khi client ngắt đột ngột** — không còn rò session + tiến trình con npx.
+- **Database export mask secrets/PII** (accessToken/refreshToken/idToken/apiKey/email) với sentinel-safe import; CLI token redact trong request log; database route value-check token thay vì chỉ check presence.
+- **Chặn drive-by cross-site:** `Sec-Fetch-Site` khác same-origin/same-site/none bị từ chối; pxpipe vào nhóm local-only; gateway bind loopback-only (HOSTNAME bị override) + realtime relay WS re-check TCP peer/Origin.
+- Vá toàn bộ npm audit vulnerabilities.
+
+### Fixed
+
+- **Stale errorCode trên connection khỏe.** `clearAccountError` return sớm ở 2 nhánh "nothing to clear" khiến errorCode treo vĩnh viễn (9 connection Ollama/OpenRouter/Vilao/Bai trong DB thật); giờ cả 2 nhánh đều null errorCode, kèm **migration 007** quét backlog (tiêu chí trùng `check-data-integrity`: `testStatus=active && lastError=null`, giữ errorCode của row "unavailable" — đó là diagnostics thật; SCHEMA_VERSION 7, tự backup trước khi migrate). Regression test trong `data-repair-regression.test.js`.
+- **Timer rò rỉ:** unref debounce flush của requestDetailsRepo + pendingTimers của usageRepo; route shutdown giờ flush cả requestDetails, stop health prober + quota auto-ping scheduler.
+- **UI:** class chết `animate-in zoom-in-95` (plugin không hề cài → dropdown không có hiệu ứng) thay bằng keyframe `pop-in` tự viết; Badge warning vàng→amber đồng bộ với toast; Sidebar bỏ `<h1>` trùng với Header; token `--color-danger/--color-success` sync về giá trị Tailwind đang dùng; `themeColor` theo prefers-color-scheme; `<noscript>` mở khóa icon khi JS tắt; `text-[8px]/[11px]` → `text-xs`; LatencyCachePanel có grid 1 cột trên mobile.
+
 ## 0.10.13 - 2026-08-30
 
 ### Fixed
