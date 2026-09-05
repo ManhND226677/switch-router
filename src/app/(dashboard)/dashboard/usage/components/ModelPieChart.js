@@ -12,7 +12,7 @@ function CustomPieTooltip({ active, payload }) {
 
   return (
     <div className="min-w-[180px] max-w-[280px] rounded-lg border border-border bg-surface p-3 shadow-lg">
-      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
         Model usage
       </div>
       <div className="flex flex-col gap-2">

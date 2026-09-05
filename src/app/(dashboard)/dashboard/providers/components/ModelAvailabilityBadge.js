@@ -204,16 +204,16 @@ export default function ModelAvailabilityBadge() {
                                   {label}
                                 </div>
                                 {m.connectionName && (
-                                  <div className="text-[11px] text-text-muted truncate" title={m.connectionName}>
+                                  <div className="text-xs text-text-muted truncate" title={m.connectionName}>
                                     {m.connectionName}
                                   </div>
                                 )}
-                                <div className="text-[11px] text-text-muted">
+                                <div className="text-xs text-text-muted">
                                   {status.label}
                                   {untilText ? ` · ${untilText}` : ""}
                                 </div>
                                 {m.lastError && (
-                                  <div className="text-[11px] text-red-500/90 mt-0.5 line-clamp-2" title={m.lastError}>
+                                  <div className="text-xs text-red-500/90 mt-0.5 line-clamp-2" title={m.lastError}>
                                     {m.lastError}
                                   </div>
                                 )}

@@ -95,9 +95,9 @@ export default function Sidebar({ onClose, isMini = false }) {
             </div>
             {!isMini && (
               <div className="flex flex-col">
-                <h1 className="text-lg font-semibold tracking-tight text-text-main">
+                <div className="text-lg font-semibold tracking-tight text-text-main">
                   {APP_CONFIG.name}
-                </h1>
+                </div>
                 <span className="text-xs text-text-muted">v{APP_CONFIG.version}</span>
               </div>
             )}

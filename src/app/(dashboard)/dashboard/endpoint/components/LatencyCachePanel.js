@@ -47,7 +47,7 @@ function LatencyCard() {
         <p className="text-sm text-text-muted">No recent requests with latency data yet.</p>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-2 mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
             <div>
               <div className="text-lg font-bold text-text-main">{fmtMs(data.ttft.p50)}</div>
               <div className="text-xs text-text-muted">TTFT p50</div>

@@ -253,7 +253,7 @@ export default function VirtualKeysPage() {
           { label: "Chi tiêu tháng này", value: `$${kpi.spend.toFixed(4)}` },
         ].map((item) => (
           <div key={item.label} className="px-5 py-4">
-            <p className="text-[11px] uppercase tracking-wider text-text-muted">{item.label}</p>
+            <p className="text-xs uppercase tracking-wider text-text-muted">{item.label}</p>
             <p className="mt-1 text-2xl font-bold text-text-main tabular-nums tracking-tight">{item.value}</p>
           </div>
         ))}
@@ -285,7 +285,7 @@ export default function VirtualKeysPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border-subtle text-left text-[11px] uppercase tracking-wider text-text-muted">
+                <tr className="border-b border-border-subtle text-left text-xs uppercase tracking-wider text-text-muted">
                   <th className="px-5 py-3 font-semibold">Tên</th>
                   <th className="px-5 py-3 font-semibold">Khóa</th>
                   <th className="px-5 py-3 font-semibold">Models</th>

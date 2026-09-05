@@ -31,7 +31,10 @@ export const metadata = {
 };
 
 export const viewport = {
-  themeColor: "#0a0a0a",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f7f8fb" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
 };
 
 export default async function RootLayout({ children }) {
@@ -56,6 +59,11 @@ export default async function RootLayout({ children }) {
             __html: `if(document.fonts&&document.fonts.ready){document.fonts.ready.then(function(){document.documentElement.classList.add('fonts-loaded')})}else{document.documentElement.classList.add('fonts-loaded')}`,
           }}
         />
+        {/* Không có JS thì icon font không bao giờ được mở khóa (fonts-loaded) —
+            hiện chữ ligature thay vì để mọi nút icon-only trống trơn. */}
+        <noscript>
+          <style>{`.material-symbols-outlined { visibility: visible; }`}</style>
+        </noscript>
       </head>
       <body className={`${inter.variable} font-sans antialiased`}>
         <ClientConsoleGate />

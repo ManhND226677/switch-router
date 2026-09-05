@@ -214,7 +214,7 @@ const [providerNameMap, setProviderNameMap] = useState({});
     .sort((a, b) => b.value - a.value);
 
   return (
-    <div className="flex flex-col gap-6 animate-in fade-in duration-300">
+    <div className="flex flex-col gap-6 fade-in">
       {/* Budget / spend-spike alerts (pushed live on the usage stream) */}
       {alerts.length > 0 && (
         <div className="flex flex-col gap-2">

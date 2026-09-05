@@ -368,7 +368,7 @@ export default function CoworkToolCard({
                     {plugins.filter((p) => p.name !== "exa").map((p) => (
                       <div key={p.name} className="flex items-center gap-2 px-2 py-1 bg-surface rounded border border-border">
                         <span className="text-xs font-medium min-w-0 truncate flex-shrink-0">{p.title || p.name}</span>
-                        {p.oauth && <span className="text-[8px] text-amber-600 shrink-0">OAuth</span>}
+                        {p.oauth && <span className="text-xs text-amber-600 shrink-0">OAuth</span>}
                         <div className="flex-1 flex flex-wrap gap-1 overflow-hidden" style={{ maxHeight: "1.5rem" }}>
                           {Array.isArray(p.toolNames) && p.toolNames.slice(0, 6).map((t) => (
                             <span key={t} className="text-xs px-1 py-0.5 rounded bg-black/5 dark:bg-white/5 text-text-muted whitespace-nowrap">{t}</span>
@@ -386,7 +386,7 @@ export default function CoworkToolCard({
                     {customPlugins.map((p) => (
                       <div key={p.name} className="flex items-center gap-2 px-2 py-1 bg-surface rounded border border-border">
                         <span className="text-xs font-medium min-w-0 truncate flex-shrink-0">{p.name}</span>
-                        <span className="text-[8px] px-1 py-0.5 rounded bg-blue-500/10 text-blue-500 shrink-0">custom</span>
+                        <span className="text-xs px-1 py-0.5 rounded bg-blue-500/10 text-blue-500 shrink-0">custom</span>
                         <span className="flex-1 text-xs text-text-muted truncate">{p.url}</span>
                         <button onClick={() => setCustomPlugins(customPlugins.filter((x) => x.name !== p.name))} className="shrink-0 hover:text-red-500 ml-auto">
                           <span className="material-symbols-outlined text-xs">close</span>
@@ -480,7 +480,7 @@ export default function CoworkToolCard({
                               <div className="flex-1 min-w-0">
                                 <div className="flex flex-wrap items-center gap-1.5">
                                   <span className="text-xs font-medium">{p.title}</span>
-                                  <span className="text-[8px] text-amber-600">stdio</span>
+                                  <span className="text-xs text-amber-600">stdio</span>
                                 </div>
                                 <p className="text-xs text-text-muted leading-snug">{p.description}</p>
                                 {p.extensionUrl && (

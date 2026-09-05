@@ -51,9 +51,10 @@
   --color-text-muted: #60758f;
   --color-text-subtle: #8ca0b7;
 
-  /* Status */
-  --color-danger: #cf222e;
-  --color-success: #10b981;
+  /* Status — synced to the Tailwind palette the app actually uses
+     (red-500 / green-500) so token and utility classes agree on color. */
+  --color-danger: #ef4444;
+  --color-success: #22c55e;
   --color-warning: #f59e0b;
   --color-info: #3b82f6;
 
@@ -438,6 +439,21 @@ button:disabled,
 }
 .fade-in {
   animation: fadeIn 0.2s ease-out forwards;
+}
+/* Pop-in for dropdowns — zero-dependency replacement for the tailwindcss-animate
+   classes (animate-in/zoom-in-95) that never generated CSS without the plugin. */
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.pop-in {
+  animation: popIn 0.15s ease-out forwards;
 }
 .slide-in-top {
   animation: slideInFromTop 0.18s cubic-bezier(0.22, 1, 0.36, 1) forwards;

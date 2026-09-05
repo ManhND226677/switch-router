@@ -53,7 +53,7 @@ export default function TopModelBilling({ byModel = {}, topN = 10, modelNames = 
                       <p className="font-medium text-text-main truncate">{display}</p>
                       {r.provider && <p className="text-xs text-text-muted truncate">{r.provider}</p>}
                       {(r.promptTokens > 0 || r.completionTokens > 0) && (
-                        <p className="text-[11px] text-text-muted/80 font-mono truncate">
+                        <p className="text-xs text-text-muted/80 font-mono truncate">
                           In {fmtTokens(r.promptTokens)} · Out {fmtTokens(r.completionTokens)}
                           {r.cachedTokens > 0 ? ` · ↻${fmtTokens(r.cachedTokens)}` : ""}
                         </p>

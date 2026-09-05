@@ -117,7 +117,7 @@ export default function HeaderMenu() {
           <div
             role="menu"
             onKeyDown={handleMenuKeyDown}
-            className="absolute right-0 top-full mt-2 w-60 bg-surface border border-black/10 dark:border-white/10 rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden py-1"
+            className="absolute right-0 top-full mt-2 w-60 bg-surface border border-black/10 dark:border-white/10 rounded-xl shadow-2xl z-50 fade-in pop-in overflow-hidden py-1"
           >
             <MenuItem
               icon={isDark ? "light_mode" : "dark_mode"}
