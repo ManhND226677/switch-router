@@ -28,12 +28,16 @@ export function buildErrorBody(statusCode, message) {
  * @returns {Response} HTTP Response object
  */
 export function errorResponse(statusCode, message) {
+  const headers = {
+    "Content-Type": "application/json",
+  };
+  // Only expose CORS for browser-facing errors; SSE streams use SSE_HEADERS_CORS
+  if (statusCode !== 200) {
+    headers["Access-Control-Allow-Origin"] = "*";
+  }
   return new Response(JSON.stringify(buildErrorBody(statusCode, message)), {
     status: statusCode,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*"
-    }
+    headers,
   });
 }
 

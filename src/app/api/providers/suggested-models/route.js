@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { FILTERS } from "./filters.js";
+import { assertPublicUrl } from "@/shared/utils/ssrfGuard.js";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,7 @@ export async function GET(request) {
   }
 
   try {
+    assertPublicUrl(url);
     const res = await fetch(url);
     if (!res.ok) {
       return NextResponse.json({ data: [] });
@@ -28,6 +30,6 @@ export async function GET(request) {
     const data = filter(arr);
     return NextResponse.json({ data });
   } catch {
-    return NextResponse.json({ data: [] });
+    return NextResponse.json({ data: [] }, { status: 400 });
   }
 }

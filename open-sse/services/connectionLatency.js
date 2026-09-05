@@ -85,7 +85,13 @@ export async function flushConnectionLatency() {
   pruneStore();
   try {
     const { writeLatencySnapshots } = await repo();
-    return await writeLatencySnapshots(Object.fromEntries(store));
+    const written = await writeLatencySnapshots(Object.fromEntries(store));
+    if (!written) {
+      dirty = true; // retry with next sample or shutdown
+      console.warn(`[latency] flush returned falsy, will retry`);
+      return 0;
+    }
+    return written;
   } catch (e) {
     dirty = true; // retry with the next sample, or at shutdown
     console.warn(`[latency] flush failed: ${e?.message || e}`);

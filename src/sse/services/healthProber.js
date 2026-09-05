@@ -14,6 +14,7 @@
 import { getProviderConnections, getSettings } from "@/lib/localDb";
 import { pingModelByKind } from "@/app/api/models/test/ping";
 import { MODEL_LOCK_PREFIX } from "open-sse/services/accountFallback.js";
+import { clearAccountError } from "./auth.js";
 import * as log from "../utils/logger.js";
 
 // Probe locks expiring within this window (half-open just before cooldown end).
@@ -69,6 +70,11 @@ async function probeOne(conn, model) {
     // (half-open → closed). Failure: lock simply expires on schedule.
     if (ok) {
       log.info("PROBE", `✓ ${connName} recovered on ${model} (${latencyMs}ms) — lock cleared before user traffic`);
+      try {
+        await clearAccountError(conn.id, conn, model);
+      } catch (clearErr) {
+        log.warn("PROBE", `clearAccountError failed for ${connName}: ${clearErr?.message || clearErr}`);
+      }
     } else {
       log.warn("PROBE", `✗ ${connName} still failing on ${model}: ${String(error || "").slice(0, 120)}`);
     }

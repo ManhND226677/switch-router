@@ -168,8 +168,9 @@ export async function handleChat(request, clientRawRequest = null) {
         }
       }
     } catch (policyError) {
-      // Lỗi hạ tầng đọc policy → fail-open như trước khi có tính năng, không chặn chat
-      log.warn("AUTH", `Virtual key policy skipped: ${policyError?.message}`);
+      // Lỗi hạ tầng đọc policy → fail-closed: chặn chat để bảo vệ ràng buộc khóa ảo
+      log.warn("AUTH", `Virtual key policy blocked: ${policyError?.message}`);
+      return errorResponse(HTTP_STATUS.FORBIDDEN, "Xác thực khóa ảo thất bại, thử lại sau");
     }
   }
 

@@ -296,6 +296,38 @@ function maskSensitiveHeaders(headers) {
   return masked;
 }
 
+// Redact common API key fields in JSON bodies before persisting.
+const SENSITIVE_BODY_KEYS = new Set([
+  "apiKey",
+  "api_key",
+  "key",
+  "authorization",
+  "token",
+  "accessToken",
+  "access_token",
+  "copilotToken",
+  "copilot_token",
+  "refreshToken",
+  "refresh_token",
+  "idToken",
+  "id_token",
+]);
+
+function redactSensitiveBody(value) {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) return value;
+  const redacted = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (SENSITIVE_BODY_KEYS.has(k)) {
+      redacted[k] = "[REDACTED]";
+    } else if (typeof v === "object" && v !== null) {
+      redacted[k] = redactSensitiveBody(v);
+    } else {
+      redacted[k] = v;
+    }
+  }
+  return redacted;
+}
+
 function createNoOpLogger() {
   return {
     sessionPath: null,
@@ -347,7 +379,7 @@ export async function createRequestLogger(sourceFormat, targetFormat, model, opt
     logClientRawRequest(endpoint, body, headers = {}) {
       track(writeJsonFile(sessionPath, "1_req_client.json", {
         timestamp: new Date().toISOString(), endpoint,
-        headers: maskSensitiveHeaders(headers), body,
+        headers: maskSensitiveHeaders(headers), body: redactSensitiveBody(body),
       }));
     },
 
@@ -367,7 +399,7 @@ export async function createRequestLogger(sourceFormat, targetFormat, model, opt
     logTargetRequest(url, headers, body) {
       track(writeJsonFile(sessionPath, "4_req_target.json", {
         timestamp: new Date().toISOString(), url,
-        headers: maskSensitiveHeaders(headers), body,
+        headers: maskSensitiveHeaders(headers), body: redactSensitiveBody(body),
       }));
     },
 
@@ -404,7 +436,7 @@ export async function createRequestLogger(sourceFormat, targetFormat, model, opt
         timestamp: new Date().toISOString(),
         error: error?.message || String(error),
         stack: error?.stack,
-        requestBody,
+        requestBody: redactSensitiveBody(requestBody),
       }));
     },
 

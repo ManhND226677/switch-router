@@ -51,17 +51,22 @@ export function stepFunModelFromRequest(value, fallback = "step-3.7-flash") {
 export function stepFunJsonResponse(body, status = 200, headers = {}) {
   return Response.json(body, {
     status,
-    headers: { "Access-Control-Allow-Origin": "*", ...headers },
+    headers: { ...headers },
   });
 }
 
 export function stepFunUpstreamResponse(response, headers = {}) {
   const passThrough = new Headers();
-  for (const name of ["content-type", "content-length", "content-disposition", "cache-control", "etag"]) {
+  for (const name of [
+    "content-type",
+    "content-length",
+    "content-disposition",
+    "cache-control",
+    "etag",
+  ]) {
     const value = response.headers.get(name);
     if (value) passThrough.set(name, value);
   }
-  passThrough.set("Access-Control-Allow-Origin", "*");
   for (const [name, value] of Object.entries(headers)) {
     if (value != null) passThrough.set(name, String(value));
   }
