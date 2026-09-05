@@ -25,7 +25,7 @@ export default function BaseUrlsCard({ origin, officeEnabled = true }) {
                   <span className="text-xs text-text-muted">
                     {officeEnabled
                       ? "Isolated namespace for Office agents — always requires its own API key."
-                      : "Enable the Office Gateway in Settings → Optional Features to use this namespace."
+                      : "Enable the Office Gateway in Settings → Optional Features to use this namespace."}
                   </span>
                 </div>
                 {officeEnabled && (
