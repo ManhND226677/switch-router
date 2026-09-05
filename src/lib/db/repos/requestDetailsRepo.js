@@ -106,7 +106,7 @@ function truncateField(obj, maxSize) {
   return obj || {};
 }
 
-async function flushToDatabase() {
+export async function flushToDatabase() {
   if (isFlushing) return;
   if (writeBuffer.length === 0) return;
   isFlushing = true;
@@ -184,6 +184,9 @@ export async function saveRequestDetail(detail) {
       flushTimer = null;
       flushToDatabase().catch(() => {});
     }, config.flushIntervalMs);
+    // Data-loss on abrupt exit is acceptable (observability rows); unref so the
+    // debounce never keeps the event loop alive past the server.
+    flushTimer.unref?.();
   }
 }
 

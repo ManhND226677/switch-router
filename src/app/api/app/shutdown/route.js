@@ -6,13 +6,14 @@ export async function POST() {
   // Drain write-behind queues (sticky-RR counters, usage rows, latency EWMA)
   // before exit.
   try {
-    const [{ flushRrCounters }, { flushPendingUsage }, { flushConnectionLatency }] = await Promise.all([
+    const [{ flushRrCounters }, { flushPendingUsage }, { flushConnectionLatency }, { flushToDatabase }] = await Promise.all([
       import("@/sse/services/auth.js"),
       import("@/lib/usageDb.js"),
       import("open-sse/services/connectionLatency.js"),
+      import("@/lib/db/repos/requestDetailsRepo.js"),
     ]);
-    await Promise.allSettled([flushRrCounters(), flushPendingUsage(), flushConnectionLatency()]);
-  } catch { /* best effort — all three are acceleration/telemetry data only */ }
+    await Promise.allSettled([flushRrCounters(), flushPendingUsage(), flushConnectionLatency(), flushToDatabase()]);
+  } catch { /* best effort — all four are acceleration/telemetry data only */ }
 
   try {
     const { stopHealthProber } = await import("@/sse/services/healthProber.js");

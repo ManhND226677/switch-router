@@ -398,6 +398,8 @@ export function trackPendingRequest(model, provider, connectionId, started, erro
       }
       scheduleStatsEvent("pending");
     }, PENDING_TIMEOUT_MS);
+    // Only resets in-memory pending counters — losing it on exit is harmless.
+    pendingTimers[timerKey].unref?.();
   } else {
     clearTimeout(pendingTimers[timerKey]);
     delete pendingTimers[timerKey];
