@@ -357,7 +357,14 @@ export async function clearAccountError(connectionId, currentConnection, model =
   const now = Date.now();
   const allLockKeys = Object.keys(conn).filter(k => k.startsWith("modelLock_"));
 
-  if (!conn.testStatus && !conn.lastError && allLockKeys.length === 0) return;
+  if (!conn.testStatus && !conn.lastError && allLockKeys.length === 0) {
+    // A row can still carry a stale errorCode with no other error state; null it
+    // here or it becomes unreachable until a migration runs.
+    if (conn.errorCode != null) {
+      await updateProviderConnection(connectionId, { errorCode: null });
+    }
+    return;
+  }
 
   // Keys to clear: current model's lock + all expired locks
   const keysToClear = allLockKeys.filter(k => {
@@ -367,7 +374,14 @@ export async function clearAccountError(connectionId, currentConnection, model =
     return expiry && new Date(expiry).getTime() <= now;   // expired
   });
 
-  if (keysToClear.length === 0 && conn.testStatus !== "unavailable" && !conn.lastError) return;
+  if (keysToClear.length === 0 && conn.testStatus !== "unavailable" && !conn.lastError) {
+    // Same stale-errorCode case as above, for rows with testStatus set: the
+    // sweep below never runs, so null the leftover code before returning.
+    if (conn.errorCode != null) {
+      await updateProviderConnection(connectionId, { errorCode: null });
+    }
+    return;
+  }
 
   // Check if any active locks remain after clearing
   const remainingActiveLocks = allLockKeys.filter(k => {

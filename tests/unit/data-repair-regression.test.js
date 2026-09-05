@@ -496,6 +496,38 @@ describe("migration 006: retired-provider connections", () => {
   });
 });
 
+// ───────────────────────────────────────────────────────────────────────────
+// 007 — stale errorCode backlog on healthy rows (runtime now clears it, the
+// migration cleans what accumulated before that fix)
+// ───────────────────────────────────────────────────────────────────────────
+describe("migration 007: clean-stale-error-codes", () => {
+  it("clears errorCode on healthy rows, keeps diagnostics, and is re-runnable", async () => {
+    const m007 = (await import("@/lib/db/migrations/007-clean-stale-error-codes.js")).default;
+
+    const healthy = await db.createProviderConnection({
+      provider: "openrouter", authType: "apikey", name: "stale-code-7", apiKey: "sk-7h",
+    });
+    await db.updateProviderConnection(healthy.id, { errorCode: 403, testStatus: "active", lastError: null });
+
+    const broken = await db.createProviderConnection({
+      provider: "openrouter", authType: "apikey", name: "really-broken-7", apiKey: "sk-7b",
+    });
+    await db.updateProviderConnection(broken.id, { errorCode: 502, testStatus: "unavailable", lastError: "[502] bad gateway" });
+
+    m007.up(adapter);
+
+    const h = JSON.parse(adapter.get(`SELECT data FROM providerConnections WHERE id = ?`, [healthy.id]).data);
+    const b = JSON.parse(adapter.get(`SELECT data FROM providerConnections WHERE id = ?`, [broken.id]).data);
+    expect(h.errorCode, "healthy account should lose its stale errorCode").toBeUndefined();
+    expect(b.errorCode, "unavailable account keeps its diagnostic errorCode").toBe(502);
+
+    // Second run must be a no-op (idempotent).
+    m007.up(adapter);
+    const h2 = JSON.parse(adapter.get(`SELECT data FROM providerConnections WHERE id = ?`, [healthy.id]).data);
+    expect(h2.errorCode).toBeUndefined();
+  });
+});
+
 describe("schema declaration covers migrated columns", () => {
   it("apiKeys policy columns from migration 004 are declared in TABLES", async () => {
     const { TABLES } = await import("@/lib/db/schema.js");
