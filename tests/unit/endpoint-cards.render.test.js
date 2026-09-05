@@ -68,7 +68,7 @@ describe("endpoint page cards render", () => {
       React.createElement(BaseUrlsCard, { origin: ORIGIN, officeEnabled: true }),
     );
     expect(enabled).toContain("/office/v1/messages");
-    expect(enabled).toContain("Đã bật");
+    expect(enabled).toContain("Isolated namespace for Office agents");
 
     const disabled = renderToStaticMarkup(
       React.createElement(BaseUrlsCard, { origin: ORIGIN, officeEnabled: false }),

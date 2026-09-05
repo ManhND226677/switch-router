@@ -260,7 +260,7 @@ export default function RequestDetailsTab() {
       <Card padding="md">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
           <div className="flex min-w-0 flex-col gap-2">
-            <label htmlFor="provider-filter" className="text-sm font-medium text-text-main">Nhà cung cấp</label>
+            <label htmlFor="provider-filter" className="text-sm font-medium text-text-main">Provider</label>
             <select
               id="provider-filter"
               value={filters.provider}
@@ -272,7 +272,7 @@ export default function RequestDetailsTab() {
               )}
               style={{ colorScheme: 'auto' }}
             >
-              <option value="">Tất cả nhà cung cấp</option>
+              <option value="">All providers</option>
               {providers.map((provider) => (
                 <option key={provider.id} value={provider.id}>
                   {provider.name}
@@ -282,7 +282,7 @@ export default function RequestDetailsTab() {
           </div>
           
           <div className="flex min-w-0 flex-col gap-2">
-            <label htmlFor="key-filter" className="text-sm font-medium text-text-main">Khóa ảo</label>
+            <label htmlFor="key-filter" className="text-sm font-medium text-text-main">Virtual key</label>
             <select
               id="key-filter"
               value={filters.keyId}
@@ -294,7 +294,7 @@ export default function RequestDetailsTab() {
               )}
               style={{ colorScheme: 'auto' }}
             >
-              <option value="">Tất cả khóa</option>
+              <option value="">All keys</option>
               {virtualKeys.map((k) => (
                 <option key={k.id} value={k.id}>{k.name}</option>
               ))}
@@ -302,7 +302,7 @@ export default function RequestDetailsTab() {
           </div>
 
           <div className="flex min-w-0 flex-col gap-2">
-            <label htmlFor="status-filter" className="text-sm font-medium text-text-main">Trạng thái</label>
+            <label htmlFor="status-filter" className="text-sm font-medium text-text-main">Status</label>
             <select
               id="status-filter"
               value={filters.status}
@@ -314,14 +314,14 @@ export default function RequestDetailsTab() {
               )}
               style={{ colorScheme: 'auto' }}
             >
-              <option value="">Tất cả</option>
-              <option value="error">Chỉ lỗi</option>
-              <option value="success">Chỉ thành công</option>
+              <option value="">All</option>
+              <option value="error">Errors only</option>
+              <option value="success">Success only</option>
             </select>
           </div>
 
           <div className="flex min-w-0 flex-col gap-2">
-            <label htmlFor="start-date-filter" className="text-sm font-medium text-text-main">Từ ngày</label>
+            <label htmlFor="start-date-filter" className="text-sm font-medium text-text-main">From</label>
             <input
               id="start-date-filter"
               type="datetime-local"
@@ -335,7 +335,7 @@ export default function RequestDetailsTab() {
           </div>
 
           <div className="flex min-w-0 flex-col gap-2">
-            <label htmlFor="end-date-filter" className="text-sm font-medium text-text-main">Đến ngày</label>
+            <label htmlFor="end-date-filter" className="text-sm font-medium text-text-main">To</label>
             <input
               id="end-date-filter"
               type="datetime-local"
@@ -349,14 +349,14 @@ export default function RequestDetailsTab() {
           </div>
           
           <div className="flex min-w-0 flex-col gap-2 sm:col-span-2 lg:col-span-1">
-            <span className="hidden text-sm font-medium text-text-main opacity-0 lg:block" aria-hidden="true">Xóa</span>
+            <span className="hidden text-sm font-medium text-text-main opacity-0 lg:block" aria-hidden="true">Clear</span>
             <Button 
               variant="ghost" 
               onClick={handleClearFilters}
               disabled={!filters.provider && !filters.keyId && !filters.status && !filters.startDate && !filters.endDate}
               className="w-full"
             >
-              Xóa bộ lọc
+              Clear filters
             </Button>
           </div>
         </div>
@@ -367,16 +367,16 @@ export default function RequestDetailsTab() {
           <table className="w-full min-w-[880px]">
             <thead>
               <tr className="border-b border-black/5 dark:border-white/5">
-                <th className="text-left p-4 text-sm font-semibold text-text-main">Thời điểm</th>
+                <th className="text-left p-4 text-sm font-semibold text-text-main">Time</th>
                 <th className="text-left p-4 text-sm font-semibold text-text-main">Model</th>
-                <th className="text-left p-4 text-sm font-semibold text-text-main">Nhà cung cấp</th>
-                <th className="text-left p-4 text-sm font-semibold text-text-main">Trạng thái</th>
-                <th className="text-right p-4 text-sm font-semibold text-text-main">Token vào</th>
-                <th className="text-right p-4 text-sm font-semibold text-text-main">Đã cache</th>
-                <th className="text-right p-4 text-sm font-semibold text-text-main">Cache tạo mới</th>
-                <th className="text-right p-4 text-sm font-semibold text-text-main">Token ra</th>
-                <th className="text-left p-4 text-sm font-semibold text-text-main">Độ trễ</th>
-                <th className="text-center p-4 text-sm font-semibold text-text-main">Thao tác</th>
+                <th className="text-left p-4 text-sm font-semibold text-text-main">Provider</th>
+                <th className="text-left p-4 text-sm font-semibold text-text-main">Status</th>
+                <th className="text-right p-4 text-sm font-semibold text-text-main">Input tokens</th>
+                <th className="text-right p-4 text-sm font-semibold text-text-main">Cached</th>
+                <th className="text-right p-4 text-sm font-semibold text-text-main">Cache writes</th>
+                <th className="text-right p-4 text-sm font-semibold text-text-main">Output tokens</th>
+                <th className="text-left p-4 text-sm font-semibold text-text-main">Latency</th>
+                <th className="text-center p-4 text-sm font-semibold text-text-main">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -385,14 +385,14 @@ export default function RequestDetailsTab() {
                   <td colSpan="10" className="p-8 text-center text-text-muted">
                     <div className="flex items-center justify-center gap-2">
                       <span className="material-symbols-outlined animate-spin text-xl">progress_activity</span>
-                      Đang tải…
+                      Loading…
                     </div>
                   </td>
                 </tr>
               ) : details.length === 0 ? (
                 <tr>
                   <td colSpan="10" className="p-8 text-center text-text-muted">
-                    Không có chi tiết request nào
+                    No request details
                   </td>
                 </tr>
               ) : (
@@ -542,14 +542,14 @@ export default function RequestDetailsTab() {
                   variant="outline"
                   onClick={handleReplay}
                   disabled={!canReplay(selectedDetail) || replay?.loading === true}
-                  title={canReplay(selectedDetail) ? "Gửi lại đúng request này qua gateway (probe: 1 account, không khóa account)" : "Payload không còn nguyên vẹn khi lưu — không replay được"}
+                  title={canReplay(selectedDetail) ? "Replay this exact request through the gateway (probe: 1 account, no account locking)" : "Payload was not saved intact — cannot replay"}
                 >
-                  {replay?.loading ? "Đang replay…" : "Gửi lại request"}
+                  {replay?.loading ? "Replaying…" : "Replay request"}
                 </Button>
               </div>
               {!canReplay(selectedDetail) && (
                 <p className="mt-2 text-xs text-text-muted">
-                  Payload bị cắt ngắn hoặc thiếu messages khi lưu — không replay được. Tăng “Kích thước JSON tối đa” trong Profile nếu cần giữ payload lớn.
+                  Payload was truncated or is missing messages when saved — cannot replay. Raise “Max JSON size” in Profile to keep large payloads.
                 </p>
               )}
               {replay && !replay.loading && (replay.error ? (
@@ -589,7 +589,7 @@ export default function RequestDetailsTab() {
                       ? "bg-green-500/15 text-green-600"
                       : "bg-amber-500/15 text-amber-600"
                   )}>
-                    {selectedDetail.pxpipe.applied ? "Đã áp dụng" : "Bỏ qua"}
+                    {selectedDetail.pxpipe.applied ? "Applied" : "Skipped"}
                   </span>
                 </div>
                 {selectedDetail.pxpipe.applied ? (
@@ -603,11 +603,11 @@ export default function RequestDetailsTab() {
                       <span className="font-mono">{(selectedDetail.pxpipe.tokensAfterEst || 0).toLocaleString()} tokens</span>
                     </div>
                     <div>
-                      <span className="text-text-muted block text-xs">Tiết kiệm</span>
+                      <span className="text-text-muted block text-xs">Saved</span>
                       <span className="font-mono text-green-600">{selectedDetail.pxpipe.savedPct || 0}%</span>
                     </div>
                     <div>
-                      <span className="text-text-muted block text-xs">Ảnh</span>
+                      <span className="text-text-muted block text-xs">Images</span>
                       <span className="font-mono">{selectedDetail.pxpipe.imageCount || 0} ({selectedDetail.pxpipe.durationMs || 0}ms)</span>
                     </div>
                   </div>
@@ -663,7 +663,7 @@ export default function RequestDetailsTab() {
                   Content
                 </h4>
                 <pre className="max-h-[300px] max-w-full overflow-auto rounded-lg border border-black/5 bg-black/5 p-3 font-mono text-xs text-text-main dark:border-white/5 dark:bg-white/5 sm:p-4">
-                  {selectedDetail.response?.content || "[Không có nội dung]"}
+                  {selectedDetail.response?.content || "[No content]"}
                 </pre>
               </CollapsibleSection>
             </div>

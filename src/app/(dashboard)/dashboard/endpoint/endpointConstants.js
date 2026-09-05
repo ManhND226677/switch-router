@@ -26,7 +26,7 @@ export const ENDPOINT_GROUPS = [
     tone: "accent",
     path: "/v1",
     icon: "hub",
-    desc: "Một surface duy nhất — OpenAI-compatible, Anthropic Messages và Responses API (Codex CLI)",
+    desc: "One surface — OpenAI-compatible, Anthropic Messages and Responses API (Codex CLI)",
     routes: [
       "POST /v1/chat/completions",
       "POST /v1/responses",
@@ -40,7 +40,7 @@ export const ENDPOINT_GROUPS = [
     tone: "accent",
     path: "/v1/messages",
     icon: "forum",
-    desc: "Định dạng Anthropic Messages — cùng surface /v1; Claude Code/SDK trỏ base KHÔNG kèm /v1",
+    desc: "Anthropic Messages format — same /v1 surface; point Claude Code/SDK at the base WITHOUT /v1",
     routes: [
       "POST /v1/messages",
       "POST /v1/messages/count_tokens",
@@ -53,7 +53,7 @@ export const ENDPOINT_GROUPS = [
     tone: "office",
     path: "/office/v1",
     icon: "description",
-    desc: "Gateway Office biệt lập — luôn yêu cầu API key riêng",
+    desc: "Isolated Office gateway — always requires its own API key",
     requiresOfficeGateway: true,
     routes: [
       "GET  /office/v1/models",
