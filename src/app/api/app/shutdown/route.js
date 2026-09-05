@@ -15,6 +15,16 @@ export async function POST() {
   } catch { /* best effort — all three are acceleration/telemetry data only */ }
 
   try {
+    const { stopHealthProber } = await import("@/sse/services/healthProber.js");
+    stopHealthProber();
+  } catch { /* best effort */ }
+
+  try {
+    const { stopQuotaAutoPing } = await import("@/shared/services/quotaAutoPing.js");
+    stopQuotaAutoPing();
+  } catch { /* best effort */ }
+
+  try {
     await killAppProcesses();
   } catch {
     // Best effort: the process still exits below.

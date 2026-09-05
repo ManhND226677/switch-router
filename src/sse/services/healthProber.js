@@ -130,3 +130,9 @@ export function ensureHealthProberStarted() {
   }, SWEEP_INTERVAL_MS);
   proberState.timer.unref?.();
 }
+
+export function stopHealthProber() {
+  if (!proberState.timer) return;
+  clearInterval(proberState.timer);
+  proberState.timer = null;
+}
