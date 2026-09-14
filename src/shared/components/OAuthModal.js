@@ -35,9 +35,11 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       setIsLocalhost(
         window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
       );
-      setPlaceholderUrl(`${window.location.origin}/callback?code=...`);
+      const callbackPath =
+        provider === "unstoppable" ? "/canopy-cloud/oauth/callback" : "/callback";
+      setPlaceholderUrl(`${window.location.origin}${callbackPath}?code=...`);
     }
-  }, []);
+  }, [provider]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // read window.location for redirect placeholder (client-only) is intentional
@@ -189,6 +191,12 @@ export default function OAuthModal({ isOpen, provider, providerInfo, onSuccess, 
       let redirectUri;
       if (provider === "codex") {
         redirectUri = "http://localhost:1455/auth/callback";
+      } else if (provider === "unstoppable") {
+        // Unstoppable's desktop-auth page validates the redirect_uri against the
+        // callback path its own loopback server registers — a mismatch makes the
+        // authorize page render "Unable to connect desktop app". Must be exactly
+        // /canopy-cloud/oauth/callback, and the server only accepts 127.0.0.1.
+        redirectUri = `http://127.0.0.1:${appPort}/canopy-cloud/oauth/callback`;
       } else {
         redirectUri = `http://localhost:${appPort}/callback`;
       }

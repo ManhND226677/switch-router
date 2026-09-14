@@ -80,7 +80,7 @@ export default {
     authorizeUrl: "https://app.unstoppable.ai/desktop-auth",
     tokenUrl: "https://app.unstoppable.ai/api/v1/desktop-app/desktop-auth/token",
     codeChallengeMethod: "S256",
-    callbackPath: "/callback",
+    callbackPath: "/canopy-cloud/oauth/callback",
     clientName: "Unstoppable Code Desktop",
     refreshLeadMs: 14400000,
   },
