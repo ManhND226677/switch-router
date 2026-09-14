@@ -651,11 +651,16 @@ const PROVIDERS = {
 
       return await response.json();
     },
+    // The token endpoint answers in the desktop app's own camelCase shape, NOT
+    // oauth2: the credential arrives as `token` (which is the cskToken = account
+    // API key), alongside userApiKey/account/capabilities/organizations.
+    // Reading `access_token` here silently yields undefined and the connection is
+    // saved without a credential — which is exactly the "401 Invalid API key"
+    // after a seemingly successful login.
     mapTokens: (tokens) => ({
-      accessToken: tokens.access_token,
-      refreshToken: typeof tokens.refresh_token === "string" ? tokens.refresh_token : undefined,
-      expiresIn: tokens.expires_in,
-      scope: tokens.scope,
+      accessToken: typeof tokens?.token === "string" ? tokens.token : undefined,
+      // No refresh flow and no expiry: cskToken is a long-lived account API key.
+      email: typeof tokens?.account?.email === "string" ? tokens.account.email : undefined,
     }),
   },
 

@@ -56,12 +56,13 @@ const OAUTH_TEST_CONFIG = {
   },
   // Unstoppable Code (Canopy Cloud) — probe the account endpoint. A 200 means the
   // cskToken is valid; 401/403 means it is bad. No inference quota is consumed.
+  // Not refreshable: the cskToken is a long-lived account API key and the desktop
+  // OAuth flow issues no refresh token.
   unstoppable: {
     url: `${UNSTOPPABLE_CONFIG.authorizeUrl.replace(/\/desktop-auth$/, "")}/api/v1/desktop-app/account`,
     method: "GET",
     authHeader: "Authorization",
     authPrefix: "Bearer ",
-    refreshable: true,
   },
   // Grok CLI / Grok Build — probe /v1/user (no inference quota). Headers mirror official CLI.
   "grok-cli": {

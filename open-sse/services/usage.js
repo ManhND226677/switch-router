@@ -13,6 +13,7 @@ import { getGrokCliUsage } from "./usage/grok-cli.js";
 import { getWorkbuddyUsage } from "./usage/workbuddy.js";
 import { ensureWorkbuddyAutoCheckinStarted } from "../../src/shared/services/workbuddyAutoCheckin.js";
 import { getNovitaUsage } from "./usage/novita.js";
+import { getUnstoppableUsage } from "./usage/unstoppable.js";
 import {
   getOllamaUsage,
   getGlmUsage,
@@ -51,6 +52,11 @@ const USAGE_HANDLERS = {
   },
   novita: (c) => getNovitaUsage({
     connectionId: c.connectionId,
+    apiKey: c.apiKey,
+    proxyOptions: c.proxyOptions,
+  }),
+  unstoppable: (c) => getUnstoppableUsage({
+    accessToken: c.accessToken,
     apiKey: c.apiKey,
     proxyOptions: c.proxyOptions,
   }),

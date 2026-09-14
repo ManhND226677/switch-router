@@ -1,10 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
+
+// proxyAwareFetch snapshots globalThis.fetch at module load, so the usage tests
+// mock the module itself (same pattern as vilao-usage.test.js).
+vi.mock("../../open-sse/utils/proxyFetch.js", () => ({
+  proxyAwareFetch: vi.fn(),
+}));
 
 import REGISTRY from "../../open-sse/providers/registry/index.js";
 import { PROVIDERS, PROVIDER_OAUTH, PROVIDER_MODELS } from "../../open-sse/providers/index.js";
-import { OAUTH_PROVIDERS } from "../../src/shared/constants/providers.js";
+import { OAUTH_PROVIDERS, USAGE_SUPPORTED_PROVIDERS, USAGE_APIKEY_PROVIDERS } from "../../src/shared/constants/providers.js";
 import { getProvider } from "../../src/lib/oauth/providers.js";
 import { UNSTOPPABLE_CONFIG } from "../../src/lib/oauth/constants/oauth.js";
+import { proxyAwareFetch } from "../../open-sse/utils/proxyFetch.js";
+import { getUnstoppableUsage } from "../../open-sse/services/usage/unstoppable.js";
 
 describe("Unstoppable Code provider registration", () => {
   it("registers as an OAuth Anthropic-format provider", () => {
@@ -30,6 +38,12 @@ describe("Unstoppable Code provider registration", () => {
     });
   });
 
+  it("forces streaming because the proxy rejects non-stream requests", () => {
+    // POSTing without stream:true answers
+    // {"error":"LLM proxy requests must set stream: true."} — verified live.
+    expect(PROVIDERS.unstoppable.forceStream).toBe(true);
+  });
+
   it("is surfaced as an OAuth provider in the UI category map", () => {
     expect(OAUTH_PROVIDERS.unstoppable).toBeTruthy();
   });
@@ -42,17 +56,32 @@ describe("Unstoppable Code provider registration", () => {
     expect(provider.hasOAuth).toBe(true);
   });
 
-  it("publishes a fallback model list under the udc alias", () => {
+  it("ships the ai-gateway catalog with gatewayId routing per model", () => {
     const models = PROVIDER_MODELS.udc;
     expect(Array.isArray(models)).toBe(true);
-    expect(models.length).toBeGreaterThan(0);
-    // Passthrough is on, so this list is only a picker fallback — but it must
-    // still exist so a fresh install has something to select before the
-    // dynamic catalog is fetched.
+    expect(models.length).toBe(25);
+    // The proxy routes on `gatewayId` (<family>/<model>), while the catalog id is
+    // the short form users type after `udc/` — so every entry needs a mapping.
     for (const model of models) {
       expect(typeof model.id).toBe("string");
-      expect(model.id.length).toBeGreaterThan(0);
+      expect(model.upstreamModelId).toBeTruthy();
+      expect(model.upstreamModelId).toMatch(/^[a-z0-9-]+\/[^\s/][^\s]*$/);
     }
+    const byId = Object.fromEntries(models.map((m) => [m.id, m.upstreamModelId]));
+    expect(byId["claude-sonnet-5"]).toBe("anthropic/claude-sonnet-5");
+    expect(byId["claude-haiku-4.5"]).toBe("anthropic/claude-haiku-4.5");
+    expect(byId["gpt-5.6-luna"]).toBe("openai/gpt-5.6-luna");
+    expect(byId["deepseek-v4.1-flash"]).toBe("deepseek/deepseek-v4.1-flash");
+    expect(byId["glm-5.3"]).toBe("zai/glm-5.3");
+    expect(byId["minimax-m3"]).toBe("minimax/minimax-m3");
+    expect(byId["kimi-k3"]).toBe("moonshotai/kimi-k3");
+  });
+
+  it("exposes the AI Credits usage endpoints on the transport", () => {
+    expect(PROVIDERS.unstoppable.usage).toMatchObject({
+      url: "https://app.unstoppable.ai/api/v1/ai-credits/balance",
+      subscriptionUrl: "https://app.unstoppable.ai/api/v1/ai-credits/subscription",
+    });
   });
 });
 
@@ -99,10 +128,10 @@ describe("Unstoppable Code OAuth flow", () => {
       return {
         ok: true,
         json: async () => ({
-          access_token: "csk-token",
-          refresh_token: "rtoken",
-          expires_in: 3600,
-          scope: "openid",
+          // Real desktop-auth/token shape: camelCase, credential in `token`.
+          token: "csk-token",
+          userApiKey: { id: "key-id", source: "GUEST" },
+          account: { id: "acct", email: "user@example.com" },
         }),
       };
     };
@@ -131,16 +160,97 @@ describe("Unstoppable Code OAuth flow", () => {
         clientDeviceId: config.clientDeviceId,
       });
       // mapTokens (applied by exchangeTokens, one layer up) normalizes the
-      // raw upstream response into the connection shape.
+      // raw upstream response into the connection shape. Reading access_token
+      // here instead of `token` saved a connection with no credential, which
+      // surfaced as "401 Invalid API key" right after a successful login.
       const mapped = handler.mapTokens(tokens);
-      expect(mapped).toEqual({
-        accessToken: "csk-token",
-        refreshToken: "rtoken",
-        expiresIn: 3600,
-        scope: "openid",
-      });
+      expect(mapped).toEqual({ accessToken: "csk-token", email: "user@example.com" });
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+});
+
+describe("Unstoppable Code usage (AI Credits)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const jsonResponse = (body, status = 200) => ({
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+  });
+
+  it("is registered for the Quota Tracker under both auth modes", () => {
+    expect(USAGE_SUPPORTED_PROVIDERS).toContain("unstoppable");
+    expect(USAGE_APIKEY_PROVIDERS).toContain("unstoppable");
+  });
+
+  it("maps balance + subscription into a credits quota row", async () => {
+    proxyAwareFetch
+      .mockResolvedValueOnce(jsonResponse({
+        email: "pro@example.com",
+        credits: 120,
+        dailyDripCapCredits: 200,
+        eligible: true,
+        source: "canopy",
+        orgPool: null,
+      }))
+      .mockResolvedValueOnce(jsonResponse({
+        active: false,
+        plan: "Pro",
+        renewsAt: "2026-10-14T00:00:00.000Z",
+      }));
+
+    const usage = await getUnstoppableUsage({ accessToken: "csk-test" });
+    // credits is the REMAINING balance; dailyDripCapCredits is the denominator.
+    expect(usage.native).toMatchObject({
+      status: "ok",
+      remainingCredits: 120,
+      totalCredits: 200,
+      usedCredits: 80,
+      remainingPercentage: 60,
+      plan: "Pro",
+      subscriptionActive: false,
+    });
+    expect(usage.quotas.credits).toMatchObject({
+      used: 80,
+      total: 200,
+      remaining: 120,
+      percentageAvailable: true,
+      unit: "credits",
+    });
+    expect(usage.message).toBeNull();
+  });
+
+  it("drops the daily-cap bar when a paid subscription is active", async () => {
+    proxyAwareFetch
+      .mockResolvedValueOnce(jsonResponse({ credits: 500, dailyDripCapCredits: 25, source: "canopy" }))
+      .mockResolvedValueOnce(jsonResponse({ active: true, plan: "Pro" }));
+
+    const usage = await getUnstoppableUsage({ accessToken: "csk-test" });
+    // A paid seat is not drip-limited: showing "500 / 25" would be nonsense.
+    expect(usage.native.totalCredits).toBeNull();
+    expect(usage.native.remainingCredits).toBe(500);
+    expect(usage.quotas.credits.percentageAvailable).toBe(false);
+  });
+
+  it("reports an auth failure instead of a bogus zero balance", async () => {
+    proxyAwareFetch
+      .mockResolvedValueOnce(jsonResponse({ error: "Invalid API key" }, 401))
+      .mockResolvedValueOnce(jsonResponse({}, 401));
+
+    const usage = await getUnstoppableUsage({ accessToken: "bad" });
+    expect(usage.message).toMatch(/sign in again/i);
+    expect(usage.quotas.credits.used).toBeNull();
+    expect(usage.native.status).toBe("http_401");
+  });
+
+  it("returns a message when no credential is present", async () => {
+    const usage = await getUnstoppableUsage({});
+    expect(usage.message).toMatch(/not available/i);
+    expect(usage.native.status).toBe("unavailable");
+    expect(proxyAwareFetch).not.toHaveBeenCalled();
   });
 });
