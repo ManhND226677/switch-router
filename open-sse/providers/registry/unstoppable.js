@@ -35,6 +35,12 @@ export default {
     },
   },
   category: "oauth",
+  // The desktop app itself offers BOTH entry paths for the same cskToken:
+  // OAuth login and a "paste API key" settings field (settingsValidateCanopyCloudApiKey).
+  // Declaring both lets a Pro user skip the OAuth dance entirely if they already
+  // have an API key, while the login button still runs the PKCE flow.
+  authModes: ["oauth", "apikey"],
+  hasOAuth: true,
   transport: {
     baseUrl: "https://app.unstoppable.ai/api/v1/llm-proxy/anthropic/v1/messages",
     format: "claude",

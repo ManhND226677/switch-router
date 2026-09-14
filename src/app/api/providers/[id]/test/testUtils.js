@@ -598,6 +598,17 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
       case "workbuddy": {
         return probeWorkbuddySession(connection, effectiveProxy);
       }
+      case "unstoppable": {
+        // Same account endpoint the OAuth probe uses; a 200 means the pasted
+        // API key is a valid cskToken. No inference quota is consumed.
+        const res = await fetchWithConnectionProxy(
+          `${UNSTOPPABLE_CONFIG.authorizeUrl.replace(/\/desktop-auth$/, "")}/api/v1/desktop-app/account`,
+          { headers: { Accept: "application/json", Authorization: `Bearer ${connection.apiKey}` } },
+          effectiveProxy,
+        );
+        const valid = res.status !== 401 && res.status !== 403;
+        return { valid, error: valid ? null : "Invalid Unstoppable API key" };
+      }
       default:
         return { valid: false, error: "Provider test not supported" };
     }

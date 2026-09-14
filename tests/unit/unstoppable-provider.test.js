@@ -34,6 +34,14 @@ describe("Unstoppable Code provider registration", () => {
     expect(OAUTH_PROVIDERS.unstoppable).toBeTruthy();
   });
 
+  it("declares both oauth and apikey entry paths", () => {
+    // The desktop app itself accepts a pasted API key OR an OAuth login for the
+    // same cskToken; declaring both lets a Pro user skip the OAuth dance.
+    const provider = REGISTRY.find((entry) => entry.id === "unstoppable");
+    expect(provider.authModes).toEqual(["oauth", "apikey"]);
+    expect(provider.hasOAuth).toBe(true);
+  });
+
   it("publishes a fallback model list under the udc alias", () => {
     const models = PROVIDER_MODELS.udc;
     expect(Array.isArray(models)).toBe(true);
