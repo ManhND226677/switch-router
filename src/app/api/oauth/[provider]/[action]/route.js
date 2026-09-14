@@ -1,0 +1,277 @@
+import { NextResponse } from "next/server";
+import { 
+  getProvider, 
+  generateAuthData, 
+  exchangeTokens, 
+  requestDeviceCode, 
+  pollForToken 
+} from "@/lib/oauth/providers";
+import { createProviderConnection } from "@/models";
+import {
+  startCodexProxy,
+  stopCodexProxy,
+  registerCodexSession,
+  getCodexSessionStatus,
+  clearCodexSession,
+} from "@/lib/oauth/utils/server";
+
+function providerNotFoundResponse(provider) {
+  try {
+    getProvider(provider);
+    return null;
+  } catch {
+    return NextResponse.json({ error: "OAuth provider not found" }, { status: 404 });
+  }
+}
+
+/**
+ * Dynamic OAuth API Route
+ * Handles: authorize, exchange, device-code, poll
+ */
+
+// GET /api/oauth/[provider]/authorize - Generate auth URL
+// GET /api/oauth/[provider]/device-code - Request device code (for device_code flow)
+export async function GET(request, { params }) {
+  try {
+    const { provider, action } = await params;
+    const missingProviderResponse = providerNotFoundResponse(provider);
+    if (missingProviderResponse) return missingProviderResponse;
+    const { searchParams } = new URL(request.url);
+
+    if (action === "authorize") {
+      const redirectUri = searchParams.get("redirect_uri") || "http://localhost:8080/callback";
+      // Collect provider-specific meta params (baseUrl, clientId, clientSecret, ...)
+      const reservedParams = new Set(["redirect_uri"]);
+      const meta = {};
+      searchParams.forEach((value, key) => { if (!reservedParams.has(key)) meta[key] = value; });
+      const authData = await generateAuthData(provider, redirectUri, Object.keys(meta).length ? meta : undefined);
+      return NextResponse.json(authData);
+    }
+
+    if (action === "start-proxy") {
+      if (provider !== "codex") {
+        return NextResponse.json({ error: "Proxy only supported for codex" }, { status: 400 });
+      }
+      const appPort = searchParams.get("app_port");
+      if (!appPort) {
+        return NextResponse.json({ error: "Missing app_port" }, { status: 400 });
+      }
+      const state = searchParams.get("state");
+      const codeVerifier = searchParams.get("code_verifier");
+      const redirectUri = searchParams.get("redirect_uri");
+      const result = await startCodexProxy(Number(appPort));
+      let serverSide = false;
+      if (result.success && state && codeVerifier && redirectUri) {
+        serverSide = registerCodexSession({ state, codeVerifier, redirectUri });
+      }
+      return NextResponse.json({ ...result, serverSide });
+    }
+
+    if (action === "poll-status") {
+      if (provider !== "codex") {
+        return NextResponse.json({ error: "Poll only supported for codex" }, { status: 400 });
+      }
+      const state = searchParams.get("state");
+      if (!state) {
+        return NextResponse.json({ error: "Missing state" }, { status: 400 });
+      }
+      const session = getCodexSessionStatus(state);
+      if (!session) return NextResponse.json({ status: "unknown" });
+      if (session.status === "done" || session.status === "error") {
+        const payload = { ...session };
+        clearCodexSession(state);
+        return NextResponse.json(payload);
+      }
+      return NextResponse.json({ status: session.status });
+    }
+
+    if (action === "stop-proxy") {
+      if (provider !== "codex") {
+        return NextResponse.json({ error: "Proxy only supported for codex" }, { status: 400 });
+      }
+      stopCodexProxy();
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === "device-code") {
+      const providerData = getProvider(provider);
+      if (providerData.flowType !== "device_code") {
+        return NextResponse.json({ error: "Provider does not support device code flow" }, { status: 400 });
+      }
+
+      const authData = await generateAuthData(provider, null);
+      // Providers that don't use PKCE for device code (Grok CLI HAR: plain device_code, no challenge)
+      const noPkceDeviceProviders = [
+        "github",
+        "kilocode",
+        "grok-cli",
+      ];
+      let deviceData;
+      if (noPkceDeviceProviders.includes(provider)) {
+        deviceData = await requestDeviceCode(provider, undefined);
+      } else {
+        // Qwen and other PKCE providers
+        deviceData = await requestDeviceCode(provider, authData.codeChallenge);
+      }
+
+      return NextResponse.json({
+        ...deviceData,
+        // Prefer the verifier the provider's requestDeviceCode generated for
+        // itself (qoder rolls its own PKCE pair); fall back to the generic one.
+        codeVerifier: deviceData.codeVerifier || authData.codeVerifier,
+      });
+    }
+
+    return NextResponse.json({ error: "Unknown action" }, { status: 404 });
+  } catch (error) {
+    console.error("OAuth GET error:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+// POST /api/oauth/[provider]/exchange - Exchange code for tokens and save
+// POST /api/oauth/[provider]/poll - Poll for token (device_code flow)
+export async function POST(request, { params }) {
+  try {
+    const { provider, action } = await params;
+    const missingProviderResponse = providerNotFoundResponse(provider);
+    if (missingProviderResponse) return missingProviderResponse;
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid or empty request body" }, { status: 400 });
+    }
+
+    if (action === "exchange") {
+      const { code, redirectUri, codeVerifier, state, meta } = body;
+
+      // Detect if "code" is actually a raw JWT access token (starts with eyJ)
+      if (code && code.startsWith("eyJ") && code.includes(".")) {
+        const { extractCodexAccountInfo } = await import("@/lib/oauth/providers");
+        const info = extractCodexAccountInfo(code);
+
+        // Also decode JWT directly for ChatGPT website tokens which use
+        // top-level account_id/plan_type instead of nested openai auth claims
+        let directPayload = {};
+        try {
+          const b64 = code.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+          const padded = b64 + "=".repeat((4 - b64.length % 4) % 4);
+          directPayload = JSON.parse(Buffer.from(padded, "base64").toString("utf8"));
+        } catch {}
+
+        const accountId = info.chatgptAccountId || directPayload.account_id;
+        const planType = info.chatgptPlanType || directPayload.plan_type;
+        const email = info.email || directPayload.email;
+
+        const providerSpecificData = { authMethod: "access_token" };
+        if (accountId) providerSpecificData.chatgptAccountId = accountId;
+        if (planType) providerSpecificData.chatgptPlanType = planType;
+
+        const connection = await createProviderConnection({
+          provider,
+          authType: "access_token",
+          accessToken: code,
+          email: email || null,
+          providerSpecificData,
+          testStatus: "active",
+        });
+
+        return NextResponse.json({
+          success: true,
+          connection: {
+            id: connection.id,
+            provider: connection.provider,
+            email: connection.email,
+            displayName: connection.displayName,
+          }
+        });
+      }
+
+      if (!code || !redirectUri || !codeVerifier) {
+        return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+      }
+
+      // Exchange code for tokens (meta carries provider-specific params like clientId/baseUrl)
+      const tokenData = await exchangeTokens(provider, code, redirectUri, codeVerifier, state, meta);
+
+      // Save to database
+      const connection = await createProviderConnection({
+        provider,
+        authType: "oauth",
+        ...tokenData,
+        expiresAt: tokenData.expiresIn 
+          ? new Date(Date.now() + tokenData.expiresIn * 1000).toISOString() 
+          : null,
+        testStatus: "active",
+      });
+
+      return NextResponse.json({ 
+        success: true, 
+        connection: {
+          id: connection.id,
+          provider: connection.provider,
+          email: connection.email,
+          displayName: connection.displayName,
+        }
+      });
+    }
+
+    if (action === "poll") {
+      const { deviceCode, codeVerifier, extraData } = body;
+
+      if (!deviceCode) {
+        return NextResponse.json({ error: "Missing device code" }, { status: 400 });
+      }
+
+      // Providers that don't use PKCE for device code
+      const noPkceProviders = ["github", "kilocode"];
+      let result;
+      if (noPkceProviders.includes(provider)) {
+        result = await pollForToken(provider, deviceCode);
+      } else {
+        // Qwen and other PKCE providers
+        if (!codeVerifier) {
+          return NextResponse.json({ error: "Missing code verifier" }, { status: 400 });
+        }
+        result = await pollForToken(provider, deviceCode, codeVerifier);
+      }
+
+      if (result.success) {
+        // Save to database
+        const connection = await createProviderConnection({
+          provider,
+          authType: "oauth",
+          ...result.tokens,
+          expiresAt: result.tokens.expiresIn 
+            ? new Date(Date.now() + result.tokens.expiresIn * 1000).toISOString() 
+            : null,
+          testStatus: "active",
+        });
+
+        return NextResponse.json({ 
+          success: true, 
+          connection: {
+            id: connection.id,
+            provider: connection.provider,
+          }
+        });
+      }
+
+      // Still pending or error - don't create connection for pending states
+      const isPending = result.pending || result.error === "authorization_pending" || result.error === "slow_down";
+      
+      return NextResponse.json({
+        success: false,
+        error: result.error,
+        errorDescription: result.errorDescription,
+        pending: isPending,
+      });
+    }
+
+    return NextResponse.json({ error: "Unknown action" }, { status: 404 });
+  } catch (error) {
+    console.error("OAuth POST error:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}

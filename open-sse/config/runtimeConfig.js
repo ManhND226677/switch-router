@@ -1,0 +1,115 @@
+// HTTP status codes
+export const HTTP_STATUS = {
+  BAD_REQUEST: 400,
+  UNAUTHORIZED: 401,
+  PAYMENT_REQUIRED: 402,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  NOT_ACCEPTABLE: 406,
+  REQUEST_TIMEOUT: 408,
+  RATE_LIMITED: 429,
+  SERVER_ERROR: 500,
+  BAD_GATEWAY: 502,
+  SERVICE_UNAVAILABLE: 503,
+  GATEWAY_TIMEOUT: 504
+};
+
+// Re-export error config (backward compat)
+export { ERROR_TYPES, DEFAULT_ERROR_MESSAGES, BACKOFF_CONFIG, COOLDOWN_MS } from "./errorConfig.js";
+
+// Cache TTLs (seconds)
+export const CACHE_TTL = {
+  userInfo: 300,    // 5 minutes
+  modelAlias: 3600  // 1 hour
+};
+
+// Memory management config
+export const MEMORY_CONFIG = {
+  sessionTtlMs: 2 * 60 * 60 * 1000,
+  sessionCleanupIntervalMs: 30 * 60 * 1000,
+  dnsCacheTtlMs: 5 * 60 * 1000,
+  proxyDispatchersMaxSize: 20,
+};
+
+// Parse a positive integer env override, falling back to a default.
+function envMs(name, def) {
+  const raw = process.env[name];
+  if (raw == null || raw === "") return def;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : def;
+}
+
+// Inter-chunk stall timeout (once tokens are flowing). Generous headroom so
+// slow reasoning models aren't aborted mid-stream. Env: STREAM_STALL_TIMEOUT_MS.
+// This timer is RE-ARMED on every chunk, so a responsive-yet-slow stream that
+// keeps emitting bytes is never aborted (intended).
+export const STREAM_STALL_TIMEOUT_MS = envMs("STREAM_STALL_TIMEOUT_MS", 360 * 1000);
+
+// Time-to-first-token timeout (prompt prefill). Env: STREAM_FIRST_CHUNK_TIMEOUT_MS.
+// ONE-SHOT from stream start: aborts if the upstream never sends the first byte
+// within this window (e.g. hangs during auth/prefill). Cleared on first chunk,
+// never re-armed — distinct from the per-chunk stall timer above. Default 90s:
+// generous for normal prefills, but a hung upstream no longer occupies an
+// account slot for 200s. Raise via env for very-large-context workloads.
+export const STREAM_FIRST_CHUNK_TIMEOUT_MS = envMs("STREAM_FIRST_CHUNK_TIMEOUT_MS", 90 * 1000);
+
+// Absolute ceiling on total stream lifetime — the slow-drip guard.
+// Env: STREAM_MAX_DURATION_MS. ONE-SHOT from stream start, NEVER re-armed.
+// Catches the case the inter-chunk stall timer cannot: an upstream that trickles
+// one byte every few minutes so the per-chunk timer keeps resetting but the
+// stream would otherwise run forever. Default is intentionally generous.
+export const STREAM_MAX_DURATION_MS = envMs("STREAM_MAX_DURATION_MS", 30 * 60 * 1000);
+
+// Fetch connect timeout: abort if upstream doesn't return response headers within this duration.
+// Default 15s: response headers should arrive well within that even through a proxy —
+// 60s only meant a dead upstream held the request (and its account slot) far longer
+// than any client waits. Env override remains for slow proxies.
+export const FETCH_CONNECT_TIMEOUT_MS = envMs("FETCH_CONNECT_TIMEOUT_MS", 15 * 1000);
+
+// Default token limits
+export const DEFAULT_MAX_TOKENS = 64000;
+export const DEFAULT_MIN_TOKENS = 32000;
+
+export const TOKEN_SAVER_HEADER = "x-switch-router-token-saver";
+export const LEGACY_TOKEN_SAVER_HEADER = "x-9router-token-saver";
+
+// Per-request control for the context guard: "off" never touches the payload,
+// "force" trims even when the setting is off. The response header reports what
+// the guard did so a client can tell a trimmed answer from a full one.
+export const CONTEXT_TRIM_HEADER = "x-switch-router-context-trim";
+export const LEGACY_CONTEXT_TRIM_HEADER = "x-9router-context-trim";
+export const CONTEXT_TRIM_RESPONSE_HEADER = CONTEXT_TRIM_HEADER;
+
+// Retry config for 429 responses (legacy - kept for backward compatibility)
+export const RETRY_CONFIG = {
+  maxAttempts: 2,
+  delayMs: 2000
+};
+
+// Default retry config by status code: { attempts, delayMs }
+// Backward compat: if value is a number, treated as attempts with RETRY_CONFIG.delayMs
+// Delays are intentionally short: with fallback accounts present the executor
+// skips 5xx retries entirely (fastFail5xx), so this ladder only runs for
+// single-account providers where fast account-switching isn't possible —
+// burning 9s of fixed backoff there only multiplied tail latency.
+export const DEFAULT_RETRY_CONFIG = {
+  429: { attempts: 0, delayMs: 0 },
+  502: { attempts: 2, delayMs: 1000 },
+  503: { attempts: 2, delayMs: 800 },
+  504: { attempts: 1, delayMs: 1500 }
+};
+
+// Normalize a retry entry to { attempts, delayMs }
+export function resolveRetryEntry(entry) {
+  if (entry == null) return { attempts: 0, delayMs: RETRY_CONFIG.delayMs };
+  if (typeof entry === "number") return { attempts: entry, delayMs: RETRY_CONFIG.delayMs };
+  return {
+    attempts: entry.attempts || 0,
+    delayMs: entry.delayMs != null ? entry.delayMs : RETRY_CONFIG.delayMs
+  };
+}
+
+// Requests containing these texts will bypass provider
+export const SKIP_PATTERNS = [
+  "Please write a 5-10 word title for the following conversation:"
+];

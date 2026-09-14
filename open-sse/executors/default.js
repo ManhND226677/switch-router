@@ -1,0 +1,336 @@
+import { BaseExecutor } from "./base.js";
+import { PROVIDERS, PROVIDER_OAUTH } from "../config/providers.js";
+import { ANTHROPIC_API_VERSION, OPENAI_COMPAT_BASE, ANTHROPIC_COMPAT_BASE } from "../providers/shared.js";
+import { getCachedClaudeHeaders } from "../utils/claudeHeaderCache.js";
+import { proxyAwareFetch } from "../utils/proxyFetch.js";
+import { injectReasoningContent } from "../utils/reasoningContentInjector.js";
+import { stripUnsupportedParams } from "../translator/concerns/paramSupport.js";
+import { validateSafeBaseUrl } from "../utils/safeBaseUrl.js";
+import { dedupRefresh } from "../services/tokenRefresh/dedup.js";
+
+// Auth header descriptors — derived from registry transport.auth, fallback to hardcoded defaults.
+const BEARER = { combined: true, header: "Authorization", scheme: "bearer" };
+const XAPIKEY = { combined: true, header: "x-api-key", scheme: "raw" };
+const AUTH_DESCRIPTORS = Object.fromEntries(
+  Object.entries(PROVIDERS)
+    .filter(([, t]) => t.auth)
+    .map(([id, t]) => [id, t.auth])
+);
+
+// Apply a token to a header per scheme (matches legacy: combined always sets, even when undefined).
+function setAuth(headers, spec, token) {
+  headers[spec.header] = spec.scheme === "bearer" ? `Bearer ${token}` : token;
+}
+
+// Resolve auth onto headers from a descriptor.
+function applyAuth(headers, desc, credentials) {
+  if (desc.combined) {
+    // combined providers always set the header (legacy behavior, incl. noAuth → "Bearer undefined")
+    setAuth(headers, desc, credentials.apiKey || credentials.accessToken);
+    if (desc.anthropicVersion && !headers["anthropic-version"]) headers["anthropic-version"] = ANTHROPIC_API_VERSION;
+    return;
+  }
+  // split apiKey/oauth: set only the matching branch (legacy: anthropic-compatible skips when both absent)
+  if (credentials.apiKey) setAuth(headers, desc.apiKey, credentials.apiKey);
+  else if (credentials.accessToken) setAuth(headers, desc.oauth, credentials.accessToken);
+  if (desc.anthropicVersion && !headers["anthropic-version"]) headers["anthropic-version"] = ANTHROPIC_API_VERSION;
+}
+
+// Provider-specific header quirks kept as small hooks (not pure auth).
+const HEADER_HOOKS = {
+  kilocodeOrg: (h, c) => { if (c.providerSpecificData?.orgId) h["X-Kilocode-OrganizationID"] = c.providerSpecificData.orgId; },
+  claudeOverlay: (h) => {
+    const cached = getCachedClaudeHeaders();
+    if (!cached) return;
+    for (const lcKey of Object.keys(cached)) {
+      const titleKey = lcKey.replace(/(^|-)([a-z])/g, (_, sep, ch) => sep + ch.toUpperCase());
+      if (lcKey === "anthropic-beta") {
+        const staticBetaStr = h[titleKey] || h[lcKey] || "";
+        const flags = new Set(staticBetaStr.split(",").map(f => f.trim()).filter(Boolean));
+        for (const f of cached[lcKey].split(",").map(f => f.trim()).filter(Boolean)) flags.add(f);
+        cached[lcKey] = Array.from(flags).join(",");
+      }
+      if (titleKey !== lcKey && h[titleKey] !== undefined) delete h[titleKey];
+    }
+    Object.assign(h, cached);
+  },
+};
+
+// Config-driven OAuth refresh grants — derived from registry oauth.refresh.
+const REFRESH_GRANTS = Object.fromEntries(
+  Object.entries(PROVIDER_OAUTH)
+    .filter(([, o]) => o.refresh)
+    .map(([id, o]) => {
+      const tokenUrl = o.tokenUrl;
+      const encoding = o.refresh.encoding;
+      const extraParams = o.refresh.scope ? { scope: o.refresh.scope } : {};
+      return [id, {
+        encoding,
+        url: () => tokenUrl,
+        params: () => ({ client_id: o.clientId, ...extraParams }),
+      }];
+    })
+);
+
+/**
+ * Validate a user-supplied Compatible-node baseUrl.
+ *
+ * Rejecting must be LOUD, never a silent fallback: buildHeaders runs right
+ * after buildUrl and attaches the stored API key, so substituting the vendor
+ * default endpoint here would ship the user's key and prompt to
+ * api.openai.com / api.anthropic.com instead of the host they configured.
+ * Only host:port is echoed — a baseUrl may carry a key in its query string.
+ */
+function guardCompatibleBaseUrl(baseUrl, provider) {
+  const safe = validateSafeBaseUrl(baseUrl);
+  if (safe.ok) return safe.url.href;
+  let host = "(unparseable)";
+  try {
+    host = new URL(baseUrl.includes("://") ? baseUrl : `https://${baseUrl}`).host;
+  } catch { /* keep the placeholder */ }
+  throw new Error(
+    `${provider}: baseUrl "${host}" is rejected (${safe.error}). ` +
+    `The gateway refuses to retry against its default endpoint because that would send your stored API key there. ` +
+    `Point this connection at a public https endpoint, or run the target model as its own provider.`
+  );
+}
+
+// Wire formats whose streaming contract has no `stream_options`. Sending it to
+// these would be an unknown field upstream (Claude/Responses/Ollama reject or
+// ignore it), so usage is only requested on the OpenAI chat-completions path.
+const NON_OPENAI_STREAM_FORMATS = new Set([
+  "claude", "gemini", "antigravity", "ollama", "openai-responses", "grok-web",
+]);
+
+function isPlainObject(value) {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+// Escape hatch for the field below. `stream_options` is an OpenAI chat-completions
+// extension: an upstream that validates its schema strictly would answer 400
+// instead of ignoring the unknown field. Set SWITCH_ROUTER_STREAM_USAGE=off to
+// stop asking for usage everywhere without rebuilding — the trade-off is that
+// those requests go back to being unmeasurable, not that they break.
+function streamUsageRequestDisabled(env = process.env) {
+  return String(env.SWITCH_ROUTER_STREAM_USAGE || "").trim().toLowerCase() === "off";
+}
+export { streamUsageRequestDisabled };
+
+// OpenAI-compatible upstreams (OpenRouter, Kilo Code, ...) report token usage
+// ONLY in a terminal SSE chunk, and only when the request asks for it. Without
+// this flag a 200 response carries no usage at all: requestDetails is stored
+// with tokens 0/0 and saveUsageStats() bails out, so the request never reaches
+// usageHistory/usageDaily and vanishes from the Usage screen.
+function ensureStreamUsageRequested(body, stream, format, env = process.env) {
+  if (stream !== true && body?.stream !== true) return;
+  if (format && NON_OPENAI_STREAM_FORMATS.has(format)) return;
+  if (streamUsageRequestDisabled(env)) return;
+  body.stream_options = {
+    ...(isPlainObject(body.stream_options) ? body.stream_options : {}),
+    include_usage: true,
+  };
+}
+
+export class DefaultExecutor extends BaseExecutor {
+  constructor(provider) {
+    super(provider, PROVIDERS[provider] || PROVIDERS.openai);
+  }
+
+  transformRequest(model, body, stream, credentials) {
+    const transformed = this.applyJsonSchemaFallback(body);
+
+    if (transformed && typeof transformed === "object") {
+      // quirk: some openai-compatible providers reject Anthropic's client_metadata field
+      if (this.config.quirks?.dropClientMetadata) {
+        delete transformed.client_metadata;
+      }
+      // Runtime transport wins: multi-endpoint providers (glm, kimi, ...) expose
+      // both an OpenAI and a Claude endpoint under one provider id.
+      //
+      // Order matters: this runs BEFORE stripUnsupportedParams so a per-provider
+      // opt-out is a declarative rule rather than a branch in here — add
+      // `{ provider: "x", drop: ["stream_options"] }` to STRIP_RULES in
+      // translator/concerns/paramSupport.js and the field is removed for that
+      // provider only.
+      ensureStreamUsageRequested(
+        transformed,
+        stream,
+        credentials?.runtimeTransport?.format || this.config?.format,
+      );
+      stripUnsupportedParams(this.provider, model, transformed);
+    }
+
+    return injectReasoningContent({ provider: this.provider, model, body: transformed });
+  }
+
+  // Fallback json_schema → json_object for openai-compatible providers without native Structured Output.
+  applyJsonSchemaFallback(body) {
+    if (!this.provider?.startsWith?.("openai-compatible-")) return body;
+    const rf = body?.response_format;
+    if (rf?.type !== "json_schema" || !rf.json_schema?.schema) return body;
+
+    const schemaJson = JSON.stringify(rf.json_schema.schema, null, 2);
+    const prompt = `You must respond with valid JSON that strictly follows this JSON schema:\n\`\`\`json\n${schemaJson}\n\`\`\`\nRespond ONLY with the JSON object, no other text.`;
+
+    const messages = Array.isArray(body.messages) ? body.messages.map(m => ({ ...m })) : [];
+    const sys = messages.find(m => m.role === "system");
+    if (sys) {
+      if (typeof sys.content === "string") sys.content = `${sys.content}\n\n${prompt}`;
+      else if (Array.isArray(sys.content)) sys.content.push({ type: "text", text: `\n\n${prompt}` });
+    } else {
+      messages.unshift({ role: "system", content: prompt });
+    }
+    return { ...body, messages, response_format: { type: "json_object" } };
+  }
+
+  buildUrl(model, stream, urlIndex = 0, credentials = null) {
+    // Runtime transport (multi-endpoint providers): use the sourceFormat-matched endpoint
+    const rt = credentials?.runtimeTransport;
+    if (rt?.baseUrl) {
+      return rt.urlSuffix ? `${rt.baseUrl}${rt.urlSuffix}` : rt.baseUrl;
+    }
+    if (this.provider?.startsWith?.("openai-compatible-")) {
+      const normalized = guardCompatibleBaseUrl(
+        credentials?.providerSpecificData?.baseUrl || OPENAI_COMPAT_BASE, this.provider).replace(/\/$/, "");
+      const path = this.provider.includes("responses") ? "/responses" : "/chat/completions";
+      return `${normalized}${path}`;
+    }
+    if (this.provider?.startsWith?.("anthropic-compatible-")) {
+      const normalized = guardCompatibleBaseUrl(
+        credentials?.providerSpecificData?.baseUrl || ANTHROPIC_COMPAT_BASE, this.provider).replace(/\/$/, "");
+      return `${normalized}/messages`;
+    }
+    // urlSuffix (e.g. ?beta=true) declared per-provider in registry
+    if (this.config.urlSuffix) {
+      return `${this.config.baseUrl}${this.config.urlSuffix}`;
+    }
+    const url = this.config.baseUrl;
+    if (url?.includes("{accountId}")) {
+      const accountId = credentials?.providerSpecificData?.accountId;
+      if (!accountId) throw new Error(`${this.provider} requires accountId in providerSpecificData`);
+      return url.replace("{accountId}", accountId);
+    }
+    return url;
+  }
+
+  // Fallback descriptor for providers without an explicit entry in AUTH_DESCRIPTORS.
+  resolveAuthDescriptor() {
+    if (this.provider?.startsWith?.("anthropic-compatible-")) {
+      return { apiKey: { header: "x-api-key", scheme: "raw" }, oauth: { header: "Authorization", scheme: "bearer" }, anthropicVersion: true };
+    }
+    if (this.config?.format === "claude") {
+      return { ...XAPIKEY, anthropicVersion: true };
+    }
+    return BEARER;
+  }
+
+  buildHeaders(credentials, stream = true) {
+    const rt = credentials?.runtimeTransport;
+    const headers = { "Content-Type": "application/json", ...(rt ? rt.headers : this.config.headers) };
+    const desc = rt?.auth || AUTH_DESCRIPTORS[this.provider] || this.resolveAuthDescriptor();
+    // Hooks run BEFORE auth so dynamic overlays (claude cached headers) can't clobber the token.
+    for (const hook of desc.hooks || []) HEADER_HOOKS[hook]?.(headers, credentials);
+    applyAuth(headers, desc, credentials);
+
+    // Strip first-party Claude Code identity headers for non-Anthropic anthropic-compatible upstreams
+    if (this.provider?.startsWith?.("anthropic-compatible-")) {
+      const baseUrl = credentials?.providerSpecificData?.baseUrl || "";
+      const isOfficialAnthropic = baseUrl === "" || baseUrl.includes("api.anthropic.com");
+      if (!isOfficialAnthropic) {
+        // Some third-party Anthropic-compatible gateways require Bearer auth in
+        // addition to x-api-key. Send both (x-api-key already set above) so
+        // gateways that read either header succeed.
+        if (credentials.apiKey && !headers["Authorization"]) {
+          headers["Authorization"] = `Bearer ${credentials.apiKey}`;
+        }
+        delete headers["anthropic-dangerous-direct-browser-access"];
+        delete headers["Anthropic-Dangerous-Direct-Browser-Access"];
+        delete headers["x-app"];
+        delete headers["X-App"];
+        // Strip claude-code-20250219 from Anthropic-Beta / anthropic-beta
+        for (const betaKey of ["anthropic-beta", "Anthropic-Beta"]) {
+          if (headers[betaKey]) {
+            const filtered = headers[betaKey]
+              .split(",")
+              .map(s => s.trim())
+              .filter(f => f && f !== "claude-code-20250219")
+              .join(",");
+            if (filtered) {
+              headers[betaKey] = filtered;
+            } else {
+              delete headers[betaKey];
+            }
+          }
+        }
+      }
+    }
+
+    if (stream) headers["Accept"] = "text/event-stream";
+    return headers;
+  }
+
+  // Generic OAuth refresh for the common {grant_type, refresh_token, client_id[, ...]} shape.
+  // grant = REFRESH_GRANTS[provider]; client creds resolved from PROVIDERS or this.config.
+  refreshFromGrant(credentials, proxyOptions) {
+    const grant = REFRESH_GRANTS[this.provider];
+    const params = { grant_type: "refresh_token", refresh_token: credentials.refreshToken, ...grant.params(this) };
+    return grant.encoding === "json"
+      ? this.refreshWithJSON(grant.url(), params, proxyOptions)
+      : this.refreshWithForm(grant.url(), params, proxyOptions);
+  }
+
+  async refreshCredentials(credentials, log, proxyOptions = null) {
+    if (!credentials.refreshToken) return null;
+
+    const refreshers = {
+      claude: () => this.refreshFromGrant(credentials, proxyOptions),
+      codex: () => this.refreshFromGrant(credentials, proxyOptions),
+      gemini: () => this.refreshFromGrant(credentials, proxyOptions),
+      kilocode: () => this.refreshKilocode(credentials.refreshToken, proxyOptions)
+    };
+
+    const refresher = refreshers[this.provider];
+    if (!refresher) return null;
+
+    try {
+      // Keyed by the pre-refresh token: concurrent 401 bursts share one grant
+      // call, and callers arriving just after a rotation reuse the cached fresh
+      // result instead of re-spending the already-rotated token upstream.
+      const result = await dedupRefresh(this.provider, credentials.refreshToken, refresher, log);
+      if (result) log?.info?.("TOKEN", `${this.provider} refreshed`);
+      return result;
+    } catch (error) {
+      log?.error?.("TOKEN", `${this.provider} refresh error: ${error.message}`);
+      return null;
+    }
+  }
+
+  async refreshWithJSON(url, body, proxyOptions = null) {
+    const response = await proxyAwareFetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify(body)
+    }, proxyOptions);
+    if (!response.ok) return null;
+    const tokens = await response.json();
+    return { accessToken: tokens.access_token, refreshToken: tokens.refresh_token || body.refresh_token, expiresIn: tokens.expires_in };
+  }
+
+  async refreshWithForm(url, params, proxyOptions = null) {
+    const response = await proxyAwareFetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
+      body: new URLSearchParams(params)
+    }, proxyOptions);
+    if (!response.ok) return null;
+    const tokens = await response.json();
+    return { accessToken: tokens.access_token, refreshToken: tokens.refresh_token || params.refresh_token, expiresIn: tokens.expires_in };
+  }
+
+  async refreshKilocode(refreshToken, proxyOptions = null) {
+    // Kilocode uses device code flow, no refresh token support
+    return null;
+  }
+}
+
+export default DefaultExecutor;

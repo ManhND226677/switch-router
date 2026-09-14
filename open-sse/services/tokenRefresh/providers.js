@@ -1,0 +1,340 @@
+import { PROVIDERS, PROVIDER_OAUTH } from "../../config/providers.js";
+import { OAUTH_ENDPOINTS, GITHUB_COPILOT } from "../../config/appConstants.js";
+import { dedupRefresh } from "./dedup.js";
+
+
+export async function refreshGrokCliToken(refreshToken, log) {
+  if (!refreshToken) return null;
+  return dedupRefresh("grok-cli", refreshToken, async () => {
+    try {
+      const oauth = PROVIDER_OAUTH["grok-cli"];
+      const response = await fetch(oauth.refreshUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+        },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          client_id: oauth.clientId,
+          refresh_token: refreshToken,
+        }),
+      });
+      if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`grok-cli token refresh failed: ${err}`);
+      }
+      const tokens = await response.json();
+      return {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token || refreshToken,
+        expiresIn: tokens.expires_in,
+        idToken: tokens.id_token,
+      };
+    } catch (e) {
+      log?.warn?.("TOKEN_REFRESH", `grok-cli refresh failed: ${e?.message || e}`);
+      const msg = String(e?.message || "");
+      if (msg.includes("invalid_grant") || msg.includes("invalid_request")) {
+        return { error: "invalid_grant" };
+      }
+      return null;
+    }
+  }, log);
+}
+
+export async function refreshAccessToken(provider, refreshToken, credentials, log) {
+  const config = PROVIDERS[provider];
+
+  if (!config || !config.refreshUrl) {
+    log?.warn?.("TOKEN_REFRESH", `No refresh URL configured for provider: ${provider}`);
+    return null;
+  }
+
+  if (!refreshToken) {
+    log?.warn?.("TOKEN_REFRESH", `No refresh token available for provider: ${provider}`);
+    return null;
+  }
+
+  return dedupRefresh(provider, refreshToken, async () => {
+  try {
+    const response = await fetch(config.refreshUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
+      },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      log?.error?.("TOKEN_REFRESH", `Failed to refresh token for ${provider}`, {
+        status: response.status,
+        error: errorText,
+      });
+      return null;
+    }
+
+    const tokens = await response.json();
+
+    log?.info?.("TOKEN_REFRESH", `Successfully refreshed token for ${provider}`, {
+      hasNewAccessToken: !!tokens.access_token,
+      hasNewRefreshToken: !!tokens.refresh_token,
+      expiresIn: tokens.expires_in,
+    });
+
+    return {
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token || refreshToken,
+      expiresIn: tokens.expires_in,
+    };
+  } catch (error) {
+    log?.error?.("TOKEN_REFRESH", `Error refreshing token for ${provider}`, {
+      error: error.message,
+    });
+    return null;
+  }
+  }, log);
+}
+
+export async function refreshClaudeOAuthToken(refreshToken, log) {
+  if (!refreshToken) return null;
+  return dedupRefresh("claude", refreshToken, async () => {
+  try {
+    const response = await fetch(OAUTH_ENDPOINTS.anthropic.token, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+        client_id: PROVIDERS.claude.clientId,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      log?.error?.("TOKEN_REFRESH", "Failed to refresh Claude OAuth token", { status: response.status, error: errorText });
+      return null;
+    }
+
+    const tokens = await response.json();
+    log?.info?.("TOKEN_REFRESH", "Successfully refreshed Claude OAuth token", { hasNewAccessToken: !!tokens.access_token, expiresIn: tokens.expires_in });
+    return { accessToken: tokens.access_token, refreshToken: tokens.refresh_token || refreshToken, expiresIn: tokens.expires_in };
+  } catch (error) {
+    log?.error?.("TOKEN_REFRESH", `Network error refreshing Claude token: ${error.message}`);
+    return null;
+  }
+  }, log);
+}
+
+export async function refreshGoogleToken(refreshToken, clientId, clientSecret, log) {
+  if (!refreshToken) return null;
+  return dedupRefresh(`google:${clientId}`, refreshToken, async () => {
+  try {
+    const response = await fetch(OAUTH_ENDPOINTS.google.token, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
+      },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+        client_id: clientId,
+        client_secret: clientSecret,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      log?.error?.("TOKEN_REFRESH", "Failed to refresh Google token", { status: response.status, error: errorText });
+      return null;
+    }
+
+    const tokens = await response.json();
+    log?.info?.("TOKEN_REFRESH", "Successfully refreshed Google token", { hasNewAccessToken: !!tokens.access_token, expiresIn: tokens.expires_in });
+    return { accessToken: tokens.access_token, refreshToken: tokens.refresh_token || refreshToken, expiresIn: tokens.expires_in };
+  } catch (error) {
+    log?.error?.("TOKEN_REFRESH", `Network error refreshing Google token: ${error.message}`);
+    return null;
+  }
+  }, log);
+}
+
+export function classifyOAuthRefreshError(errorText = "", status = 0) {
+  let parsed = null;
+  try {
+    parsed = errorText ? JSON.parse(errorText) : null;
+  } catch {
+    parsed = null;
+  }
+
+  const code = parsed?.error?.code || parsed?.error || parsed?.error_code || "";
+  const description = parsed?.error_description || parsed?.message || errorText || "";
+  const combined = `${code} ${description}`.toLowerCase();
+  const permanent = [
+    "refresh_token_expired",
+    "refresh_token_reused",
+    "refresh_token_invalidated",
+    "invalid_grant",
+  ].some((marker) => combined.includes(marker));
+
+  return { status, code, description, permanent };
+}
+
+export async function refreshCodexToken(refreshToken, log) {
+  if (!refreshToken) return null;
+  return dedupRefresh("codex", refreshToken, async () => {
+    try {
+      const response = await fetch(OAUTH_ENDPOINTS.openai.token, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          client_id: PROVIDERS.codex.clientId,
+          grant_type: "refresh_token",
+          refresh_token: refreshToken,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        const failure = classifyOAuthRefreshError(errorText, response.status);
+        if (failure.permanent) {
+          log?.error?.("TOKEN_REFRESH", "Codex refresh token already used or invalid. Re-auth required.", {
+            status: response.status,
+            code: failure.code,
+          });
+          return { error: "unrecoverable_refresh_error", code: failure.code };
+        }
+
+        log?.error?.("TOKEN_REFRESH", "Failed to refresh Codex token", {
+          status: response.status,
+          error: errorText,
+          code: failure.code,
+          permanent: failure.permanent,
+        });
+        return null;
+      }
+
+      const tokens = await response.json();
+
+      log?.info?.("TOKEN_REFRESH", "Successfully refreshed Codex token", {
+        hasNewAccessToken: !!tokens.access_token,
+        hasNewRefreshToken: !!tokens.refresh_token,
+        hasIdToken: !!tokens.id_token,
+        expiresIn: tokens.expires_in,
+      });
+
+      return {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token || refreshToken,
+        idToken: tokens.id_token,
+        expiresIn: tokens.expires_in,
+      };
+    } catch (error) {
+      log?.error?.("TOKEN_REFRESH", `Network error refreshing Codex token: ${error.message}`);
+      return null;
+    }
+  }, log);
+}
+
+export async function refreshGitHubToken(refreshToken, log) {
+  if (!refreshToken) return null;
+  return dedupRefresh("github", refreshToken, async () => {
+  const params = {
+    grant_type: "refresh_token",
+    refresh_token: refreshToken,
+    client_id: PROVIDERS.github.clientId,
+  };
+  if (PROVIDERS.github.clientSecret) {
+    params.client_secret = PROVIDERS.github.clientSecret;
+  }
+
+  const response = await fetch(OAUTH_ENDPOINTS.github.token, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json",
+    },
+    body: new URLSearchParams(params),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    log?.error?.("TOKEN_REFRESH", "Failed to refresh GitHub token", {
+      status: response.status,
+      error: errorText,
+    });
+    return null;
+  }
+
+  const tokens = await response.json();
+
+  log?.info?.("TOKEN_REFRESH", "Successfully refreshed GitHub token", {
+    hasNewAccessToken: !!tokens.access_token,
+    hasNewRefreshToken: !!tokens.refresh_token,
+    expiresIn: tokens.expires_in,
+  });
+
+  return {
+    accessToken: tokens.access_token,
+    refreshToken: tokens.refresh_token || refreshToken,
+    expiresIn: tokens.expires_in,
+  };
+  }, log);
+}
+
+export async function refreshCopilotToken(githubAccessToken, log) {
+  if (!githubAccessToken) return null;
+  return dedupRefresh("copilot", githubAccessToken, async () => {
+  try {
+    const response = await fetch(PROVIDER_OAUTH["github"]?.copilotTokenUrl, {
+      headers: {
+        "Authorization": `token ${githubAccessToken}`,
+        "User-Agent": GITHUB_COPILOT.USER_AGENT,
+        "Editor-Version": `vscode/${GITHUB_COPILOT.VSCODE_VERSION}`,
+        "Editor-Plugin-Version": `copilot-chat/${GITHUB_COPILOT.COPILOT_CHAT_VERSION}`,
+        "Accept": "application/json",
+        "x-github-api-version": GITHUB_COPILOT.API_VERSION
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      log?.error?.("TOKEN_REFRESH", "Failed to refresh Copilot token", {
+        status: response.status,
+        error: errorText
+      });
+      return null;
+    }
+
+    const data = await response.json();
+
+    log?.info?.("TOKEN_REFRESH", "Successfully refreshed Copilot token", {
+      hasToken: !!data.token,
+      expiresAt: data.expires_at
+    });
+
+    return {
+      token: data.token,
+      expiresAt: data.expires_at
+    };
+  } catch (error) {
+    log?.error?.("TOKEN_REFRESH", "Error refreshing Copilot token", {
+      error: error.message
+    });
+    return null;
+  }
+  }, log);
+}

@@ -1,0 +1,180 @@
+"use client";
+
+import { useState } from "react";
+import PropTypes from "prop-types";
+import { Button } from "@/shared/components";
+import { useNotificationStore } from "@/store/notificationStore";
+import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
+import { fetchWithTimeout } from "@/shared/utils/fetchWithTimeout";
+import ProviderModelRow from "./ProviderModelRow";
+
+export default function CompatibleModelsSection({ providerStorageAlias, providerDisplayAlias, modelAliases, customModels, copied, onCopy, onDeleteAlias, onAddCustomModel, onDeleteCustomModel, connections, isAnthropic }) {
+  const notifySuccess = useNotificationStore((s) => s.success);
+  const notifyError = useNotificationStore((s) => s.error);
+  const notifyWarning = useNotificationStore((s) => s.warning);
+  const notifyInfo = useNotificationStore((s) => s.info);
+  const [newModel, setNewModel] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [testingModelId, setTestingModelId] = useState(null);
+  const [modelTestResults, setModelTestResults] = useState({});
+
+  const handleTestModel = async (modelId) => {
+    if (testingModelId) return;
+    setTestingModelId(modelId);
+    try {
+      const full = `${providerStorageAlias}/${modelId}`;
+      const isSlow = /^(ag|antigravity|gc)\//i.test(full)
+        || /gemini-3\.|gemini-pro-agent/i.test(modelId);
+      const res = await fetchWithTimeout(
+        "/api/models/test",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model: full }),
+        },
+        isSlow ? 100000 : 35000,
+      );
+      const data = await res.json();
+      setModelTestResults((prev) => ({ ...prev, [modelId]: data.ok ? "ok" : "error" }));
+    } catch {
+      setModelTestResults((prev) => ({ ...prev, [modelId]: "error" }));
+    } finally {
+      setTestingModelId(null);
+    }
+  };
+
+  const allModels = getProviderCustomModelRows({
+    customModels,
+    modelAliases,
+    providerAlias: providerStorageAlias,
+    type: "llm",
+  });
+
+  const handleAdd = async () => {
+    if (!newModel.trim() || adding) return;
+    const modelId = newModel.trim();
+    if (allModels.some((model) => model.id === modelId)) {
+      notifyWarning("Model already exists for this provider.");
+      return;
+    }
+
+    setAdding(true);
+    try {
+      await onAddCustomModel(modelId);
+      setNewModel("");
+    } catch (error) {
+      console.error("Error adding model:", error);
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const handleImport = async () => {
+    if (importing) return;
+    const activeConnection = connections.find((conn) => conn.isActive !== false);
+    if (!activeConnection) return;
+
+    setImporting(true);
+    try {
+      const res = await fetch(`/api/providers/${activeConnection.id}/models`);
+      const data = await res.json();
+      if (!res.ok) {
+        notifyError(data.error || "Failed to import models");
+        return;
+      }
+      const models = data.models || [];
+      if (models.length === 0) {
+        notifyWarning("No models returned from /models.");
+        return;
+      }
+      let importedCount = 0;
+      for (const model of models) {
+        const modelId = model.id || model.name || model.model;
+        if (!modelId) continue;
+        if (allModels.some((entry) => entry.id === modelId)) continue;
+        await onAddCustomModel(modelId);
+        importedCount += 1;
+      }
+      if (importedCount === 0) {
+        notifyInfo("No new models were added.");
+      }
+    } catch (error) {
+      console.error("Error importing models:", error);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const canImport = connections.some((conn) => conn.isActive !== false);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-sm text-text-muted">
+        Add {isAnthropic ? "Anthropic" : "OpenAI"}-compatible models manually or import them from the /models endpoint.
+      </p>
+
+      <div className="flex items-end gap-2 flex-wrap">
+        <div className="flex-1 min-w-[240px]">
+          <label htmlFor="new-compatible-model-input" className="text-xs text-text-muted mb-1 block">Model ID</label>
+          <input
+            id="new-compatible-model-input"
+            type="text"
+            value={newModel}
+            onChange={(e) => setNewModel(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+            placeholder={isAnthropic ? "claude-3-opus-20240229" : "gpt-4o"}
+            className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary"
+          />
+        </div>
+        <Button size="sm" icon="add" onClick={handleAdd} disabled={!newModel.trim() || adding}>
+          {adding ? "Adding..." : "Add"}
+        </Button>
+        <Button size="sm" variant="secondary" icon="download" onClick={handleImport} disabled={!canImport || importing}>
+          {importing ? "Importing..." : "Import from /models"}
+        </Button>
+      </div>
+
+      {!canImport && (
+        <p className="text-xs text-text-muted">
+          Add a connection to enable importing models.
+        </p>
+      )}
+
+      {allModels.length > 0 && (
+        <div className="flex flex-col gap-3">
+          {allModels.map(({ id, alias, source }) => (
+            <ProviderModelRow
+              key={`${source}-${providerStorageAlias}/${id}`}
+              modelId={id}
+              fullModel={`${providerDisplayAlias}/${id}`}
+              copied={copied}
+              onCopy={onCopy}
+              onDelete={() => source === "custom" ? onDeleteCustomModel(id) : onDeleteAlias(alias)}
+              onTest={() => handleTestModel(id)}
+              testStatus={modelTestResults[id]}
+              isTesting={testingModelId === id}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+CompatibleModelsSection.propTypes = {
+  providerStorageAlias: PropTypes.string.isRequired,
+  providerDisplayAlias: PropTypes.string.isRequired,
+  modelAliases: PropTypes.object.isRequired,
+  customModels: PropTypes.arrayOf(PropTypes.object),
+  copied: PropTypes.string,
+  onCopy: PropTypes.func.isRequired,
+  onDeleteAlias: PropTypes.func.isRequired,
+  onAddCustomModel: PropTypes.func.isRequired,
+  onDeleteCustomModel: PropTypes.func.isRequired,
+  connections: PropTypes.arrayOf(PropTypes.shape({
+    id: PropTypes.string,
+    isActive: PropTypes.bool,
+  })).isRequired,
+  isAnthropic: PropTypes.bool,
+};

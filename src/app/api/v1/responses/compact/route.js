@@ -1,0 +1,46 @@
+import { handleChat } from "@/sse/handlers/chat.js";
+import { initTranslators } from "open-sse/translator/index.js";
+import { errorResponse } from "open-sse/utils/error.js";
+import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
+
+let initialized = false;
+
+async function ensureInitialized() {
+  if (!initialized) {
+    await initTranslators();
+    initialized = true;
+  }
+}
+
+export async function OPTIONS() {
+  return new Response(null, {
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "*"
+    }
+  });
+}
+
+/**
+ * POST /v1/responses/compact - Compact conversation context
+ * Reuses the same handleChat pipeline, signals compact via body._compact
+ */
+export async function POST(request) {
+  await ensureInitialized();
+  // handleChat parses the body itself and answers a bad body with 400 — this
+  // route has to parse first (to flag compact), so it owes the same answer.
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid JSON body");
+  }
+  body._compact = true;
+  const newRequest = new Request(request.url, {
+    method: "POST",
+    headers: request.headers,
+    body: JSON.stringify(body)
+  });
+  return await handleChat(newRequest);
+}

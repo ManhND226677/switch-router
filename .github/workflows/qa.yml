@@ -1,0 +1,94 @@
+name: QA Gate
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+# Cancel superseded runs on the same branch/PR — no point burning minutes
+# on a commit that has already been replaced.
+concurrency:
+  group: qa-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Stage 1 — cheap static checks. Fails in ~1 min, before anything expensive.
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: npm install --no-package-lock
+      - run: npm run lint
+
+  # Stage 2 — the fast deterministic suite + the no-regression gate.
+  # Excludes benchmarks and any test that touches the network.
+  test:
+    name: Unit tests + regression gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      # Root deps first: tests import from src/ and open-sse/.
+      - name: Install root dependencies
+        run: npm install --no-package-lock
+      - name: Install test dependencies
+        working-directory: tests
+        run: npm install --no-package-lock
+
+      # The cross-platform gate always writes a JSON report, then permits only
+      # failures catalogued in known-fails.txt.
+      - name: Verify no regression
+        working-directory: tests
+        run: npm run gate
+
+      - name: Slowest-test profile
+        if: always()
+        working-directory: tests
+        run: node ../scripts/qa-profile.mjs .vitest-reports/current-results.json
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: tests/.vitest-reports/current-results.json
+          retention-days: 14
+
+  # Stage 3 — catches the exact class of bug found in this audit:
+  # a provider deleted from src/ but still referenced by tests/snapshots.
+  drift:
+    name: Provider drift check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: npm install --no-package-lock
+      - name: Detect orphaned provider references
+        run: node scripts/qa-provider-drift.mjs
+
+  # Stage 4 — build must succeed before anything merges.
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: npm install --no-package-lock
+      - run: npm run build
