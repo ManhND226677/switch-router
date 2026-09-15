@@ -2,7 +2,7 @@
 
 This file tracks changes for the local personal build only.
 
-## Unreleased
+## 0.12.0 - 2026-09-15
 
 ### Changed
 
