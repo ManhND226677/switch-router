@@ -468,7 +468,7 @@ This file tracks changes for the local personal build only.
 - `.gitignore`: ignore `.vilao-key` and `*.local-key` so local provider
   credentials used by test scripts can never be committed.
 
-## Unreleased
+## 0.4.0 — 2026-08-06
 
 ### Changed (UI/UX)
 
@@ -521,7 +521,6 @@ This file tracks changes for the local personal build only.
   described commits. TypeScript migration is recorded as a **long-term
   recommendation** (not executed, to avoid breaking the build).
 
-## 0.4.0 — 2026-08-06
 
 ### Fixed
 
